@@ -1,0 +1,19 @@
+.story-content {
+    line-height: 1.8;
+    font-size: 0.95rem;
+}
+
+.story-content .story-action {
+    font-weight: 500;
+    color: var(--bs-primary);
+}
+
+.story-content .story-entity {
+    font-style: italic;
+    color: var(--bs-secondary);
+}
+
+.story-content .story-time {
+    color: var(--bs-gray-600);
+    font-size: 0.875rem;
+}

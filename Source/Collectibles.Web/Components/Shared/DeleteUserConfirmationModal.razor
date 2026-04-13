@@ -1,0 +1,120 @@
+@rendermode InteractiveServerWithoutPrerender
+
+<div class="modal fade @(_showModal ? "show d-block" : "")" tabindex="-1" role="dialog" style="@(_showModal ? "background: rgba(0,0,0,0.5);" : "")">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    Delete User
+                </h5>
+                <button type="button" class="btn-close btn-close-white" @onclick="CloseModal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <h6 class="alert-heading">Warning: This action cannot be undone!</h6>
+                    <p>Are you sure you want to delete <strong>@UserName</strong>?</p>
+                </div>
+
+                <div class="mb-3">
+                    <p class="text-muted">Deleting this user will permanently remove:</p>
+                    <ul class="text-muted">
+                        <li>User account and profile information</li>
+                        <li>All associated permissions and roles</li>
+                        <li>Activity history and logs</li>
+                    </ul>
+                </div>
+
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="confirmDelete" @bind="_confirmed">
+                    <label class="form-check-label" for="confirmDelete">
+                        I understand that this action is permanent and cannot be undone
+                    </label>
+                </div>
+
+                @if (!string.IsNullOrEmpty(_errorMessage))
+                {
+                    <div class="alert alert-danger mt-3">
+                        <i class="bi bi-exclamation-circle me-2"></i>
+                        @_errorMessage
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="CloseModal" disabled="@_isDeleting">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-danger" @onclick="ConfirmDelete" disabled="@(!_confirmed || _isDeleting)">
+                    @if (_isDeleting)
+                    {
+                        <Spinner Type="SpinnerType.Dots" Size="SpinnerSize.Small" Color="SpinnerColor.Light" Class="me-2" />
+                        <span>Deleting...</span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-trash me-2"></i>
+                        <span>Delete User</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string UserName { get; set; } = string.Empty;
+    [Parameter] public string UserId { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> OnDeleteConfirmed { get; set; }
+    [Parameter] public EventCallback OnCancelled { get; set; }
+
+    private bool _showModal = false;
+    private bool _confirmed = false;
+    private bool _isDeleting = false;
+    private string? _errorMessage;
+
+    public async Task ShowModal()
+    {
+        _showModal = true;
+        _confirmed = false;
+        _isDeleting = false;
+        _errorMessage = null;
+        StateHasChanged();
+    }
+
+    private async Task CloseModal()
+    {
+        _showModal = false;
+        _confirmed = false;
+        _isDeleting = false;
+        _errorMessage = null;
+        await OnCancelled.InvokeAsync();
+        StateHasChanged();
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (!_confirmed)
+        {
+            return;
+        }
+
+        _isDeleting = true;
+        _errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            await OnDeleteConfirmed.InvokeAsync(UserId);
+            _showModal = false;
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = string.IsNullOrWhiteSpace(ex.Message)
+                ? "An error occurred while deleting the user. Please try again."
+                : ex.Message;
+            _isDeleting = false;
+        }
+
+        StateHasChanged();
+    }
+}

@@ -1,0 +1,59 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+    <NoWarn>$(NoWarn);NU1507</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageVersion Include="AspNetCore.HealthChecks.SqlServer" Version="9.0.0" />
+    <PackageVersion Include="AutoFixture" Version="4.18.1" />
+    <PackageVersion Include="AutoFixture.AutoMoq" Version="4.18.1" />
+    <PackageVersion Include="Azure.Communication.Email" Version="1.1.0" />
+    <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageVersion Include="Azure.Storage.Blobs" Version="12.27.0" />
+    <PackageVersion Include="Blazor.Bootstrap" Version="3.5.0" />
+    <PackageVersion Include="coverlet.collector" Version="8.0.1" />
+    <PackageVersion Include="DocumentFormat.OpenXml" Version="3.5.1" />
+    <PackageVersion Include="FFMpegCore" Version="5.4.0" />
+    <PackageVersion Include="FluentAssertions" Version="8.9.0" />
+    <PackageVersion Include="FluentValidation" Version="12.1.1" />
+    <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
+    <PackageVersion Include="Hangfire.AspNetCore" Version="1.8.23" />
+    <PackageVersion Include="Hangfire.Core" Version="1.8.23" />
+    <PackageVersion Include="Hangfire.SqlServer" Version="1.8.23" />
+    <PackageVersion Include="Hashids.net" Version="1.7.0" />
+    <PackageVersion Include="MailKit" Version="4.15.1" />
+    <PackageVersion Include="MediatR" Version="14.1.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authorization" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.3.0" />
+    <PackageVersion Include="Microsoft.Playwright" Version="1.58.0" />
+    <PackageVersion Include="Microsoft.Web.Xdt" Version="3.2.5" />
+    <PackageVersion Include="Microsoft.IdentityModel.Tokens" Version="8.14.0" />
+    <PackageVersion Include="MiniProfiler.AspNetCore.Mvc" Version="4.5.4" />
+    <PackageVersion Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageVersion Include="MiniProfiler.EntityFrameworkCore" Version="4.5.4" />
+    <PackageVersion Include="Moq" Version="4.20.72" />
+    <PackageVersion Include="PDFtoImage" Version="5.2.0" />
+    <PackageVersion Include="Polly" Version="8.6.6" />
+    <PackageVersion Include="QRCoder" Version="1.7.0" />
+    <PackageVersion Include="SendGrid" Version="9.29.3" />
+    <PackageVersion Include="Serilog" Version="4.3.1" />
+    <PackageVersion Include="Serilog.AspNetCore" Version="10.0.0" />
+    <PackageVersion Include="Serilog.Sinks.EventLog" Version="4.0.0" />
+    <PackageVersion Include="Serilog.Sinks.File" Version="7.0.0" />
+    <PackageVersion Include="SixLabors.ImageSharp" Version="3.1.12" />
+    <PackageVersion Include="SixLabors.ImageSharp.Drawing" Version="2.1.7" />
+    <PackageVersion Include="StyleCop.Analyzers" Version="1.2.0-beta.556" />
+    <PackageVersion Include="xunit.v3" Version="3.2.2" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <script src="/js/themePersistence.js"></script>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#4a7c6f" />
+    <base href="/" />
+    
+    <link rel="stylesheet" href="/bootstrap-icons/font/bootstrap-icons.min.css">
+    <link href="@Assets["_content/Blazor.Bootstrap/blazor.bootstrap.css"]" rel="stylesheet" />
+
+    <!-- Theme configuration - must load AFTER Blazor.Bootstrap to override its defaults -->
+    <link href="/theme-config/theme-config.css" rel="stylesheet">
+
+    <link rel="stylesheet" href="@Assets["app.css"]" />
+    <link rel="stylesheet" href="@Assets["Collectibles.Web.styles.css"]" />
+
+    <link rel="apple-touch-icon" sizes="180x180" href="/favicons/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicons/favicon-16x16.png">
+    <link rel="shortcut icon" href="/favicons/favicon.ico">
+    <link rel="manifest" href="/favicons/site.webmanifest">
+    <HeadOutlet />
+</head>
+
+<body>
+    <a href="#main" class="visually-hidden-focusable">Skip to main content</a>
+    <Routes />
+    <script src="js/errorHandler.js"></script>
+    <script>if ('scrollRestoration' in history) history.scrollRestoration = 'manual';</script>
+    <script src="@Assets["_framework/blazor.web.js"]"></script>
+
+    <script src="/bootstrap/bootstrap.bundle.min.js"></script>
+    <!-- Chart.js installed locally via libman (avoids CDN and CSP issues) -->
+    <script src="lib/chartjs/chart.umd.js"></script>
+    <!-- Add chartjs-plugin-datalabels.min.js reference if chart components with data label feature is used in your application. -->
+    @* <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js" integrity="sha512-JPcRR8yFa8mmCsfrw4TNte1ZvF1e3+1SdGMslZvmrzDYxS69J7J49vkFL8u6u8PlPJK+H3voElBtUCzaXj+6ig==" crossorigin="anonymous" referrerpolicy="no-referrer"></script> *@
+    <!-- Add sortable.js reference if SortableList component is used in your application. -->
+    @* <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script> *@
+
+    <script src="@Assets["_content/Blazor.Bootstrap/blazor.bootstrap.js"]"></script>
+
+    <script src="js/infiniteScroll.js"></script>
+    <script src="js/dragdrop.js"></script>
+    <script src="js/unsavedChanges.js"></script>
+    <script src="js/directUpload.js?v=2"></script>
+    <script src="js/qr-scanner.umd.min.js"></script>
+    <script src="js/qrcode.js?v=4"></script>
+    <script src="js/browserTimeZone.js"></script>
+    <script src="js/activityChart.js"></script>
+    <script src="js/focusHelper.js"></script>
+</body>
+
+</html>

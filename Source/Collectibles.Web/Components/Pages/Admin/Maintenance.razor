@@ -1,0 +1,54 @@
+@page "/admin/maintenance"
+@using Collectibles.Application.Interfaces
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Administrator")]
+
+<PageTitle>Maintenance</PageTitle>
+
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">
+                <i class="bi bi-tools"></i> Maintenance
+            </h1>
+            
+            <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+                <div class="col">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                <i class="bi bi-arrow-left-right"></i> Migrate Attachments
+                            </h5>
+                            <p class="card-text">
+                                Migrate attachments between different storage providers (Database, Azure Blob Storage, or Local File System).
+                            </p>
+                            <a href="/admin/migrate-attachments" class="btn btn-primary">
+                                <i class="bi bi-arrow-right-circle"></i> Go to Migration
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                <i class="bi bi-images"></i> Update Preview Images
+                            </h5>
+                            <p class="card-text">
+                                Regenerate or update preview images for attachments to ensure optimal display quality.
+                            </p>
+                            <a href="/admin/update-preview-images" class="btn btn-primary">
+                                <i class="bi bi-arrow-right-circle"></i> Update Previews
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    
+}

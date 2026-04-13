@@ -1,0 +1,184 @@
+@using Microsoft.JSInterop
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="modal fade @(_isOpen ? "show d-block" : "")" tabindex="-1" role="dialog" @onclick="HandleBackdropClick">
+    <div class="modal-dialog modal-lg" role="document" @onclick:stopPropagation="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-qr-code-scan me-2"></i>Scan QR Code
+                </h5>
+                <button type="button" class="btn-close" @onclick="Close" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                @if (_hasError)
+                {
+                    <div class="alert alert-danger" role="alert">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        @_errorMessage
+                    </div>
+                    <div class="text-center">
+                        <button class="btn btn-primary" @onclick="RetryCamera">
+                            <i class="bi bi-arrow-clockwise me-2"></i>Retry
+                        </button>
+                    </div>
+                }
+                else if (_isInitializing)
+                {
+                    <div class="text-center my-5">
+                        <Spinner Type="SpinnerType.Dots" Color="SpinnerColor.Primary" />
+                        <p class="mt-3">Initializing camera...</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="scanner-container mx-auto">
+                        <video id="qr-video" style="width: 100%; height: auto; max-height: 400px; aspect-ratio: 4/3; object-fit: cover; background: #000;"></video>
+                        <div class="scanner-overlay">
+                            <div class="scanner-frame"></div>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <p class="text-muted text-center mb-0">
+                            <i class="bi bi-info-circle me-2"></i>
+                            Position the QR code within the frame to scan
+                        </p>
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="Close">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (_isOpen)
+{
+    <div class="modal-backdrop fade show"></div>
+}
+
+@code {
+    [Parameter] public EventCallback<string> OnQRCodeScanned { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private bool _isOpen = false;
+    private bool _isInitializing = false;
+    private bool _hasError = false;
+    private string _errorMessage = string.Empty;
+    private DotNetObjectReference<QRScannerModal>? _dotNetRef;
+
+    public async Task ShowModal()
+    {
+        _isOpen = true;
+        _isInitializing = true;
+        _hasError = false;
+        _errorMessage = string.Empty;
+        StateHasChanged();
+
+        _dotNetRef = DotNetObjectReference.Create(this);
+        
+        // Wait for the modal to render and the video element to be in the DOM
+        await Task.Delay(200);
+        StateHasChanged();
+        
+        // Additional delay to ensure DOM is fully updated
+        await InvokeAsync(async () =>
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("initQRScanner", _dotNetRef, "qr-video");
+                _isInitializing = false;
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                _isInitializing = false;
+                _hasError = true;
+                _errorMessage = $"Failed to initialize camera: {ex.Message}";
+                StateHasChanged();
+            }
+        });
+    }
+
+    private async Task RetryCamera()
+    {
+        _hasError = false;
+        _errorMessage = string.Empty;
+        _isInitializing = true;
+        StateHasChanged();
+
+        try
+        {
+            await JS.InvokeVoidAsync("initQRScanner", _dotNetRef, "qr-video");
+            _isInitializing = false;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            _isInitializing = false;
+            _hasError = true;
+            _errorMessage = $"Failed to initialize camera: {ex.Message}";
+            StateHasChanged();
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnQRCodeScannedCallback(string qrCode)
+    {
+        await Close();
+        await OnQRCodeScanned.InvokeAsync(qrCode);
+    }
+
+    [JSInvokable]
+    public void OnScanError(string error)
+    {
+        _isInitializing = false;
+        _hasError = true;
+        _errorMessage = error.Contains("NotAllowedError") 
+            ? "Camera access was denied. Please allow camera access in your browser settings and try again."
+            : error.Contains("NotFoundError")
+            ? "No camera found. Please ensure your device has a camera."
+            : error.Contains("NotReadableError") 
+            ? "Camera is already in use by another application."
+            : $"Camera error: {error}";
+        StateHasChanged();
+    }
+
+    private async Task Close()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("stopQRScanner", "qr-video");
+        }
+        catch
+        {
+            // Ignore errors when stopping scanner
+        }
+
+        _isOpen = false;
+        StateHasChanged();
+        await OnClose.InvokeAsync();
+    }
+
+    private async Task HandleBackdropClick()
+    {
+        await Close();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("stopQRScanner", "qr-video");
+        }
+        catch
+        {
+            // Ignore errors during disposal
+        }
+
+        _dotNetRef?.Dispose();
+    }
+}
+

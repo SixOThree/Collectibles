@@ -1,0 +1,152 @@
+@page "/admin/ui-examples/modals"
+@using Microsoft.AspNetCore.Authorization
+@using Collectibles.Application.Features.CollectibleItems.Commands
+@attribute [Authorize(Roles = "Administrator")]
+@rendermode InteractiveServer
+
+<PageTitle>Modals & Dialogs — UI Examples</PageTitle>
+
+<div class="container-fluid">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="admin/ui-examples">UI Examples</a></li>
+            <li class="breadcrumb-item active">Modals & Dialogs</li>
+        </ol>
+    </nav>
+    <h1 class="mb-4"><i class="bi bi-window-stack me-2"></i>Modals & Dialogs</h1>
+
+    @if (!string.IsNullOrEmpty(_lastAction))
+    {
+        <div class="alert alert-info alert-dismissible fade show mb-4">
+            <i class="bi bi-info-circle me-2"></i>Last action: @_lastAction
+            <button type="button" class="btn-close" @onclick="@(() => _lastAction = null)"></button>
+        </div>
+    }
+
+    <!-- Delete Item Confirmation Modal (No Children) -->
+    <div class="card mb-4">
+        <div class="card-header"><h5 class="mb-0">DeleteItemConfirmationModal (No Children)</h5></div>
+        <div class="card-body">
+            <p>Confirmation dialog for deleting a collectible item that has no child items. Shows attachment count and requires checkbox confirmation.</p>
+            <DeleteItemConfirmationModal @ref="_deleteItemModal"
+                ItemName="Sample Collectible Item"
+                ItemId="999"
+                HasChildren="false"
+                ChildCount="0"
+                AttachmentCount="3"
+                OnDeleteConfirmed="@(async (action) => { _lastAction = $"Delete item confirmed (child action: {action})"; StateHasChanged(); })"
+                OnCancelled="@(async () => { _lastAction = "Delete item cancelled"; StateHasChanged(); })" />
+            <button class="btn btn-danger" @onclick="@(async () => await _deleteItemModal!.ShowModal())">
+                <i class="bi bi-trash me-2"></i>Open Delete Item (No Children)
+            </button>
+        </div>
+    </div>
+
+    <!-- Delete Item Confirmation Modal (With Children) -->
+    <div class="card mb-4">
+        <div class="card-header"><h5 class="mb-0">DeleteItemConfirmationModal (With Children)</h5></div>
+        <div class="card-body">
+            <p>Confirmation dialog for deleting a collectible item that has child items. Presents options to orphan or cascade-delete children.</p>
+            <DeleteItemConfirmationModal @ref="_deleteItemWithChildrenModal"
+                ItemName="Parent Collection Item"
+                ItemId="998"
+                HasChildren="true"
+                ChildCount="5"
+                AttachmentCount="12"
+                OnDeleteConfirmed="@(async (action) => { _lastAction = $"Delete parent item confirmed (child action: {action})"; StateHasChanged(); })"
+                OnCancelled="@(async () => { _lastAction = "Delete parent item cancelled"; StateHasChanged(); })" />
+            <button class="btn btn-danger" @onclick="@(async () => await _deleteItemWithChildrenModal!.ShowModal())">
+                <i class="bi bi-trash me-2"></i>Open Delete Item (With 5 Children)
+            </button>
+        </div>
+    </div>
+
+    <!-- Delete User Confirmation Modal -->
+    <div class="card mb-4">
+        <div class="card-header"><h5 class="mb-0">DeleteUserConfirmationModal</h5></div>
+        <div class="card-body">
+            <p>Confirmation dialog for deleting a user account. Shows what will be removed and requires checkbox confirmation.</p>
+            <DeleteUserConfirmationModal @ref="_deleteUserModal"
+                UserName="john.doe@example.com"
+                UserId="sample-user-id-123"
+                OnDeleteConfirmed="@(async (userId) => { _lastAction = $"Delete user confirmed (userId: {userId})"; StateHasChanged(); })"
+                OnCancelled="@(async () => { _lastAction = "Delete user cancelled"; StateHasChanged(); })" />
+            <button class="btn btn-danger" @onclick="@(async () => await _deleteUserModal!.ShowModal())">
+                <i class="bi bi-person-x me-2"></i>Open Delete User
+            </button>
+        </div>
+    </div>
+
+    <!-- Delete Showcase Dialog -->
+    <div class="card mb-4">
+        <div class="card-header"><h5 class="mb-0">DeleteShowcaseDialog</h5></div>
+        <div class="card-body">
+            <p>Confirmation dialog for deleting a showcase. Requires typing the showcase name to confirm. Uses MediatR to execute the delete command.</p>
+            <DeleteShowcaseDialog
+                IsVisible="_showDeleteShowcase"
+                ShowcaseId="999"
+                ShowcaseName="My Vintage Collection"
+                OnDeleted="@(async () => { _showDeleteShowcase = false; _lastAction = "Showcase deleted"; StateHasChanged(); })"
+                OnCancelled="@(async () => { _showDeleteShowcase = false; _lastAction = "Delete showcase cancelled"; StateHasChanged(); })" />
+            <button class="btn btn-danger" @onclick="@(() => { _showDeleteShowcase = true; })">
+                <i class="bi bi-collection me-2"></i>Open Delete Showcase
+            </button>
+        </div>
+    </div>
+
+    <!-- QR Scanner Modal -->
+    <div class="card mb-4">
+        <div class="card-header"><h5 class="mb-0">QRScannerModal</h5></div>
+        <div class="card-body">
+            <p>Camera-based QR code scanner modal. Requests camera access and scans for QR codes in real time. Will show a camera error in environments without camera access.</p>
+            <QRScannerModal @ref="_qrScannerModal"
+                OnQRCodeScanned="@(async (code) => { _lastAction = $"QR Code scanned: {code}"; StateHasChanged(); })"
+                OnClose="@(async () => { _lastAction = "QR Scanner closed"; StateHasChanged(); })" />
+            <button class="btn btn-primary" @onclick="@(async () => await _qrScannerModal!.ShowModal())">
+                <i class="bi bi-qr-code-scan me-2"></i>Open QR Scanner
+            </button>
+        </div>
+    </div>
+
+    <!-- Info-only cards for modals that require real data -->
+    <div class="card mb-4">
+        <div class="card-header"><h5 class="mb-0">ParentSelectionModal</h5></div>
+        <div class="card-body">
+            <p>Used when selecting a parent item for a collectible. Requires MediatR for search functionality.</p>
+            <p class="text-muted"><i class="bi bi-info-circle me-2"></i>Best viewed from an actual collectible item edit page where real item data is available.</p>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header"><h5 class="mb-0">ShareShowcaseModal</h5></div>
+        <div class="card-body">
+            <p>Used for generating and sharing a public link to a showcase. Requires a real showcase ID and MediatR.</p>
+            <p class="text-muted"><i class="bi bi-info-circle me-2"></i>Best viewed from an actual showcase detail page where real showcase data is available.</p>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header"><h5 class="mb-0">ImagePreviewModal</h5></div>
+        <div class="card-body">
+            <p>Displays a full-size preview of an image attachment. Requires a real attachment URL to display.</p>
+            <p class="text-muted"><i class="bi bi-info-circle me-2"></i>Best viewed from an actual collectible item detail page where real attachment data is available.</p>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header"><h5 class="mb-0">AttachmentDetailModal</h5></div>
+        <div class="card-body">
+            <p>Shows detailed metadata and actions for a file attachment. Requires real attachment data and MediatR for operations.</p>
+            <p class="text-muted"><i class="bi bi-info-circle me-2"></i>Best viewed from an actual collectible item detail page where real attachment data is available.</p>
+        </div>
+    </div>
+</div>
+
+@code {
+    private DeleteItemConfirmationModal? _deleteItemModal;
+    private DeleteItemConfirmationModal? _deleteItemWithChildrenModal;
+    private DeleteUserConfirmationModal? _deleteUserModal;
+    private QRScannerModal? _qrScannerModal;
+    private bool _showDeleteShowcase = false;
+    private string? _lastAction;
+}

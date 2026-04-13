@@ -1,0 +1,8 @@
+.multi-entry-editor .table td {
+    padding: 0.25rem 0.5rem;
+}
+
+.multi-entry-editor .form-control-sm,
+.multi-entry-editor .form-select-sm {
+    font-size: 0.85rem;
+}

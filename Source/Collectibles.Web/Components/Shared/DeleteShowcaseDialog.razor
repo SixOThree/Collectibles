@@ -1,0 +1,126 @@
+@using Collectibles.Application.Features.Showcases.Commands
+@using MediatR
+@inject IMediator Mediator
+@rendermode InteractiveServerWithoutPrerender
+
+@if (IsVisible)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Delete Showcase</h5>
+                    <button type="button" class="btn-close" @onclick="Cancel"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger">
+                        <h6 class="alert-heading">Warning: This action cannot be undone!</h6>
+                        <p>Deleting this showcase will permanently remove:</p>
+                        <ul>
+                            <li>The showcase and all its settings</li>
+                            <li>All collectible items in this showcase</li>
+                            <li>All attachments associated with these items</li>
+                        </ul>
+                    </div>
+                    
+                    <p>To confirm deletion, please type the showcase name exactly as shown:</p>
+                    <p class="fw-bold">@ShowcaseName</p>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Type showcase name to confirm:</label>
+                        <input type="text" class="form-control" @bind="_confirmationText" @bind:event="oninput" 
+                               placeholder="Enter showcase name" disabled="@_isDeleting" />
+                    </div>
+                    
+                    @if (!string.IsNullOrEmpty(_errorMessage))
+                    {
+                        <div class="alert alert-danger">
+                            @_errorMessage
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="Cancel" disabled="@_isDeleting">
+                        Cancel
+                    </button>
+                    <button type="button" class="btn btn-danger" @onclick="DeleteShowcase" 
+                            disabled="@(!IsDeleteEnabled || _isDeleting)">
+                        @if (_isDeleting)
+                        {
+                            <Spinner Type="SpinnerType.Dots" Size="SpinnerSize.Small" Color="SpinnerColor.Light" Class="me-2" />
+                        }
+                        Delete Showcase
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public long ShowcaseId { get; set; }
+    [Parameter] public string ShowcaseName { get; set; } = string.Empty;
+    [Parameter] public EventCallback OnDeleted { get; set; }
+    [Parameter] public EventCallback OnCancelled { get; set; }
+
+    private string _confirmationText = string.Empty;
+    private bool _isDeleting = false;
+    private string _errorMessage = string.Empty;
+
+    private bool IsDeleteEnabled
+    {
+        get
+        {
+            var enabled = !string.IsNullOrWhiteSpace(_confirmationText) && 
+                         _confirmationText.Equals(ShowcaseName, StringComparison.Ordinal);
+            Console.WriteLine($"IsDeleteEnabled: {enabled}, ConfirmationText: '{_confirmationText}', ShowcaseName: '{ShowcaseName}'");
+            return enabled;
+        }
+    }
+
+    private void Cancel()
+    {
+        _confirmationText = string.Empty;
+        _errorMessage = string.Empty;
+        _isDeleting = false;
+        OnCancelled.InvokeAsync();
+    }
+
+    private async Task DeleteShowcase()
+    {
+        Console.WriteLine($"DeleteShowcase called. IsDeleteEnabled: {IsDeleteEnabled}, ShowcaseId: {ShowcaseId}");
+        
+        if (!IsDeleteEnabled) 
+        {
+            Console.WriteLine("Delete not enabled, returning");
+            return;
+        }
+
+        _isDeleting = true;
+        _errorMessage = string.Empty;
+        StateHasChanged(); // Force UI update
+
+        try
+        {
+            Console.WriteLine($"Sending DeleteShowcaseCommand for showcase {ShowcaseId}");
+            await Mediator.Send(new DeleteShowcaseCommand(ShowcaseId));
+            Console.WriteLine("Delete command sent successfully");
+            await OnDeleted.InvokeAsync();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            Console.WriteLine("Unauthorized exception caught");
+            _errorMessage = "You are not authorized to delete this showcase.";
+            _isDeleting = false;
+            StateHasChanged(); // Force UI update
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Exception caught: {ex.GetType().Name} - {ex.Message}");
+            _errorMessage = $"An error occurred while deleting the showcase: {ex.Message}";
+            _isDeleting = false;
+            StateHasChanged(); // Force UI update
+        }
+    }
+}

@@ -1,0 +1,225 @@
+@using Collectibles.Application.Features.CollectibleItems
+@using Collectibles.Application.Features.CollectibleItems.Commands
+@using Collectibles.Application.Features.CollectibleItems.Queries
+@using MediatR
+@using Microsoft.Extensions.Options
+@inject IMediator Mediator
+@inject IOptions<Collectibles.Domain.Configuration.ExternalLinksOptions> ExternalLinksOptions
+@implements IDisposable
+
+
+
+@if (CollectibleItem == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <ul>
+        @foreach (var link in CollectibleItem.ExternalReferences)
+        {
+            <li>
+                @if (string.IsNullOrWhiteSpace(link.Title))
+                {
+                    <span style="font-style: italic; opacity: 0.7;">
+                        <Spinner Type="SpinnerType.Dots" Class="me-3" Color="SpinnerColor.Primary" />
+                        Processing: <a href="@link.Url" target="_blank">@link.Url</a>
+                    </span>
+                }
+                else
+                {
+                    <a href="@link.Url" target="_blank">@link.Title</a>
+                }
+                @if (ExternalLinksOptions.Value.CachingEnabled)
+                {
+                    <button type="button" class="btn btn-sm btn-outline-secondary ms-2" @onclick="() => RefreshLink(link.Id)">Refresh</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary ms-1" @onclick="() => LoadCaches(link.Id)">Show Caches</button>
+                }
+                <button type="button" class="btn btn-sm btn-outline-danger ms-1" @onclick="() => DeleteLink(link.Id)">
+                    <i class="bi bi-trash"></i>
+                </button>
+                @if (ExternalLinksOptions.Value.CachingEnabled && _caches.ContainsKey(link.Id))
+                {
+                    <ul>
+                        @foreach (var cache in _caches[link.Id])
+                        {
+                            <li>
+                                @cache.CachedDate - @cache.Status
+                                @if (cache.Status == Collectibles.Domain.Enums.LinkCacheStatus.Completed)
+                                {
+                                    <a href="/api/link-caches/@cache.Id/content" target="_blank">HTML</a>
+                                    <a href="/api/link-caches/@cache.Id/screenshot" target="_blank">Screenshot</a>
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
+            </li>
+        }
+        @if (_isAddingLink)
+        {
+            <li style="opacity: 0.6; font-style: italic;">
+                <span>Adding link: @_pendingLinkUrl</span>
+                <Spinner Type="SpinnerType.Dots" Class="me-3" Color="SpinnerColor.Primary" />
+            </li>
+        }
+    </ul>
+
+    <div class="input-group">
+        <input type="text" class="form-control" @bind="newLinkUrl" @bind:event="oninput" placeholder="Enter URL" disabled="@_isAddingLink" />
+        <button type="button" class="btn btn-primary" @onclick="AddLink" disabled="@(_isAddingLink || string.IsNullOrWhiteSpace(newLinkUrl))">
+            @if (_isAddingLink)
+            {
+                <span class="spinner-border spinner-border-sm me-1" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </span>
+                <span>Adding...</span>
+            }
+            else
+            {
+                <span>Add Link</span>
+            }
+        </button>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public CollectibleItemDetailDto CollectibleItem { get; set; } = null!;
+    
+    [Parameter]
+    public EventCallback OnLinkAdded { get; set; }
+    
+    [Parameter]
+    public EventCallback OnRefreshRequested { get; set; }
+
+    private string newLinkUrl = string.Empty;
+    private Dictionary<long, List<LinkCacheDto>> _caches = new();
+    private bool _isAddingLink = false;
+    private string _pendingLinkUrl = string.Empty;
+    private System.Threading.Timer? _refreshTimer;
+
+    private async Task AddLink()
+    {
+        if (!string.IsNullOrWhiteSpace(newLinkUrl) && !_isAddingLink)
+        {
+            _isAddingLink = true;
+            _pendingLinkUrl = newLinkUrl;
+            StateHasChanged();
+            
+            try
+            {
+                var command = new AddLinkToCollectibleItemCommand
+                {
+                    CollectibleItemId = CollectibleItem.Id,
+                    Url = newLinkUrl
+                };
+                var linkId = await Mediator.Send(command);
+                newLinkUrl = string.Empty;
+                
+                // Add a small delay to make the loading state visible
+                await Task.Delay(500);
+                
+                // Notify parent to refresh data
+                if (OnLinkAdded.HasDelegate)
+                {
+                    await OnLinkAdded.InvokeAsync();
+                }
+            }
+            finally
+            {
+                _isAddingLink = false;
+                _pendingLinkUrl = string.Empty;
+                StateHasChanged();
+            }
+        }
+    }
+
+    private async Task RefreshLink(long linkInfoId)
+    {
+        var command = new RefreshLinkCacheCommand
+        {
+            LinkInfoId = linkInfoId
+        };
+        await Mediator.Send(command);
+    }
+
+    private async Task DeleteLink(long linkInfoId)
+    {
+        var command = new DeleteLinkCommand
+        {
+            LinkInfoId = linkInfoId
+        };
+        await Mediator.Send(command);
+        _caches.Remove(linkInfoId);
+
+        if (OnLinkAdded.HasDelegate)
+        {
+            await OnLinkAdded.InvokeAsync();
+        }
+    }
+
+    private async Task LoadCaches(long linkInfoId)
+    {
+        if (_caches.ContainsKey(linkInfoId))
+        {
+            _caches.Remove(linkInfoId);
+        }
+        else
+        {
+            var query = new GetLinkCachesQuery { LinkInfoId = linkInfoId };
+            var caches = await Mediator.Send(query);
+            _caches[linkInfoId] = caches;
+        }
+    }
+    
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        StartRefreshTimerIfNeeded();
+    }
+    
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+        StartRefreshTimerIfNeeded();
+    }
+    
+    private void StartRefreshTimerIfNeeded()
+    {
+        // Check if any links are still being processed (no title)
+        if (CollectibleItem?.ExternalReferences?.Any(link => string.IsNullOrWhiteSpace(link.Title)) == true)
+        {
+            // Start or restart the timer to refresh every 3 seconds
+            _refreshTimer?.Dispose();
+            _refreshTimer = new System.Threading.Timer(async _ =>
+            {
+                if (OnRefreshRequested.HasDelegate)
+                {
+                    await InvokeAsync(async () =>
+                    {
+                        await OnRefreshRequested.InvokeAsync();
+                        
+                        // Stop timer if all links have titles
+                        if (CollectibleItem?.ExternalReferences?.All(link => !string.IsNullOrWhiteSpace(link.Title)) == true)
+                        {
+                            _refreshTimer?.Dispose();
+                            _refreshTimer = null;
+                        }
+                    });
+                }
+            }, null, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3));
+        }
+        else
+        {
+            // All links have titles, stop the timer
+            _refreshTimer?.Dispose();
+            _refreshTimer = null;
+        }
+    }
+    
+    public void Dispose()
+    {
+        _refreshTimer?.Dispose();
+    }
+}

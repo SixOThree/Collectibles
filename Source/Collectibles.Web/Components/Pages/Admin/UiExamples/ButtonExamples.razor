@@ -1,0 +1,148 @@
+@page "/admin/ui-examples/buttons"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Administrator")]
+@rendermode InteractiveServer
+
+<PageTitle>Buttons — UI Examples</PageTitle>
+
+<div class="container-fluid">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="admin/ui-examples">UI Examples</a></li>
+            <li class="breadcrumb-item active">Buttons</li>
+        </ol>
+    </nav>
+
+    <h1 class="mb-4"><i class="bi bi-hand-index me-2"></i>Buttons</h1>
+
+    @* Section 1: Color Variants *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Color Variants</h5>
+        </div>
+        <div class="card-body">
+            <button class="btn btn-primary me-2 mb-2">Primary</button>
+            <button class="btn btn-secondary me-2 mb-2">Secondary</button>
+            <button class="btn btn-success me-2 mb-2">Success</button>
+            <button class="btn btn-danger me-2 mb-2">Danger</button>
+            <button class="btn btn-warning me-2 mb-2">Warning</button>
+            <button class="btn btn-info me-2 mb-2">Info</button>
+            <button class="btn btn-light me-2 mb-2">Light</button>
+            <button class="btn btn-dark me-2 mb-2">Dark</button>
+        </div>
+    </div>
+
+    @* Section 2: Outline Variants *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Outline Variants</h5>
+        </div>
+        <div class="card-body">
+            <button class="btn btn-outline-primary me-2 mb-2">Primary</button>
+            <button class="btn btn-outline-secondary me-2 mb-2">Secondary</button>
+            <button class="btn btn-outline-success me-2 mb-2">Success</button>
+            <button class="btn btn-outline-danger me-2 mb-2">Danger</button>
+            <button class="btn btn-outline-warning me-2 mb-2">Warning</button>
+            <button class="btn btn-outline-info me-2 mb-2">Info</button>
+            <button class="btn btn-outline-light me-2 mb-2">Light</button>
+            <button class="btn btn-outline-dark me-2 mb-2">Dark</button>
+        </div>
+    </div>
+
+    @* Section 3: Sizes *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Sizes</h5>
+        </div>
+        <div class="card-body">
+            <p class="mb-2"><strong>Large</strong></p>
+            <div class="mb-3">
+                <button class="btn btn-primary btn-lg me-2 mb-2">Primary</button>
+                <button class="btn btn-secondary btn-lg me-2 mb-2">Secondary</button>
+                <button class="btn btn-success btn-lg me-2 mb-2">Success</button>
+                <button class="btn btn-danger btn-lg me-2 mb-2">Danger</button>
+                <button class="btn btn-warning btn-lg me-2 mb-2">Warning</button>
+                <button class="btn btn-info btn-lg me-2 mb-2">Info</button>
+                <button class="btn btn-light btn-lg me-2 mb-2">Light</button>
+                <button class="btn btn-dark btn-lg me-2 mb-2">Dark</button>
+            </div>
+
+            <p class="mb-2"><strong>Default</strong></p>
+            <div class="mb-3">
+                <button class="btn btn-primary me-2 mb-2">Primary</button>
+                <button class="btn btn-secondary me-2 mb-2">Secondary</button>
+                <button class="btn btn-success me-2 mb-2">Success</button>
+                <button class="btn btn-danger me-2 mb-2">Danger</button>
+                <button class="btn btn-warning me-2 mb-2">Warning</button>
+                <button class="btn btn-info me-2 mb-2">Info</button>
+                <button class="btn btn-light me-2 mb-2">Light</button>
+                <button class="btn btn-dark me-2 mb-2">Dark</button>
+            </div>
+
+            <p class="mb-2"><strong>Small</strong></p>
+            <div class="mb-3">
+                <button class="btn btn-primary btn-sm me-2 mb-2">Primary</button>
+                <button class="btn btn-secondary btn-sm me-2 mb-2">Secondary</button>
+                <button class="btn btn-success btn-sm me-2 mb-2">Success</button>
+                <button class="btn btn-danger btn-sm me-2 mb-2">Danger</button>
+                <button class="btn btn-warning btn-sm me-2 mb-2">Warning</button>
+                <button class="btn btn-info btn-sm me-2 mb-2">Info</button>
+                <button class="btn btn-light btn-sm me-2 mb-2">Light</button>
+                <button class="btn btn-dark btn-sm me-2 mb-2">Dark</button>
+            </div>
+        </div>
+    </div>
+
+    @* Section 4: Button States *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Button States</h5>
+        </div>
+        <div class="card-body">
+            <button class="btn btn-primary me-2 mb-2">Normal</button>
+            <button class="btn btn-primary me-2 mb-2" disabled>Disabled</button>
+            <button class="btn btn-primary me-2 mb-2" disabled><span class="spinner-border spinner-border-sm me-2"></span>Loading...</button>
+        </div>
+    </div>
+
+    @* Section 5: Icon Buttons *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Icon Buttons</h5>
+        </div>
+        <div class="card-body">
+            <button class="btn btn-primary me-2 mb-2"><i class="bi bi-floppy me-2"></i>Save</button>
+            <button class="btn btn-danger me-2 mb-2"><i class="bi bi-trash me-2"></i>Delete</button>
+            <button class="btn btn-success me-2 mb-2"><i class="bi bi-pencil me-2"></i>Edit</button>
+            <button class="btn btn-info me-2 mb-2"><i class="bi bi-download me-2"></i>Download</button>
+            <button class="btn btn-warning me-2 mb-2"><i class="bi bi-search me-2"></i>Search</button>
+            <button class="btn btn-secondary me-2 mb-2"><i class="bi bi-plus-lg me-2"></i>Add New</button>
+
+            <hr />
+
+            <button class="btn btn-outline-primary me-2 mb-2"><i class="bi bi-eye"></i></button>
+            <button class="btn btn-outline-warning me-2 mb-2"><i class="bi bi-pencil"></i></button>
+            <button class="btn btn-outline-danger me-2 mb-2"><i class="bi bi-trash"></i></button>
+            <button class="btn btn-outline-info me-2 mb-2"><i class="bi bi-download"></i></button>
+        </div>
+    </div>
+
+    @* Section 6: Button Groups *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Button Groups</h5>
+        </div>
+        <div class="card-body">
+            <div class="btn-group me-3 mb-2">
+                <button class="btn btn-primary">Left</button>
+                <button class="btn btn-primary">Middle</button>
+                <button class="btn btn-primary">Right</button>
+            </div>
+            <div class="btn-group mb-2">
+                <button class="btn btn-outline-secondary">One</button>
+                <button class="btn btn-outline-secondary active">Two</button>
+                <button class="btn btn-outline-secondary">Three</button>
+            </div>
+        </div>
+    </div>
+</div>

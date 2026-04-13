@@ -1,0 +1,45 @@
+.tag-selector {
+    position: relative;
+}
+
+.tag-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 1050;
+    margin-top: 0.125rem;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+.create-tag-item {
+    color: #0d6efd;
+    font-weight: 500;
+}
+
+.create-tag-item:hover {
+    background-color: #e9ecef;
+}
+
+.selected-tags .badge {
+    font-size: 0.875rem;
+    padding: 0.375rem 0.75rem;
+    display: inline-flex;
+    align-items: center;
+}
+
+.selected-tags .btn-close {
+    font-size: 0.75rem;
+    padding: 0;
+    margin: 0;
+    width: 0.75rem;
+    height: 0.75rem;
+}
+
+.dropdown-item.disabled {
+    color: #6c757d;
+    pointer-events: none;
+    background-color: transparent;
+}

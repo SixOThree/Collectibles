@@ -1,0 +1,118 @@
+@using Collectibles.Application.Features.ContentDefinitions
+@using Collectibles.Application.Features.ContentDefinitions.Commands
+@using Collectibles.Application.Features.ContentDefinitions.Queries
+@using MediatR
+@inject IMediator Mediator
+
+@if (_template != null && _template.Fields.Any())
+{
+    <div class="dynamic-fields-editor border rounded p-4 bg-light mb-3">
+        <h4 class="mb-4 text-secondary border-bottom pb-2">@_template.Name Fields</h4>
+        
+        @foreach (var field in _template.Fields.OrderBy(f => f.DisplayOrder))
+        {
+            <DynamicFieldRenderer @ref="_fieldRenderers[field.Name]"
+                                  FieldDefinition="field"
+                                  Value="GetFieldValue(field.Name)"
+                                  ValueChanged="@(async (value) => await SetFieldValue(field.Name, value))"
+                                  ReadOnly="@ReadOnly" />
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public long? TemplateId { get; set; }
+    [Parameter] public Dictionary<string, object?> FieldValues { get; set; } = new();
+    [Parameter] public EventCallback<Dictionary<string, object?>> FieldValuesChanged { get; set; }
+    [Parameter] public bool ReadOnly { get; set; } = false;
+
+    private ContentDefinitionDto? _template;
+    private Dictionary<string, DynamicFieldRenderer> _fieldRenderers = new();
+#pragma warning disable CS0414
+    private bool _loading = false;
+#pragma warning restore CS0414
+
+    /// <summary>
+    /// Validates all field renderers. Returns true if all fields are valid.
+    /// </summary>
+    public bool ValidateAll()
+    {
+        var allValid = true;
+        foreach (var renderer in _fieldRenderers.Values)
+        {
+            if (!renderer.Validate())
+            {
+                allValid = false;
+            }
+        }
+        return allValid;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadTemplate();
+    }
+
+    private async Task LoadTemplate()
+    {
+        if (TemplateId == null)
+        {
+            _template = null;
+            return;
+        }
+
+        if (_template?.Id == TemplateId)
+        {
+            return; // Already loaded
+        }
+
+        _loading = true;
+        try
+        {
+            _template = await Mediator.Send(new GetContentDefinitionByIdQuery(TemplateId.Value));
+            
+            // Initialize field values with defaults if not already set
+            if (_template != null)
+            {
+                foreach (var field in _template.Fields)
+                {
+                    if (!FieldValues.ContainsKey(field.Name) && !string.IsNullOrEmpty(field.DefaultValue))
+                    {
+                        FieldValues[field.Name] = field.DefaultValue;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading template: {ex.Message}");
+            _template = null;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private object? GetFieldValue(string fieldName)
+    {
+        FieldValues.TryGetValue(fieldName, out var value);
+        return value;
+    }
+
+    private async Task SetFieldValue(string fieldName, object? value)
+    {
+        if (ReadOnly) return;
+
+        if (value == null)
+        {
+            FieldValues.Remove(fieldName);
+        }
+        else
+        {
+            FieldValues[fieldName] = value;
+        }
+
+        await FieldValuesChanged.InvokeAsync(FieldValues);
+    }
+}

@@ -1,0 +1,19 @@
+<Application x:Class="Collectibles.SyncTool.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="clr-namespace:Collectibles.SyncTool.Converters"
+>
+    <Application.Resources>
+        <converters:SyncStatusToIconConverter x:Key="StatusToIcon" />
+        <converters:SyncStatusToBrushConverter x:Key="StatusToBrush" />
+        <converters:SyncStatusToOpacityConverter x:Key="StatusToOpacity" />
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibility" />
+        <converters:StringNotEmptyToVisibilityConverter x:Key="StringNotEmptyToVisibility" />
+        <converters:FilterActiveConverter x:Key="FilterActive" />
+        <converters:NullToVisibilityConverter x:Key="NullToVisibility" />
+        <converters:NotNullToVisibilityConverter x:Key="NotNullToVisibility" />
+        <converters:BoolToScrollBarVisibilityConverter x:Key="BoolToScrollBarVisibility" />
+        <converters:BoolToStretchConverter x:Key="BoolToStretch" />
+        <converters:BoolToZoomCursorConverter x:Key="BoolToZoomCursor" />
+    </Application.Resources>
+</Application>

@@ -1,0 +1,133 @@
+@using Collectibles.Application.Interfaces
+@inject IEventLogService EventLogService
+@inject ISysLogService SysLogService
+
+@if (_isLoading)
+{
+    <div class="row mb-4">
+        @for (var i = 0; i < 4; i++)
+        {
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-body placeholder-glow">
+                        <h5 class="card-title"><span class="placeholder col-6"></span></h5>
+                        <p class="placeholder col-4" style="height: 3rem;"></p>
+                        <small><span class="placeholder col-8"></span></small>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+else
+{
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card border-primary">
+                <div class="card-body">
+                    <h5 class="card-title text-primary">
+                        <i class="bi bi-calendar-event"></i> Events Today
+                    </h5>
+                    <p class="card-text display-6">@_eventsToday</p>
+                    <small class="text-muted">Total events logged today</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-warning">
+                <div class="card-body">
+                    <h5 class="card-title text-warning">
+                        <i class="bi bi-exclamation-triangle"></i> Warnings
+                    </h5>
+                    <p class="card-text display-6">@_warningsToday</p>
+                    <small class="text-muted">System warnings (24h)</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-danger">
+                <div class="card-body">
+                    <h5 class="card-title text-danger">
+                        <i class="bi bi-x-circle"></i> Errors
+                    </h5>
+                    <p class="card-text display-6">@_errorsToday</p>
+                    <small class="text-muted">System errors (24h)</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-success">
+                <div class="card-body">
+                    <h5 class="card-title text-success">
+                        <i class="bi bi-people"></i> Active Users
+                    </h5>
+                    <p class="card-text display-6">@_activeUsersToday</p>
+                    <small class="text-muted">Unique users today</small>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int RefreshKey { get; set; }
+
+    private bool _isLoading = true;
+    private int _eventsToday;
+    private int _warningsToday;
+    private int _errorsToday;
+    private int _activeUsersToday;
+    private int _previousRefreshKey;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _previousRefreshKey = RefreshKey;
+        await LoadData();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (RefreshKey != _previousRefreshKey)
+        {
+            _previousRefreshKey = RefreshKey;
+            await LoadData();
+        }
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            var today = DateTime.UtcNow.Date;
+            var yesterday = today.AddDays(-1);
+
+            var eventsTask = EventLogService.GetEventLogCountAsync(
+                startDate: today, endDate: DateTime.UtcNow);
+            var activeUsersTask = EventLogService.GetEventLogsAsync(
+                startDate: today, pageSize: 1000);
+            var warningsTask = SysLogService.GetSysLogCountAsync(
+                minLevel: LogLevel.Warning, startDate: yesterday);
+            var errorsTask = SysLogService.GetSysLogCountAsync(
+                minLevel: LogLevel.Error, startDate: yesterday);
+
+            await Task.WhenAll(eventsTask, activeUsersTask, warningsTask, errorsTask);
+
+            _eventsToday = eventsTask.Result;
+            _activeUsersToday = activeUsersTask.Result
+                .Where(e => !string.IsNullOrEmpty(e.UserId))
+                .Select(e => e.UserId)
+                .Distinct()
+                .Count();
+            _warningsToday = warningsTask.Result;
+            _errorsToday = errorsTask.Result;
+        }
+        catch (Exception ex)
+        {
+            try { await SysLogService.LogErrorAsync($"Dashboard: Error loading statistics data: {ex.Message}", ex, "BlazorPage"); } catch { }
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}

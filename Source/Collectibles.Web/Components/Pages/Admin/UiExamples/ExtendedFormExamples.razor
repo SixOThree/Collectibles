@@ -1,0 +1,215 @@
+@page "/admin/ui-examples/forms-extended"
+@using Microsoft.AspNetCore.Authorization
+@using Collectibles.Domain.ValueObjects.Templates
+@attribute [Authorize(Roles = "Administrator")]
+@rendermode InteractiveServer
+
+<PageTitle>Extended Forms — UI Examples</PageTitle>
+
+<div class="container-fluid">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="admin/ui-examples">UI Examples</a></li>
+            <li class="breadcrumb-item active">Extended Forms</li>
+        </ol>
+    </nav>
+    <h1 class="mb-4"><i class="bi bi-sliders me-2"></i>Extended Forms</h1>
+
+    @* Section 1: Date Picker *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Date Picker</h5>
+        </div>
+        <div class="card-body">
+            <div class="mb-3">
+                <label class="form-label" for="datePicker">Select a date</label>
+                <input type="date" class="form-control" id="datePicker" @bind="_sampleDate">
+            </div>
+            <small class="text-muted">Selected: @_sampleDate?.ToString("yyyy-MM-dd")</small>
+        </div>
+    </div>
+
+    @* Section 2: DateTime Picker *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>DateTime Picker</h5>
+        </div>
+        <div class="card-body">
+            <div class="mb-3">
+                <label class="form-label" for="dateTimePicker">Select a date and time</label>
+                <input type="datetime-local" class="form-control" id="dateTimePicker" @bind="_sampleDateTime">
+            </div>
+            <small class="text-muted">Selected: @_sampleDateTime?.ToString("yyyy-MM-dd HH:mm")</small>
+        </div>
+    </div>
+
+    @* Section 3: Color Picker *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Color Picker</h5>
+        </div>
+        <div class="card-body">
+            <div class="mb-3">
+                <label class="form-label" for="colorPicker">Choose a color</label>
+                <input type="color" class="form-control form-control-color" id="colorPicker" @bind="_sampleColor">
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <div style="width: 40px; height: 40px; background: @_sampleColor; border: 1px solid #ccc; border-radius: 4px; display: inline-block;"></div>
+                <small class="text-muted">Hex: @_sampleColor</small>
+            </div>
+        </div>
+    </div>
+
+    @* Section 4: Number Inputs *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Number Inputs</h5>
+        </div>
+        <div class="card-body">
+            <div class="mb-3">
+                <label class="form-label" for="integerInput">Integer</label>
+                <input type="number" class="form-control" id="integerInput" step="1" @bind="_sampleInt">
+                <small class="text-muted">Value: @_sampleInt</small>
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="decimalInput">Decimal</label>
+                <input type="number" class="form-control" id="decimalInput" step="0.01" @bind="_sampleDecimal">
+                <small class="text-muted">Value: @_sampleDecimal</small>
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="constrainedInput">With min/max (0–100, step 5)</label>
+                <input type="number" class="form-control" id="constrainedInput" min="0" max="100" step="5">
+                <div class="form-text">Accepts values between 0 and 100 in increments of 5.</div>
+            </div>
+        </div>
+    </div>
+
+    @* Section 5: Range Input *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Range Input</h5>
+        </div>
+        <div class="card-body">
+            <div class="mb-3">
+                <label class="form-label" for="rangeInput">Range slider</label>
+                <input type="range" class="form-range" id="rangeInput" min="0" max="100" @bind="_sampleRange" @bind:event="oninput">
+            </div>
+            <span>Value: @_sampleRange</span>
+        </div>
+    </div>
+
+    @* Section 6: File Input *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>File Input</h5>
+        </div>
+        <div class="card-body">
+            <div class="mb-3">
+                <label class="form-label" for="singleFile">Single file</label>
+                <input type="file" class="form-control" id="singleFile">
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="multipleFiles">Multiple files</label>
+                <input type="file" class="form-control" id="multipleFiles" multiple>
+            </div>
+            <div class="alert alert-info mb-0" role="alert">
+                <i class="bi bi-info-circle me-2"></i>For the full drag-and-drop upload experience, see the AttachmentUpload component on any collectible item page.
+            </div>
+        </div>
+    </div>
+
+    @* Section 7: Dynamic Field Types *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Dynamic Field Types</h5>
+        </div>
+        <div class="card-body">
+            <p class="text-muted mb-4">
+                These controls demonstrate the field types supported by the <code>DynamicFieldRenderer</code> component.
+                Since <code>DynamicFieldRenderer</code> requires complex service injection (<code>IInflationCalculationService</code>),
+                these are shown as plain HTML replicas that match what <code>DynamicFieldRenderer</code> renders.
+            </p>
+
+            @* Text *@
+            <div class="mb-3">
+                <label class="form-label fw-semibold">@FieldType.Text</label>
+                <input type="text" class="form-control" placeholder="Enter text...">
+            </div>
+
+            @* Multiline Text *@
+            <div class="mb-3">
+                <label class="form-label fw-semibold">@FieldType.MultilineText</label>
+                <textarea class="form-control" rows="3" placeholder="Enter multiline text..."></textarea>
+            </div>
+
+            @* Large Text *@
+            <div class="mb-3">
+                <label class="form-label fw-semibold">@FieldType.LargeText</label>
+                <textarea class="form-control" rows="6" placeholder="Enter large text..."></textarea>
+            </div>
+
+            @* Number *@
+            <div class="mb-3">
+                <label class="form-label fw-semibold">@FieldType.Number</label>
+                <input type="number" class="form-control" step="any">
+            </div>
+
+            @* Date *@
+            <div class="mb-3">
+                <label class="form-label fw-semibold">@FieldType.Date</label>
+                <input type="date" class="form-control">
+            </div>
+
+            @* DateTime *@
+            <div class="mb-3">
+                <label class="form-label fw-semibold">@FieldType.DateTime</label>
+                <input type="datetime-local" class="form-control">
+            </div>
+
+            @* Boolean *@
+            <div class="mb-3">
+                <label class="form-label fw-semibold">@FieldType.Boolean</label>
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="dynamicBoolean">
+                    <label class="form-check-label" for="dynamicBoolean">Yes</label>
+                </div>
+            </div>
+
+            @* Dropdown *@
+            <div class="mb-3">
+                <label class="form-label fw-semibold">@FieldType.Dropdown</label>
+                <select class="form-select">
+                    <option value="">-- Select an option --</option>
+                    <option>Option A</option>
+                    <option>Option B</option>
+                    <option>Option C</option>
+                </select>
+            </div>
+
+            @* Currency / Inflation-Adjusted Price *@
+            <div class="mb-3">
+                <label class="form-label fw-semibold">@FieldType.InflationAdjustedPrice</label>
+                <div class="row g-2">
+                    <div class="col-auto">
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" class="form-control" step="0.01" placeholder="0.00">
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <input type="number" class="form-control" placeholder="Year" min="1900" max="2100" step="1">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private DateTime? _sampleDate = DateTime.Today;
+    private DateTime? _sampleDateTime = DateTime.Now;
+    private string _sampleColor = "#6366f1";
+    private int _sampleInt = 42;
+    private decimal _sampleDecimal = 3.14m;
+    private int _sampleRange = 50;
+}

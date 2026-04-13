@@ -1,0 +1,381 @@
+@using Collectibles.Application.Features.ContentDefinitions
+@using Collectibles.Application.Features.ContentDefinitions.Commands
+@using Collectibles.Application.Features.ContentDefinitions.Queries
+@using Collectibles.Domain.ValueObjects.Templates
+@using MediatR
+@using System.Text.Json
+@inject IMediator Mediator
+@inject IJSRuntime JS
+
+@if (_template != null && _fields.Any())
+{
+    <div class="multi-entry-editor border rounded p-4 bg-light mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="mb-0 text-body border-bottom pb-2">@_template.Name Entries</h4>
+            <span class="badge bg-secondary">@_entries.Count @(_entries.Count == 1 ? "entry" : "entries")</span>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered align-middle mb-1">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 40px">#</th>
+                        @foreach (var field in _fields)
+                        {
+                            <th>
+                                @field.Label
+                                @if (field.IsRequired)
+                                {
+                                    <span class="text-danger">*</span>
+                                }
+                            </th>
+                        }
+                        <th style="width: 50px"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (var i = 0; i < _entries.Count; i++)
+                    {
+                        var entry = _entries[i];
+                        var rowIndex = i;
+                        <tr>
+                            <td class="text-muted text-center">@(rowIndex + 1)</td>
+                            @for (var fi = 0; fi < _fields.Count; fi++)
+                            {
+                                var field = _fields[fi];
+                                var isFirstField = fi == 0;
+                                <td id="@(isFirstField ? $"entry-{entry.Id}-cell" : null)">
+                                    @RenderFieldInput(entry, field, rowIndex)
+                                    @if (entry.Errors.TryGetValue(field.Name, out var error) && !string.IsNullOrEmpty(error))
+                                    {
+                                        <div class="text-danger small">@error</div>
+                                    }
+                                </td>
+                            }
+                            <td class="text-center">
+                                <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => RemoveEntry(entry.Id)" title="Delete entry">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-sm btn-outline-primary" @onclick="AddEntry">
+                <i class="bi bi-plus-lg"></i> Add Entry
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="OpenImportModal">
+                <i class="bi bi-upload"></i> Import CSV
+            </button>
+        </div>
+    </div>
+}
+
+<Collectibles.Web.Components.Shared.Templates.ImportEntriesModal
+    @ref="_importModal"
+    FieldDefinitions="_fields"
+    ExistingEntries="GetCurrentEntries()"
+    OnImport="OnEntriesImported" />
+
+@code {
+    [Parameter] public long? TemplateId { get; set; }
+    [Parameter] public List<Dictionary<string, object?>> Entries { get; set; } = new();
+    [Parameter] public EventCallback<List<Dictionary<string, object?>>> EntriesChanged { get; set; }
+
+    private ContentDefinitionDto? _template;
+    private List<FieldDefinitionDto> _fields = new();
+    private List<EntryEditModel> _entries = new();
+    private string? _pendingFocusCellId;
+    private ImportEntriesModal? _importModal;
+
+    public bool ValidateAll()
+    {
+        var allValid = true;
+        foreach (var entry in _entries)
+        {
+            foreach (var field in _fields)
+            {
+                var error = ValidateField(field, entry.Values.GetValueOrDefault(field.Name));
+                entry.Errors[field.Name] = error;
+                if (!string.IsNullOrEmpty(error))
+                {
+                    allValid = false;
+                }
+            }
+        }
+
+        StateHasChanged();
+        return allValid;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_pendingFocusCellId != null)
+        {
+            var cellId = _pendingFocusCellId;
+            _pendingFocusCellId = null;
+            await JS.InvokeVoidAsync("focusFirstInput", cellId);
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadTemplate();
+    }
+
+    private async Task LoadTemplate()
+    {
+        if (TemplateId == null)
+        {
+            _template = null;
+            _fields = new();
+            return;
+        }
+
+        if (_template?.Id == TemplateId)
+        {
+            return;
+        }
+
+        try
+        {
+            _template = await Mediator.Send(new GetContentDefinitionByIdQuery(TemplateId.Value));
+            if (_template != null)
+            {
+                _fields = _template.Fields.OrderBy(f => f.DisplayOrder).ToList();
+                SyncEntriesFromParameter();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading template: {ex.Message}");
+            _template = null;
+        }
+    }
+
+    private void SyncEntriesFromParameter()
+    {
+        if (_entries.Count == 0 && Entries.Count > 0)
+        {
+            _entries = Entries.Select((e, i) => new EntryEditModel
+            {
+                Id = Guid.NewGuid(),
+                SortOrder = i,
+                Values = new Dictionary<string, object?>(e),
+                Errors = new Dictionary<string, string?>(),
+            }).ToList();
+        }
+    }
+
+    private void OpenImportModal()
+    {
+        _importModal?.Show();
+    }
+
+    private List<Dictionary<string, object?>> GetCurrentEntries()
+    {
+        return _entries
+            .Select(e => new Dictionary<string, object?>(e.Values))
+            .ToList();
+    }
+
+    private void OnEntriesImported(List<Dictionary<string, object?>> importedEntries)
+    {
+        foreach (var entry in importedEntries)
+        {
+            var newEntry = new EntryEditModel
+            {
+                Id = Guid.NewGuid(),
+                SortOrder = _entries.Count,
+                Values = new Dictionary<string, object?>(entry),
+                Errors = new Dictionary<string, string?>(),
+            };
+            _entries.Add(newEntry);
+        }
+
+        NotifyChanged();
+    }
+
+    private void AddEntry()
+    {
+        var newEntry = new EntryEditModel
+        {
+            Id = Guid.NewGuid(),
+            SortOrder = _entries.Count,
+            Values = new Dictionary<string, object?>(),
+            Errors = new Dictionary<string, string?>(),
+        };
+
+        // Set defaults from field definitions
+        foreach (var field in _fields)
+        {
+            if (!string.IsNullOrEmpty(field.DefaultValue))
+            {
+                newEntry.Values[field.Name] = field.DefaultValue;
+            }
+        }
+
+        _entries.Add(newEntry);
+        _pendingFocusCellId = $"entry-{newEntry.Id}-cell";
+        NotifyChanged();
+    }
+
+    private void RemoveEntry(Guid id)
+    {
+        _entries.RemoveAll(e => e.Id == id);
+        // Reindex sort orders
+        for (var i = 0; i < _entries.Count; i++)
+        {
+            _entries[i].SortOrder = i;
+        }
+
+        NotifyChanged();
+    }
+
+    private void OnFieldChanged(EntryEditModel entry, string fieldName, object? value)
+    {
+        if (value == null || (value is string s && string.IsNullOrEmpty(s)))
+        {
+            entry.Values.Remove(fieldName);
+        }
+        else
+        {
+            entry.Values[fieldName] = value;
+        }
+
+        // Clear validation error on change
+        entry.Errors[fieldName] = null;
+        NotifyChanged();
+    }
+
+    private void NotifyChanged()
+    {
+        var result = _entries
+            .OrderBy(e => e.SortOrder)
+            .Select(e => new Dictionary<string, object?>(e.Values))
+            .ToList();
+
+        EntriesChanged.InvokeAsync(result);
+    }
+
+    private RenderFragment RenderFieldInput(EntryEditModel entry, FieldDefinitionDto field, int rowIndex)
+    {
+        var currentValue = entry.Values.GetValueOrDefault(field.Name);
+        var stringValue = currentValue?.ToString() ?? string.Empty;
+
+        return field.FieldType switch
+        {
+            FieldType.Text => @<input type="text" class="form-control form-control-sm"
+                value="@stringValue"
+                placeholder="@field.Placeholder"
+                @onchange="@(e => OnFieldChanged(entry, field.Name, e.Value))" />,
+
+            FieldType.MultilineText or FieldType.LargeText => @<textarea class="form-control form-control-sm" rows="2"
+                placeholder="@field.Placeholder"
+                @onchange="@(e => OnFieldChanged(entry, field.Name, e.Value))">@stringValue</textarea>,
+
+            FieldType.Number => @<input type="number" class="form-control form-control-sm"
+                value="@stringValue"
+                placeholder="@field.Placeholder"
+                @onchange="@(e => OnFieldChanged(entry, field.Name, e.Value))" />,
+
+            FieldType.Date => @<input type="date" class="form-control form-control-sm"
+                value="@stringValue"
+                @onchange="@(e => OnFieldChanged(entry, field.Name, e.Value))" />,
+
+            FieldType.DateTime => @<input type="datetime-local" class="form-control form-control-sm"
+                value="@stringValue"
+                @onchange="@(e => OnFieldChanged(entry, field.Name, e.Value))" />,
+
+            FieldType.Boolean => @<div class="form-check">
+                <input type="checkbox" class="form-check-input"
+                    checked="@(currentValue is true or "true" or "True")"
+                    @onchange="@(e => OnFieldChanged(entry, field.Name, e.Value))" />
+            </div>,
+
+            FieldType.Dropdown => @<select class="form-select form-select-sm"
+                value="@stringValue"
+                @onchange="@(e => OnFieldChanged(entry, field.Name, e.Value))">
+                <option value="">-- Select --</option>
+                @foreach (var opt in GetDropdownOptions(field))
+                {
+                    <option value="@opt" selected="@(stringValue == opt)">@opt</option>
+                }
+            </select>,
+
+            _ => @<input type="text" class="form-control form-control-sm"
+                value="@stringValue"
+                placeholder="@field.Placeholder"
+                @onchange="@(e => OnFieldChanged(entry, field.Name, e.Value))" />,
+        };
+    }
+
+    private List<string> GetDropdownOptions(FieldDefinitionDto field)
+    {
+        if (field.Options.TryGetValue("dropdownOptions", out var optionsObj))
+        {
+            if (optionsObj is List<string> list)
+            {
+                return list;
+            }
+
+            if (optionsObj is JsonElement jsonElement)
+            {
+                try
+                {
+                    return jsonElement.Deserialize<List<string>>() ?? new List<string>();
+                }
+                catch
+                {
+                    return new List<string>();
+                }
+            }
+
+            if (optionsObj is IEnumerable<object> objectList)
+            {
+                return objectList.Select(o => o?.ToString() ?? string.Empty).ToList();
+            }
+        }
+
+        return new List<string>();
+    }
+
+    private string? ValidateField(FieldDefinitionDto field, object? value)
+    {
+        var stringValue = value?.ToString();
+
+        if (field.IsRequired && string.IsNullOrWhiteSpace(stringValue))
+        {
+            return $"{field.Label} is required.";
+        }
+
+        if (string.IsNullOrWhiteSpace(stringValue))
+        {
+            return null;
+        }
+
+        var rules = field.ValidationRules;
+        if (rules.MinLength.HasValue && stringValue!.Length < rules.MinLength.Value)
+        {
+            return $"{field.Label} must be at least {rules.MinLength} characters.";
+        }
+
+        if (rules.MaxLength.HasValue && stringValue!.Length > rules.MaxLength.Value)
+        {
+            return $"{field.Label} must not exceed {rules.MaxLength} characters.";
+        }
+
+        return null;
+    }
+
+    private class EntryEditModel
+    {
+        public Guid Id { get; set; }
+        public int SortOrder { get; set; }
+        public Dictionary<string, object?> Values { get; set; } = new();
+        public Dictionary<string, string?> Errors { get; set; } = new();
+    }
+}

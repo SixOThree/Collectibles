@@ -1,0 +1,723 @@
+@page "/zip-upload-bg-chunked"
+@rendermode InteractiveServerWithoutPrerender
+@inherits LoggablePageBase
+@using Collectibles.Application.Features.Showcases
+@using Collectibles.Application.Features.Showcases.Queries
+@using Collectibles.Application.Features.ZipUpload
+@using Collectibles.Application.Features.ZipUpload.Commands
+@using System.IO
+@using Collectibles.Application.Features.ZipUpload.Queries
+@using Collectibles.Domain.Constants
+@using Microsoft.AspNetCore.Authorization
+@using MediatR
+@using System.Timers
+@using Collectibles.Application.Services
+@using Collectibles.Domain.Configuration
+@using Microsoft.Extensions.Options
+@attribute [Authorize]
+@inject IMediator Mediator
+@inject ILogger<ZipUploadBackgroundChunked> Logger
+@inject NavigationManager Navigation
+@inject IHashIdsService HashIds
+@inject IOptions<SiteSettings> SiteSettings
+@inject IJSRuntime JSRuntime
+@implements IDisposable
+
+<PageTitle>Zip Upload (Large Files) - @SiteSettings.Value.SiteTitle</PageTitle>
+
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col">
+            <h1>
+                <i class="bi bi-file-earmark-zip-fill"></i> Zip Upload (Large File Support)
+            </h1>
+            <p class="text-muted">
+                Upload ZIP files of any size with chunked transfer support. Files over 2GB are automatically split into chunks for reliable transfer.
+                Processing continues in the background even if you navigate away.
+            </p>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_alertMessage))
+    {
+        <div class="alert @_alertCssClass alert-dismissible fade show mb-4" role="alert">
+            @_alertMessage
+            <button type="button" class="btn-close" @onclick="() => _alertMessage = string.Empty"></button>
+        </div>
+    }
+
+    <!-- Active Jobs Section -->
+    @if (_activeJobs.Any())
+    {
+        <div class="row mb-4">
+            <div class="col">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-activity"></i> Active Jobs
+                            <button class="btn btn-sm btn-outline-secondary float-end" @onclick="RefreshJobs">
+                                <i class="bi bi-arrow-clockwise"></i> Refresh
+                            </button>
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        @foreach (var job in _activeJobs)
+                        {
+                            <div class="mb-3 p-3 border rounded">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <div>
+                                        <strong>@job.FileName</strong>
+                                        <span class="badge bg-info ms-2">@GetStatusBadge(job.Status)</span>
+                                    </div>
+                                    <div>
+                                        @if (job.Status == Collectibles.Domain.Common.Enums.JobStatus.Done)
+                                        {
+                                            <button class="btn btn-sm btn-success" @onclick="() => NavigateToShowcase(job.ShowcaseId)">
+                                                <i class="bi bi-eye"></i> View Showcase
+                                            </button>
+                                        }
+                                    </div>
+                                </div>
+                                
+                                <div class="progress mb-2" style="height: 25px;">
+                                    <div class="progress-bar progress-bar-striped @(job.Status == Collectibles.Domain.Common.Enums.JobStatus.Doing ? "progress-bar-animated" : "")" 
+                                         role="progressbar" 
+                                         style="width: @(job.ProgressPercentage)%">
+                                        @job.ProgressPercentage%
+                                    </div>
+                                </div>
+                                
+                                <div class="d-flex justify-content-between text-muted small">
+                                    <span>
+                                        <i class="bi bi-folder"></i> @job.FoldersCreated folders | 
+                                        <i class="bi bi-file-earmark"></i> @job.FilesAttached files
+                                    </span>
+                                    @if (!string.IsNullOrEmpty(job.CurrentItemName))
+                                    {
+                                        <span>Processing: @job.CurrentItemName</span>
+                                    }
+                                </div>
+                                
+                                @if (job.ErrorCount > 0)
+                                {
+                                    <div class="alert alert-warning mt-2 mb-0 py-1">
+                                        <small><i class="bi bi-exclamation-triangle"></i> @job.ErrorCount errors occurred</small>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Upload Section -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-gear-fill"></i> Upload New Zip File</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="showcaseSelect" class="form-label">Select Target Showcase</label>
+                        <select id="showcaseSelect" class="form-select" @bind="_selectedShowcaseId" disabled="@_isUploading">
+                            <option value="">-- Select a Showcase --</option>
+                            @foreach (var showcase in _showcases)
+                            {
+                                <option value="@showcase.Id">@showcase.Name</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="zipFileInput" class="form-label">Select Zip File</label>
+                        <InputFile id="zipFileInput" 
+                            OnChange="HandleFileSelection" 
+                            accept=".zip"
+                            disabled="@_isUploading"
+                            class="form-control" />
+                        
+                        @if (_selectedFile != null)
+                        {
+                            <div class="mt-2">
+                                <small class="text-muted">
+                                    <i class="bi bi-file-earmark-zip"></i> @_selectedFile.Name 
+                                    (@FormatFileSize(_selectedFile.Size))
+                                </small>
+                                @if (_selectedFile.Size > 2L * 1024 * 1024 * 1024)
+                                {
+                                    <div class="text-info">
+                                        <i class="bi bi-info-circle"></i> Large file detected - will use chunked upload
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+
+                    @if (_selectedFile != null && _selectedShowcaseId.HasValue && !_isUploading)
+                    {
+                        <button class="btn btn-primary" @onclick="UploadAndCreateJob">
+                            <i class="bi bi-cloud-upload"></i> Upload & Start Processing
+                        </button>
+                    }
+                    
+                    @if (_isUploading)
+                    {
+                        <div class="mt-3">
+                            <div class="d-flex justify-content-between mb-2">
+                                <span class="text-muted">
+                                    <i class="bi bi-cloud-upload"></i> 
+                                    @if (_isChunkedUpload)
+                                    {
+                                        <text>Transferring chunk @(_currentChunk + 1) of @_totalChunks...</text>
+                                    }
+                                    else
+                                    {
+                                        <text>Transferring file to server...</text>
+                                    }
+                                </span>
+                                <span class="badge bg-primary">@(_uploadProgress)%</span>
+                            </div>
+                            <div class="progress" style="height: 25px;">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                     role="progressbar" 
+                                     style="width: @(_uploadProgress)%"
+                                     aria-valuenow="@_uploadProgress" 
+                                     aria-valuemin="0" 
+                                     aria-valuemax="100">
+                                    @if (_uploadProgress > 0)
+                                    {
+                                        <text>@(_uploadProgress)%</text>
+                                    }
+                                </div>
+                            </div>
+                            @if (_uploadedBytes > 0)
+                            {
+                                <div class="mt-2 text-muted small">
+                                    <i class="bi bi-info-circle"></i> 
+                                    @FormatFileSize(_uploadedBytes) of @FormatFileSize(_totalBytes) transferred
+                                    @if (_isChunkedUpload && _uploadSpeed > 0)
+                                    {
+                                        <text> - Speed: @FormatFileSize(_uploadSpeed)/s</text>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-info-circle-fill"></i> Large File Support</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="mb-0">
+                        <li><strong>No size limit:</strong> Upload files of any size</li>
+                        <li><strong>Chunked transfer:</strong> Large files are split into manageable chunks</li>
+                        <li><strong>Resume support:</strong> Failed chunks are automatically retried</li>
+                        <li><strong>Background processing:</strong> Processing happens in the background</li>
+                        <li><strong>Navigate freely:</strong> You can leave this page and come back</li>
+                        <li><strong>Auto-refresh:</strong> Progress updates every 2 seconds</li>
+                    </ul>
+                    <div class="alert alert-info mt-3 mb-0">
+                        <i class="bi bi-lightbulb"></i> <strong>Optimal for:</strong> 
+                        Files larger than 2GB that would otherwise hit server upload limits.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Completed Jobs -->
+    @if (_completedJobs.Any())
+    {
+        <div class="row mt-4">
+            <div class="col">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-check-circle"></i> Completed Jobs</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>File Name</th>
+                                        <th>Size</th>
+                                        <th>Started</th>
+                                        <th>Duration</th>
+                                        <th>Items</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var job in _completedJobs.OrderByDescending(j => j.CompletedAt))
+                                    {
+                                        <tr>
+                                            <td>@job.FileName</td>
+                                            <td>@FormatFileSize(job.FileSize)</td>
+                                            <td>@job.StartedAt?.ToString("g")</td>
+                                            <td>@GetDuration(job)</td>
+                                            <td>
+                                                <i class="bi bi-folder"></i> @job.FoldersCreated | 
+                                                <i class="bi bi-file-earmark"></i> @job.FilesAttached
+                                            </td>
+                                            <td>
+                                                @if (job.Status == Collectibles.Domain.Common.Enums.JobStatus.Done && job.ErrorCount == 0)
+                                                {
+                                                    <span class="badge bg-success">Success</span>
+                                                }
+                                                else if (job.Status == Collectibles.Domain.Common.Enums.JobStatus.Done && job.ErrorCount > 0)
+                                                {
+                                                    <span class="badge bg-warning">Completed with errors</span>
+                                                }
+                                                else if (job.Status == Collectibles.Domain.Common.Enums.JobStatus.Failed)
+                                                {
+                                                    <span class="badge bg-danger">Failed</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                @if (job.Status == Collectibles.Domain.Common.Enums.JobStatus.Done)
+                                                {
+                                                    <button class="btn btn-sm btn-outline-primary" @onclick="() => NavigateToShowcase(job.ShowcaseId)">
+                                                        <i class="bi bi-eye"></i> View
+                                                    </button>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<ShowcaseCardDto> _showcases = new();
+    private List<ZipUploadJobDto> _activeJobs = new();
+    private List<ZipUploadJobDto> _completedJobs = new();
+    private long? _selectedShowcaseId;
+    private IBrowserFile? _selectedFile;
+    private bool _isUploading = false;
+    private int _uploadProgress = 0;
+    private long _uploadedBytes = 0;
+    private long _totalBytes = 0;
+    private string _alertMessage = string.Empty;
+    private string _alertCssClass = "alert-info";
+    private Timer? _refreshTimer;
+    
+    // Chunked upload fields
+    private bool _isChunkedUpload = false;
+    private int _currentChunk = 0;
+    private int _totalChunks = 0;
+    private const int ChunkSize = 10 * 1024 * 1024; // 10MB chunks
+    private long _uploadSpeed = 0;
+    private DateTime _uploadStartTime;
+    private long _jobId = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadShowcases();
+        await LoadJobs();
+        
+        // Refresh every 2 seconds
+        _refreshTimer = new Timer(2000);
+        _refreshTimer.Elapsed += async (sender, e) => await RefreshJobs();
+        _refreshTimer.Start();
+    }
+
+    private async Task LoadShowcases()
+    {
+        try
+        {
+            // Get the current user's ID from the authentication state
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authState.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            
+            var query = new GetShowcasesListQuery { UserId = userId };
+            _showcases = await Mediator.Send(query);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading showcases");
+            ShowAlert("Failed to load showcases", "alert-danger");
+        }
+    }
+
+    private async Task LoadJobs()
+    {
+        try
+        {
+            var query = new GetUserZipUploadJobsQuery { IncludeCompleted = true };
+            var allJobs = await Mediator.Send(query);
+            
+            // Filter out NotStart status jobs (status 0) - these are uploads in progress
+            _activeJobs = allJobs.Where(j => 
+                j.Status != Collectibles.Domain.Common.Enums.JobStatus.NotStart &&
+                j.Status != Collectibles.Domain.Common.Enums.JobStatus.Done && 
+                j.Status != Collectibles.Domain.Common.Enums.JobStatus.Failed &&
+                j.Status != Collectibles.Domain.Common.Enums.JobStatus.Cancelled).ToList();
+                
+            _completedJobs = allJobs.Where(j => 
+                j.Status == Collectibles.Domain.Common.Enums.JobStatus.Done || 
+                j.Status == Collectibles.Domain.Common.Enums.JobStatus.Failed ||
+                j.Status == Collectibles.Domain.Common.Enums.JobStatus.Cancelled).ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading jobs");
+        }
+    }
+
+    private async Task RefreshJobs()
+    {
+        try
+        {
+            await LoadJobs();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error refreshing jobs");
+        }
+    }
+
+    private void HandleFileSelection(InputFileChangeEventArgs e)
+    {
+        _selectedFile = e.File;
+        if (_selectedFile.ContentType != "application/zip" && !_selectedFile.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+        {
+            ShowAlert("Please select a valid ZIP file", "alert-warning");
+            _selectedFile = null;
+        }
+    }
+
+    private async Task UploadAndCreateJob()
+    {
+        if (!_selectedShowcaseId.HasValue || _selectedFile == null)
+        {
+            ShowAlert("Please select both a showcase and a zip file", "alert-warning");
+            return;
+        }
+
+        _isUploading = true;
+        _uploadProgress = 0;
+        _uploadedBytes = 0;
+        _totalBytes = _selectedFile.Size;
+        _uploadStartTime = DateTime.UtcNow;
+        StateHasChanged();
+
+        try
+        {
+            // Determine if we need chunked upload (files over 2GB)
+            const long chunkThreshold = 2L * 1024 * 1024 * 1024; // 2GB
+            
+            if (_selectedFile.Size > chunkThreshold)
+            {
+                await UploadChunked();
+            }
+            else
+            {
+                await UploadDirect();
+            }
+            
+            ShowAlert($"Zip file transferred successfully. Processing has started in the background.", "alert-success");
+            
+            // Refresh jobs list
+            await LoadJobs();
+            
+            // Reset form
+            _selectedFile = null;
+            _selectedShowcaseId = null;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error uploading zip file");
+            ShowAlert($"Error uploading file: {ex.Message}", "alert-danger");
+        }
+        finally
+        {
+            _isUploading = false;
+            _isChunkedUpload = false;
+            _uploadProgress = 0;
+            _uploadedBytes = 0;
+            _totalBytes = 0;
+            _currentChunk = 0;
+            _totalChunks = 0;
+            _uploadSpeed = 0;
+            StateHasChanged();
+        }
+    }
+
+    private async Task UploadDirect()
+    {
+        // Use existing stream-based upload for smaller files
+        const long maxFileSize = ApplicationConstants.FileUpload.MaxFileSize * 10;
+        using var originalStream = _selectedFile!.OpenReadStream(maxFileSize);
+        using var progressStream = new ProgressStream(originalStream, _selectedFile.Size, async (bytesRead, totalBytes) =>
+        {
+            _uploadedBytes = bytesRead;
+            _totalBytes = totalBytes;
+            _uploadProgress = totalBytes > 0 ? (int)((bytesRead * 100) / totalBytes) : 0;
+            await InvokeAsync(StateHasChanged);
+        });
+
+        var command = new CreateZipUploadJobStreamCommand
+        {
+            ShowcaseId = _selectedShowcaseId!.Value,
+            FileName = _selectedFile.Name,
+            FileSize = _selectedFile.Size,
+            FileStream = progressStream
+        };
+
+        await Mediator.Send(command);
+    }
+
+    private async Task UploadChunked()
+    {
+        _isChunkedUpload = true;
+        _totalChunks = (int)Math.Ceiling((double)_selectedFile!.Size / ChunkSize);
+        
+        Logger.LogInformation("Starting chunked upload for file {FileName}, size: {FileSize}, chunks: {TotalChunks}", 
+            _selectedFile.Name, _selectedFile.Size, _totalChunks);
+
+        // Initialize the upload job
+        var initCommand = new InitializeChunkedUploadCommand
+        {
+            ShowcaseId = _selectedShowcaseId!.Value,
+            FileName = _selectedFile.Name,
+            FileSize = _selectedFile.Size
+        };
+        
+        _jobId = await Mediator.Send(initCommand);
+        
+        // Open the file stream with max size set to file size (must be large enough for the entire file)
+        // Note: The maxAllowedSize parameter must be specified or it defaults to 512KB
+        using var fileStream = _selectedFile.OpenReadStream(maxAllowedSize: _selectedFile.Size);
+        
+        // Upload chunks
+        for (int chunkIndex = 0; chunkIndex < _totalChunks; chunkIndex++)
+        {
+            _currentChunk = chunkIndex;
+            
+            // Calculate chunk size (last chunk may be smaller)
+            int currentChunkSize = ChunkSize;
+            if (chunkIndex == _totalChunks - 1)
+            {
+                currentChunkSize = (int)(_selectedFile.Size - (chunkIndex * (long)ChunkSize));
+            }
+            
+            // Read chunk data (may require multiple reads to get full chunk)
+            var buffer = new byte[currentChunkSize];
+            int totalBytesRead = 0;
+            
+            while (totalBytesRead < currentChunkSize)
+            {
+                int bytesToRead = currentChunkSize - totalBytesRead;
+                int bytesRead = await fileStream.ReadAsync(buffer, totalBytesRead, bytesToRead);
+                
+                if (bytesRead == 0)
+                {
+                    // End of stream reached unexpectedly
+                    throw new InvalidOperationException($"Unexpected end of file while reading chunk {chunkIndex + 1}. Expected {currentChunkSize} bytes but only read {totalBytesRead}");
+                }
+                
+                totalBytesRead += bytesRead;
+            }
+            
+            // Upload chunk with retry logic
+            bool success = false;
+            int retryCount = 0;
+            const int maxRetries = 3;
+            
+            while (!success && retryCount < maxRetries)
+            {
+                try
+                {
+                    var chunkCommand = new UploadZipChunkCommand
+                    {
+                        JobId = _jobId,
+                        ChunkIndex = chunkIndex,
+                        TotalChunks = _totalChunks,
+                        ChunkData = buffer,
+                        FileName = _selectedFile.Name,
+                        TotalFileSize = _selectedFile.Size
+                    };
+                    
+                    var result = await Mediator.Send(chunkCommand);
+                    
+                    if (result.Success)
+                    {
+                        success = true;
+                        _uploadedBytes += totalBytesRead;
+                        _uploadProgress = (int)((_uploadedBytes * 100) / _totalBytes);
+                        
+                        // Calculate upload speed
+                        var elapsed = DateTime.UtcNow - _uploadStartTime;
+                        if (elapsed.TotalSeconds > 0)
+                        {
+                            _uploadSpeed = (long)(_uploadedBytes / elapsed.TotalSeconds);
+                        }
+                        
+                        await InvokeAsync(StateHasChanged);
+                        
+                        Logger.LogInformation("Successfully uploaded chunk {ChunkIndex}/{TotalChunks} for job {JobId}", 
+                            chunkIndex + 1, _totalChunks, _jobId);
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException(result.ErrorMessage ?? "Chunk upload failed");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    retryCount++;
+                    if (retryCount >= maxRetries)
+                    {
+                        throw new InvalidOperationException($"Failed to upload chunk {chunkIndex + 1} after {maxRetries} attempts: {ex.Message}", ex);
+                    }
+                    
+                    Logger.LogWarning(ex, "Failed to upload chunk {ChunkIndex}, retry {RetryCount}/{MaxRetries}", 
+                        chunkIndex + 1, retryCount, maxRetries);
+                    
+                    // Wait before retry with exponential backoff
+                    await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, retryCount)));
+                }
+            }
+        }
+        
+        Logger.LogInformation("Completed chunked upload for job {JobId}", _jobId);
+    }
+
+    private string GetStatusBadge(Collectibles.Domain.Common.Enums.JobStatus status)
+    {
+        return status switch
+        {
+            Collectibles.Domain.Common.Enums.JobStatus.NotStart => "Uploading",
+            Collectibles.Domain.Common.Enums.JobStatus.Pending => "Pending",
+            Collectibles.Domain.Common.Enums.JobStatus.Queueing => "Queued",
+            Collectibles.Domain.Common.Enums.JobStatus.Doing => "Processing",
+            Collectibles.Domain.Common.Enums.JobStatus.Done => "Completed",
+            Collectibles.Domain.Common.Enums.JobStatus.Failed => "Failed",
+            Collectibles.Domain.Common.Enums.JobStatus.Cancelled => "Cancelled",
+            _ => status.ToString()
+        };
+    }
+
+    private string GetDuration(ZipUploadJobDto job)
+    {
+        if (!job.StartedAt.HasValue || !job.CompletedAt.HasValue)
+        {
+            return "-";
+        }
+            
+        var duration = job.CompletedAt.Value - job.StartedAt.Value;
+        return $"{(int)duration.TotalMinutes}:{duration.Seconds:D2}";
+    }
+
+    private void NavigateToShowcase(long showcaseId)
+    {
+        var showcaseHash = HashIds.Encode(showcaseId);
+        Navigation.NavigateTo($"/showcase/{showcaseHash}");
+    }
+
+    private void ShowAlert(string message, string cssClass)
+    {
+        _alertMessage = message;
+        _alertCssClass = cssClass;
+        StateHasChanged();
+    }
+
+    private string FormatFileSize(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB", "TB" };
+        int order = 0;
+        double size = bytes;
+        
+        while (size >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            size /= 1024;
+        }
+
+        return $"{size:0.##} {sizes[order]}";
+    }
+
+    public void Dispose()
+    {
+        _refreshTimer?.Stop();
+        _refreshTimer?.Dispose();
+    }
+
+    private class ProgressStream : Stream
+    {
+        private readonly Stream _innerStream;
+        private readonly long _length;
+        private readonly Func<long, long, Task> _progressCallback;
+        private long _bytesRead;
+
+        public ProgressStream(Stream innerStream, long length, Func<long, long, Task> progressCallback)
+        {
+            _innerStream = innerStream;
+            _length = length;
+            _progressCallback = progressCallback;
+            _bytesRead = 0;
+        }
+
+        public override bool CanRead => _innerStream.CanRead;
+        public override bool CanSeek => _innerStream.CanSeek;
+        public override bool CanWrite => _innerStream.CanWrite;
+        public override long Length => _length;
+        public override long Position
+        {
+            get => _innerStream.Position;
+            set => _innerStream.Position = value;
+        }
+
+        public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        {
+            var bytesRead = await _innerStream.ReadAsync(buffer, offset, count, cancellationToken);
+            if (bytesRead > 0)
+            {
+                _bytesRead += bytesRead;
+                await _progressCallback(_bytesRead, _length);
+            }
+            return bytesRead;
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            var bytesRead = _innerStream.Read(buffer, offset, count);
+            if (bytesRead > 0)
+            {
+                _bytesRead += bytesRead;
+                _progressCallback(_bytesRead, _length).GetAwaiter().GetResult();
+            }
+            return bytesRead;
+        }
+
+        public override void Flush() => _innerStream.Flush();
+        public override long Seek(long offset, SeekOrigin origin) => _innerStream.Seek(offset, origin);
+        public override void SetLength(long value) => _innerStream.SetLength(value);
+        public override void Write(byte[] buffer, int offset, int count) => _innerStream.Write(buffer, offset, count);
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _innerStream?.Dispose();
+            }
+            base.Dispose(disposing);
+        }
+    }
+}

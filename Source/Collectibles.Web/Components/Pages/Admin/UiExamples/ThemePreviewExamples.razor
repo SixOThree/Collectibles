@@ -1,0 +1,185 @@
+@page "/admin/ui-examples/theme-preview"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Administrator")]
+@rendermode InteractiveServer
+
+<PageTitle>Theme Preview — UI Examples</PageTitle>
+
+<div class="container-fluid">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="admin/ui-examples">UI Examples</a></li>
+            <li class="breadcrumb-item active">Theme Preview</li>
+        </ol>
+    </nav>
+    <h1 class="mb-2"><i class="bi bi-eye me-2"></i>Theme Preview</h1>
+    <p class="text-muted mb-4">A compact sampler showing how the current theme renders all component types together.</p>
+
+    <div class="card">
+        <div class="card-body">
+
+            @* Section 1: Buttons *@
+            <h5>Buttons</h5>
+            <div>
+                <button class="btn btn-primary me-2 mb-2">Primary</button>
+                <button class="btn btn-secondary me-2 mb-2">Secondary</button>
+                <button class="btn btn-success me-2 mb-2">Success</button>
+                <button class="btn btn-danger me-2 mb-2">Danger</button>
+                <button class="btn btn-warning me-2 mb-2">Warning</button>
+                <button class="btn btn-info me-2 mb-2">Info</button>
+                <button class="btn btn-light me-2 mb-2">Light</button>
+                <button class="btn btn-dark me-2 mb-2">Dark</button>
+            </div>
+
+            <hr class="my-4">
+
+            @* Section 2: Card *@
+            <h5>Card</h5>
+            <div class="card">
+                <div class="card-header">Sample Card</div>
+                <div class="card-body">
+                    <h5 class="card-title">Card Title</h5>
+                    <p class="card-text">This is a sample card with some placeholder text to demonstrate how cards look with the current theme. Cards are flexible content containers with multiple variants and options.</p>
+                </div>
+                <div class="card-footer text-muted">Card Footer</div>
+            </div>
+
+            <hr class="my-4">
+
+            @* Section 3: Form *@
+            <h5>Form</h5>
+            <div class="mb-3">
+                <label class="form-label">Text Input</label>
+                <input type="text" class="form-control" placeholder="Enter text...">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Select</label>
+                <select class="form-select">
+                    <option>Option 1</option>
+                    <option>Option 2</option>
+                    <option>Option 3</option>
+                </select>
+            </div>
+            <div class="form-check mb-3">
+                <input type="checkbox" class="form-check-input" checked>
+                <label class="form-check-label">Checkbox</label>
+            </div>
+            <button class="btn btn-primary">Submit</button>
+
+            <hr class="my-4">
+
+            @* Section 4: Table *@
+            <h5>Table</h5>
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Alice Johnson</td>
+                        <td>alice@example.com</td>
+                        <td>Administrator</td>
+                        <td><span class="badge bg-success">Active</span></td>
+                    </tr>
+                    <tr>
+                        <td>Bob Smith</td>
+                        <td>bob@example.com</td>
+                        <td>Editor</td>
+                        <td><span class="badge bg-success">Active</span></td>
+                    </tr>
+                    <tr>
+                        <td>Carol Davis</td>
+                        <td>carol@example.com</td>
+                        <td>Viewer</td>
+                        <td><span class="badge bg-warning">Pending</span></td>
+                    </tr>
+                    <tr>
+                        <td>Dan Wilson</td>
+                        <td>dan@example.com</td>
+                        <td>Editor</td>
+                        <td><span class="badge bg-danger">Inactive</span></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <hr class="my-4">
+
+            @* Section 5: Alerts *@
+            <h5>Alerts</h5>
+            <div class="alert alert-success py-2 mb-2"><i class="bi bi-check-circle me-2"></i>Success alert</div>
+            <div class="alert alert-danger py-2 mb-2"><i class="bi bi-exclamation-triangle me-2"></i>Danger alert</div>
+            <div class="alert alert-warning py-2 mb-2"><i class="bi bi-exclamation-circle me-2"></i>Warning alert</div>
+            <div class="alert alert-info py-2 mb-2"><i class="bi bi-info-circle me-2"></i>Info alert</div>
+
+            <hr class="my-4">
+
+            @* Section 6: Badges *@
+            <h5>Badges</h5>
+            <div class="mb-2">
+                <span class="badge bg-primary me-2">Primary</span>
+                <span class="badge bg-secondary me-2">Secondary</span>
+                <span class="badge bg-success me-2">Success</span>
+                <span class="badge bg-danger me-2">Danger</span>
+                <span class="badge bg-warning me-2">Warning</span>
+                <span class="badge bg-info me-2">Info</span>
+                <span class="badge bg-light me-2">Light</span>
+                <span class="badge bg-dark me-2">Dark</span>
+            </div>
+            <div>
+                <span class="badge bg-primary rounded-pill me-2">Primary</span>
+                <span class="badge bg-secondary rounded-pill me-2">Secondary</span>
+                <span class="badge bg-success rounded-pill me-2">Success</span>
+                <span class="badge bg-danger rounded-pill me-2">Danger</span>
+                <span class="badge bg-warning rounded-pill me-2">Warning</span>
+                <span class="badge bg-info rounded-pill me-2">Info</span>
+                <span class="badge bg-light rounded-pill me-2">Light</span>
+                <span class="badge bg-dark rounded-pill me-2">Dark</span>
+            </div>
+
+            <hr class="my-4">
+
+            @* Section 7: Spinners *@
+            <h5>Spinners</h5>
+            <div class="d-flex flex-wrap align-items-center gap-3 mb-3">
+                <Spinner Type="SpinnerType.Dots" Color="SpinnerColor.Primary" Size="SpinnerSize.Small" />
+                <Spinner Type="SpinnerType.Border" Color="SpinnerColor.Success" Size="SpinnerSize.Small" />
+                <Spinner Type="SpinnerType.Grow" Color="SpinnerColor.Danger" Size="SpinnerSize.Small" />
+            </div>
+            <p class="text-muted mb-2">Size comparison (Dots):</p>
+            <div class="d-flex flex-wrap align-items-center gap-4">
+                <div class="text-center">
+                    <p class="mb-2"><strong>Small</strong></p>
+                    <Spinner Type="SpinnerType.Dots" Color="SpinnerColor.Primary" Size="SpinnerSize.Small" />
+                </div>
+                <div class="text-center">
+                    <p class="mb-2"><strong>Default</strong></p>
+                    <Spinner Type="SpinnerType.Dots" Color="SpinnerColor.Primary" />
+                </div>
+                <div class="text-center">
+                    <p class="mb-2"><strong>Large</strong></p>
+                    <Spinner Type="SpinnerType.Dots" Color="SpinnerColor.Primary" Size="SpinnerSize.Large" />
+                </div>
+            </div>
+
+            <hr class="my-4">
+
+            @* Section 8: Progress Bars *@
+            <h5>Progress Bars</h5>
+            <div class="progress mb-3" role="progressbar">
+                <div class="progress-bar" style="width: 25%">25%</div>
+            </div>
+            <div class="progress mb-3" role="progressbar">
+                <div class="progress-bar bg-success" style="width: 50%">50%</div>
+            </div>
+            <div class="progress mb-3" role="progressbar">
+                <div class="progress-bar bg-warning" style="width: 75%">75%</div>
+            </div>
+
+        </div>
+    </div>
+</div>

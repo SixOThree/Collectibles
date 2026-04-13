@@ -1,0 +1,286 @@
+@page "/admin/theme-settings"
+@attribute [Authorize(Policy = "AdminOnly")]
+@inherits LoggablePageBase
+@using Collectibles.Application.Interfaces
+@using Collectibles.Domain.Constants
+@using Microsoft.AspNetCore.Authorization
+@inject IThemeService ThemeService
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Theme Settings</PageTitle>
+
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0"><i class="bi bi-palette"></i> Theme Settings</h3>
+                </div>
+                <div class="card-body">
+                    @if (!string.IsNullOrEmpty(_successMessage))
+                    {
+                        <div class="alert alert-success alert-dismissible fade show" role="alert">
+                            <i class="bi bi-check-circle"></i> @_successMessage
+                            <button type="button" class="btn-close" @onclick="() => _successMessage = string.Empty"></button>
+                        </div>
+                    }
+                    
+                    @if (!string.IsNullOrEmpty(_errorMessage))
+                    {
+                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                            <i class="bi bi-exclamation-triangle"></i> @_errorMessage
+                            <button type="button" class="btn-close" @onclick="() => _errorMessage = string.Empty"></button>
+                        </div>
+                    }
+
+                    <div class="mb-4">
+                        <p class="text-muted">
+                            Select a Bootswatch theme to change the appearance of your site. The theme will be applied immediately after saving.
+                        </p>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Current Theme</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light">
+                                <i class="bi bi-brush"></i>
+                            </span>
+                            <input type="text" class="form-control" value="@_currentTheme" readonly />
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Select New Theme</label>
+                        <div class="row g-3">
+                            @foreach (var theme in _availableThemes)
+                            {
+                                <div class="col-md-4 col-sm-6">
+                                    <div class="form-check theme-option border rounded p-3 @(theme == _selectedTheme ? "selected" : "")"
+                                         @onclick="() => SelectTheme(theme)">
+                                        <input class="form-check-input" type="radio" 
+                                               name="themeRadio" 
+                                               id="@($"theme-{theme}")"
+                                               checked="@(theme == _selectedTheme)" />
+                                        <label class="form-check-label" for="@($"theme-{theme}")">
+                                            @GetThemeDisplayName(theme)
+                                            @if (theme == _currentTheme)
+                                            {
+                                                <span class="badge bg-info ms-2">Current</span>
+                                            }
+                                        </label>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Background Image</label>
+                        <p class="text-muted small">Select a background image for your site. Choose "No Background" to use the theme's default background.</p>
+                        <div class="row g-3">
+                            <div class="col-md-4 col-sm-6">
+                                <div class="form-check background-option border rounded p-3 @(string.IsNullOrEmpty(_selectedBackgroundImage) ? "selected" : "")"
+                                     @onclick="() => SelectBackgroundImage(null)">
+                                    <input class="form-check-input" type="radio" 
+                                           name="backgroundRadio" 
+                                           id="background-none"
+                                           checked="@(string.IsNullOrEmpty(_selectedBackgroundImage))" />
+                                    <label class="form-check-label" for="background-none">
+                                        <i class="bi bi-x-square"></i> No Background
+                                        @if (string.IsNullOrEmpty(_currentBackgroundImage))
+                                        {
+                                            <span class="badge bg-info ms-2">Current</span>
+                                        }
+                                    </label>
+                                </div>
+                            </div>
+                            @foreach (var image in _availableBackgroundImages)
+                            {
+                                <div class="col-md-4 col-sm-6">
+                                    <div class="form-check background-option border rounded p-3 @(image == _selectedBackgroundImage ? "selected" : "")"
+                                         @onclick="() => SelectBackgroundImage(image)">
+                                        <input class="form-check-input" type="radio" 
+                                               name="backgroundRadio" 
+                                               id="@($"background-{image}")"
+                                               checked="@(image == _selectedBackgroundImage)" />
+                                        <label class="form-check-label" for="@($"background-{image}")">
+                                            <div class="background-preview" style="background-image: url('/themes/backdrops/@image')"></div>
+                                            <span class="d-block text-center mt-1">@GetImageDisplayName(image)</span>
+                                            @if (image == _currentBackgroundImage)
+                                            {
+                                                <span class="badge bg-info ms-2">Current</span>
+                                            }
+                                        </label>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    @if (!IsCustomTheme(_selectedTheme))
+                    {
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Preview</label>
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle"></i>
+                                You can preview the selected theme at:
+                                <a href="@($"https://bootswatch.com/{_selectedTheme}/")" target="_blank" class="alert-link">
+                                    bootswatch.com/@_selectedTheme
+                                </a>
+                            </div>
+                        </div>
+                    }
+
+                    <div class="d-flex justify-content-between">
+                        <button class="btn btn-secondary" @onclick="Cancel">
+                            <i class="bi bi-x-circle"></i> Cancel
+                        </button>
+                        <button class="btn btn-primary" @onclick="SaveSettings" disabled="@(_isProcessing || (!HasChanges()))">
+                            @if (_isProcessing)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-save"></i>
+                            }
+                            Save Settings
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string _currentTheme = "quartz";
+    private string _selectedTheme = "quartz";
+    private string? _currentBackgroundImage = null;
+    private string? _selectedBackgroundImage = null;
+    private List<string> _availableThemes = new();
+    private List<string> _availableBackgroundImages = new();
+    private bool _isProcessing = false;
+    private string _successMessage = string.Empty;
+    private string _errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Check for success message in query string
+            var uri = new Uri(Navigation.Uri);
+            var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+            var themeName = query["theme"];
+            if (query["success"] == "true" && !string.IsNullOrEmpty(themeName))
+            {
+                _successMessage = $"Theme successfully changed to {GetThemeDisplayName(themeName)}. " +
+                                "You may need to hold Ctrl+Shift and press the reload button (or Cmd+Shift+R on Mac) " +
+                                "to force your browser to recognize the new theme.";
+                // Clean up the URL
+                Navigation.NavigateTo("/admin/theme-settings", replace: true);
+            }
+            
+            _currentTheme = await ThemeService.GetCurrentThemeAsync();
+            _selectedTheme = _currentTheme;
+            _availableThemes = ThemeService.GetAvailableThemes().ToList();
+            
+            _currentBackgroundImage = await ThemeService.GetCurrentBackgroundImageAsync();
+            _selectedBackgroundImage = _currentBackgroundImage;
+            _availableBackgroundImages = ThemeService.GetAvailableBackgroundImages().ToList();
+        }
+        catch (NavigationException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to load theme settings: {ex.Message}";
+            await LogErrorToSysLog(ex, "ThemeSettings: Failed to load theme settings");
+        }
+    }
+
+    private void SelectTheme(string theme)
+    {
+        _selectedTheme = theme;
+    }
+
+    private void SelectBackgroundImage(string? image)
+    {
+        _selectedBackgroundImage = image;
+    }
+
+    private string GetThemeDisplayName(string theme)
+    {
+        // Capitalize first letter
+        return char.ToUpper(theme[0]) + theme.Substring(1);
+    }
+
+    private string GetImageDisplayName(string imageName)
+    {
+        // Remove extension and format nicely
+        var nameWithoutExt = Path.GetFileNameWithoutExtension(imageName);
+        return nameWithoutExt.Replace("Image", "Image ");
+    }
+
+    private bool IsCustomTheme(string theme) => ThemeService.IsCustomTheme(theme);
+
+    private bool HasChanges()
+    {
+        return _selectedTheme != _currentTheme || _selectedBackgroundImage != _currentBackgroundImage;
+    }
+
+    private async Task SaveSettings()
+    {
+        if (_isProcessing || !HasChanges())
+        {
+            return;
+        }
+
+        _isProcessing = true;
+        _errorMessage = string.Empty;
+        _successMessage = string.Empty;
+
+        try
+        {
+            // Save theme if changed
+            if (_selectedTheme != _currentTheme)
+            {
+                await ThemeService.SetThemeAsync(_selectedTheme);
+                _currentTheme = _selectedTheme;
+            }
+            
+            // Save background image if changed
+            if (_selectedBackgroundImage != _currentBackgroundImage)
+            {
+                await ThemeService.SetBackgroundImageAsync(_selectedBackgroundImage);
+                _currentBackgroundImage = _selectedBackgroundImage;
+            }
+            
+            // Navigate with success parameters to persist message through reload
+            var successUrl = $"/admin/theme-settings?success=true&theme={Uri.EscapeDataString(_selectedTheme)}";
+            Navigation.NavigateTo(successUrl, forceLoad: true);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("IIS_IUSRS"))
+        {
+            // This is our specific permission error
+            _errorMessage = ex.Message;
+            await LogErrorToSysLog(ex, "ThemeSettings: Permission error saving theme settings");
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to save settings: {ex.Message}";
+            await LogErrorToSysLog(ex, "ThemeSettings: Failed to save settings");
+        }
+        finally
+        {
+            _isProcessing = false;
+        }
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/");
+    }
+}

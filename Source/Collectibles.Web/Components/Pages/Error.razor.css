@@ -1,0 +1,115 @@
+.error-content {
+    max-width: 600px;
+    animation: fadeIn 0.5s ease-in;
+}
+
+.error-icon-wrapper {
+    margin-bottom: 2rem;
+}
+
+.error-icon {
+    font-size: 5rem;
+    color: #dc3545;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.error-title {
+    font-size: 2.5rem;
+    font-weight: 300;
+    color: #333;
+    margin-bottom: 1rem;
+}
+
+.error-message {
+    font-size: 1.125rem;
+    margin-bottom: 2rem;
+    line-height: 1.6;
+}
+
+.error-details {
+    background-color: #f8f9fa;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 2rem;
+}
+
+.error-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-bottom: 3rem;
+    flex-wrap: wrap;
+}
+
+.error-actions .btn {
+    min-width: 150px;
+}
+
+.error-suggestions {
+    text-align: left;
+    background-color: #f8f9fa;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin-top: 2rem;
+}
+
+.error-suggestions h5 {
+    color: #333;
+    margin-bottom: 1rem;
+    font-size: 1.125rem;
+}
+
+.error-suggestions ul {
+    margin-bottom: 0;
+    padding-left: 1.5rem;
+}
+
+.error-suggestions li {
+    margin-bottom: 0.5rem;
+}
+
+.development-info {
+    text-align: left;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* Responsive adjustments */
+@media (max-width: 576px) {
+    .error-title {
+        font-size: 2rem;
+    }
+
+    .error-icon {
+        font-size: 4rem;
+    }
+
+    .error-actions {
+        flex-direction: column;
+    }
+
+    .error-actions .btn {
+        width: 100%;
+    }
+}

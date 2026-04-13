@@ -1,0 +1,49 @@
+@page "/notfound"
+@inherits LoggablePageBase
+@using Collectibles.Domain.Configuration
+@using Microsoft.Extensions.Options
+@inject NavigationManager Navigation
+@inject IOptions<SiteSettings> SiteSettings
+
+<PageTitle>Page Not Found - @SiteSettings.Value.SiteTitle</PageTitle>
+
+<div class="d-flex align-items-center justify-content-center min-vh-100 p-4">
+    <div class="notfound-content text-center">
+        <div class="notfound-icon-wrapper">
+            <i class="bi bi-search notfound-icon"></i>
+            <div class="magnifying-glass"></div>
+        </div>
+        
+        <h1 class="notfound-title">Page Not Found</h1>
+        <h2 class="notfound-subtitle">This collectible seems to be missing!</h2>
+        
+        <p class="notfound-message text-muted">
+            The page you're looking for might have been moved, deleted, or never existed in our collection.
+        </p>
+
+        <div class="notfound-actions">
+            <button class="btn btn-primary btn-lg" @onclick="NavigateHome">
+                <i class="bi bi-house-door"></i> Back to Collection
+            </button>
+        </div>
+
+        <div class="notfound-suggestions">
+            <p class="text-muted">Or explore these areas:</p>
+            <div class="quick-links">
+                <a href="/showcases" class="quick-link">
+                    <i class="bi bi-collection"></i> Showcases
+                </a>
+                <a href="/attachments" class="quick-link">
+                    <i class="bi bi-paperclip"></i> Attachments
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private void NavigateHome()
+    {
+        Navigation.NavigateTo("/");
+    }
+}

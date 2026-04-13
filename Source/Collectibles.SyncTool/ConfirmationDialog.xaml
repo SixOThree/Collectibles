@@ -1,0 +1,44 @@
+<Window x:Class="Collectibles.SyncTool.ConfirmationDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Confirm"
+        Width="480" SizeToContent="Height"
+        MaxHeight="500"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="#1E1E2E"
+        ShowInTaskbar="False"
+        WindowStyle="SingleBorderWindow">
+
+    <DockPanel Margin="20">
+        <!-- Icon and header -->
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,12">
+            <TextBlock Text="&#x26A0;" FontSize="22" Foreground="#FAB387" VerticalAlignment="Center" Margin="0,0,10,0" />
+            <TextBlock x:Name="HeaderText" FontSize="14" FontWeight="SemiBold" Foreground="#CDD6F4"
+                       VerticalAlignment="Center" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <!-- Scrollable file list -->
+        <Border DockPanel.Dock="Top" Background="#313244" CornerRadius="4" Padding="2" Margin="0,0,0,12"
+                MaxHeight="300">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <TextBlock x:Name="DetailText" Foreground="#A6ADC8" FontSize="12" Padding="10,8"
+                           TextWrapping="Wrap" />
+            </ScrollViewer>
+        </Border>
+
+        <!-- Warning -->
+        <TextBlock DockPanel.Dock="Top" x:Name="FooterText" Foreground="#F38BA8" FontSize="12"
+                   FontWeight="SemiBold" Margin="0,0,0,16" />
+
+        <!-- Buttons -->
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="No" IsCancel="True" Click="No_Click"
+                    Background="#45475A" Foreground="#CDD6F4" FontWeight="SemiBold"
+                    Padding="20,6" BorderThickness="0" Cursor="Hand" Margin="0,0,8,0" />
+            <Button Content="Yes" Click="Yes_Click"
+                    Background="#F38BA8" Foreground="#1E1E2E" FontWeight="SemiBold"
+                    Padding="20,6" BorderThickness="0" Cursor="Hand" />
+        </StackPanel>
+    </DockPanel>
+</Window>

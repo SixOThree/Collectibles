@@ -1,0 +1,53 @@
+.error-content {
+    max-width: 500px;
+    animation: fadeIn 0.5s ease-in;
+}
+
+.error-icon-wrapper {
+    margin-bottom: 2rem;
+}
+
+.error-icon {
+    font-size: 5rem;
+}
+
+.error-title {
+    font-size: 2.5rem;
+    font-weight: 300;
+    color: #333;
+    margin-bottom: 0.5rem;
+}
+
+.error-subtitle {
+    font-size: 1.5rem;
+    font-weight: 300;
+    color: #666;
+    margin-bottom: 1rem;
+}
+
+.error-message {
+    font-size: 1.125rem;
+    color: #666;
+    margin-bottom: 2rem;
+    line-height: 1.6;
+}
+
+.error-actions {
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+}
+
+.error-suggestions {
+    margin-top: 2rem;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

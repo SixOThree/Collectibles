@@ -1,0 +1,75 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>aspnet-Collectibles.Web-78340ff1-b8f7-465d-a08e-faee04a935c6</UserSecretsId>
+    <!-- theme-config is rewritten at runtime and must bypass build-time static asset compression/fingerprinting -->
+    <CompressionExcludePatterns>$(CompressionExcludePatterns);theme-config/**</CompressionExcludePatterns>
+    <StaticWebAssetEndpointExclusionPattern>$(StaticWebAssetEndpointExclusionPattern);theme-config/**</StaticWebAssetEndpointExclusionPattern>
+    <!-- Version Information - Updated by Azure Pipeline during CI/CD -->
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <InformationalVersion>1.0.0-local</InformationalVersion>
+    <!-- Build Timestamp -->
+    <SourceRevisionId>build$([System.DateTime]::UtcNow.ToString("yyyyMMddHHmmss"))</SourceRevisionId>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="Logs\**" />
+    <Content Remove="Logs\**" />
+    <EmbeddedResource Remove="Logs\**" />
+    <None Remove="Logs\**" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Blazor.Bootstrap" />
+    <PackageReference Include="Hashids.net" />
+    <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Hangfire.AspNetCore" />
+    <PackageReference Include="Hangfire.SqlServer" />
+    <PackageReference Include="MiniProfiler.AspNetCore.Mvc" />
+    <PackageReference Include="MiniProfiler.EntityFrameworkCore" />
+    <PackageReference Include="Serilog.AspNetCore" />
+    <PackageReference Include="Serilog.Sinks.EventLog" />
+    <PackageReference Include="Serilog.Sinks.File" />
+    <PackageReference Include="AspNetCore.HealthChecks.SqlServer" />
+    <PackageReference Include="Microsoft.Web.Xdt" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Collectibles.Application\Collectibles.Application.csproj" />
+    <ProjectReference Include="..\Collectibles.Domain\Collectibles.Domain.csproj" />
+    <ProjectReference Include="..\Collectibles.Infrastructure\Collectibles.Infrastructure.csproj" />
+    <ProjectReference Include="..\Collectibles.Kernel\Collectibles.Kernel.csproj" />
+  </ItemGroup>
+  <!-- Handle web.config based on configuration -->
+  <ItemGroup>
+    <!-- Exclude transformation files from publish -->
+    <Content Update="web.Production.config">
+      <CopyToPublishDirectory>Never</CopyToPublishDirectory>
+    </Content>
+    <Content Update="web.Release.config">
+      <CopyToPublishDirectory>Never</CopyToPublishDirectory>
+    </Content>
+    <!-- Don't publish default web.config in Release mode -->
+    <Content Update="web.config" Condition="'$(Configuration)' == 'Release'">
+      <CopyToPublishDirectory>Never</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+  <!-- Apply web.config transformation for Release/Production builds -->
+  <Target Name="ApplyWebConfigTransform" AfterTargets="Publish" Condition="'$(Configuration)' == 'Release' OR '$(EnvironmentName)' == 'Production'">
+    <PropertyGroup>
+      <!-- Use Production config if EnvironmentName is set, otherwise use Release config -->
+      <TransformFile Condition="'$(EnvironmentName)' == 'Production'">$(ProjectDir)web.Production.config</TransformFile>
+      <TransformFile Condition="'$(EnvironmentName)' != 'Production'">$(ProjectDir)web.Release.config</TransformFile>
+    </PropertyGroup>
+    <!-- First, ensure base web.config exists in publish directory -->
+    <Copy SourceFiles="$(ProjectDir)web.config" DestinationFiles="$(PublishDir)web.config" OverwriteReadOnlyFiles="true" Condition="!Exists('$(PublishDir)web.config')" />
+    <!-- Apply the transformation -->
+    <TransformXml Source="$(PublishDir)web.config" Transform="$(TransformFile)" Destination="$(PublishDir)web.config" Condition="Exists('$(TransformFile)')" />
+  </Target>
+</Project>

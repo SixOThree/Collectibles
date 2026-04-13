@@ -1,0 +1,697 @@
+@using Collectibles.Application.Features.Attachments.Commands
+@using Collectibles.Application.Interfaces
+@using Collectibles.Domain.Common.Enums
+@using Collectibles.Domain.Configuration.Storage
+@using Collectibles.Domain.Constants
+@using Collectibles.Domain.Enums
+@using Collectibles.Domain.Interfaces
+@using MediatR
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.Extensions.Options
+@using System.IO
+@using Microsoft.JSInterop
+@inject IMediator Mediator
+@inject ILogger<AttachmentUpload> Logger
+@inject IJSRuntime JSRuntime
+@inject IOptions<StorageSettings> StorageOptions
+@inject IAttachmentDuplicateDetectionService DuplicateDetectionService
+@inject IApplicationDbContextFactory DbContextFactory
+@implements IAsyncDisposable
+
+<div class="upload-container mt-5">
+    <div class="@GetDropZoneClass()" @ref="dropZoneElement">
+        
+        <div class="text-center">
+            <i class="bi bi-cloud-arrow-up-fill display-1 text-muted"></i>
+            <h4 class="mt-3">Drag and drop files here</h4>
+            <p class="text-muted">or</p>
+            <label for="@($"fileInput-{componentId}")" class="btn btn-primary">
+                <i class="bi bi-file-earmark-plus me-2"></i>Browse Files
+            </label>
+            <InputFile id="@($"fileInput-{componentId}")" 
+                      multiple="@AllowMultiple"
+                      OnChange="HandleFileSelection" 
+                      accept="@AcceptedFileTypes"
+                      style="display: none;" />
+        </div>
+    </div>
+</div>
+
+@if (selectedFiles.Any())
+{
+    <div class="mt-4">
+        <h4>Selected Files (@selectedFiles.Count)</h4>
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>File Name</th>
+                        <th>Size</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var file in selectedFiles)
+                    {
+                        <tr>
+                            <td>
+                                <i class="@GetFileIcon(file.Type) me-2"></i>
+                                @file.Name
+                            </td>
+                            <td>@FormatFileSize(file.Size)</td>
+                            <td>
+                                <span class="badge bg-secondary">@file.Type</span>
+                            </td>
+                            <td>
+                                @if (file.IsUploading)
+                                {
+                                    @if (file.Progress >= 100 && file.IsProcessing)
+                                    {
+                                        <div class="text-info d-flex align-items-center">
+                                            <Spinner Type="SpinnerType.Dots" Size="SpinnerSize.Small" Color="SpinnerColor.Info" Class="me-2" />
+                                            Processing...
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="progress" style="height: 20px;">
+                                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                                 role="progressbar" 
+                                                 style="width: @(file.Progress)%">
+                                                @file.Progress%
+                                            </div>
+                                        </div>
+                                    }
+                                }
+                                else if (file.IsUploaded)
+                                {
+                                    <span class="text-success">
+                                        <i class="bi bi-check-circle-fill"></i> Uploaded
+                                    </span>
+                                    @if (!string.IsNullOrEmpty(file.DuplicateWarning))
+                                    {
+                                        <div class="alert alert-warning py-1 px-2 mt-1 mb-0">
+                                            <small><i class="bi bi-exclamation-triangle"></i> @file.DuplicateWarning</small>
+                                        </div>
+                                    }
+                                }
+                                else if (!string.IsNullOrEmpty(file.Error))
+                                {
+                                    <span class="text-danger">
+                                        <i class="bi bi-x-circle-fill"></i> @file.Error
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">Pending</span>
+                                }
+                            </td>
+                            <td>
+                                @if (!file.IsUploading && !file.IsUploaded)
+                                {
+                                    <button class="btn btn-sm btn-danger" 
+                                            @onclick="() => RemoveFile(file)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="d-flex justify-content-between align-items-center mt-3">
+            <div>
+                <strong>Total Size:</strong> @FormatFileSize(selectedFiles.Sum(f => f.Size))
+            </div>
+            <div>
+                <button class="btn btn-secondary me-2" 
+                        @onclick="ClearFiles"
+                        disabled="@isUploading">
+                    <i class="bi bi-x-lg me-2"></i>Clear All
+                </button>
+                @if (AutoUpload)
+                {
+                    <span class="text-muted">Auto-upload enabled</span>
+                }
+                else
+                {
+                    <button class="btn btn-success" 
+                            @onclick="UploadFiles"
+                            disabled="@(isUploading || !selectedFiles.Any(f => !f.IsUploaded))">
+                        <i class="bi bi-upload me-2"></i>
+                        @if (isUploading)
+                        {
+                            <span>Uploading...</span>
+                        }
+                        else
+                        {
+                            <span>Upload Files</span>
+                        }
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@if (uploadResults.Any() && ShowResults)
+{
+    <div class="mt-4">
+        <h4>Upload Results</h4>
+        <div class="alert alert-info">
+            <strong>Summary:</strong> 
+            @uploadResults.Count(r => r.Success) successful, 
+            @uploadResults.Count(r => !r.Success) failed
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public long? ShowcaseId { get; set; }
+    [Parameter] public long? CollectibleItemId { get; set; }
+    [Parameter] public bool AllowMultiple { get; set; } = true;
+    [Parameter] public bool AutoUpload { get; set; } = false;
+    [Parameter] public bool ShowResults { get; set; } = true;
+    [Parameter] public string? AcceptedFileTypes { get; set; }
+    [Parameter] public long MaxFileSize { get; set; } = ApplicationConstants.FileUpload.MaxFileSize;
+    [Parameter] public EventCallback<List<long>> OnUploadCompleted { get; set; }
+    [Parameter] public EventCallback<FileUploadModel> OnFileSelected { get; set; }
+    [Parameter] public EventCallback<FileUploadModel> OnFileRemoved { get; set; }
+
+    private List<FileUploadModel> selectedFiles = new();
+    private List<UploadResult> uploadResults = new();
+    private bool isDragOver = false;
+    private bool isUploading = false;
+    private string componentId = Guid.NewGuid().ToString("N");
+    private ElementReference dropZoneElement;
+
+    public class FileUploadModel
+    {
+        public required string Name { get; set; }
+        public required long Size { get; set; }
+        public required string ContentType { get; set; }
+        public required AttachmentType Type { get; set; }
+        public required IBrowserFile BrowserFile { get; set; }
+        public int FileIndex { get; set; }
+        public bool IsUploading { get; set; }
+        public bool IsUploaded { get; set; }
+        public bool IsProcessing { get; set; }
+        public bool IsDirectUpload { get; set; }
+        public int Progress { get; set; }
+        public string? Error { get; set; }
+        public long? AttachmentId { get; set; }
+        public string? DuplicateWarning { get; set; }
+    }
+
+    // Track which file is currently doing direct upload for progress callbacks
+    private FileUploadModel? _currentDirectUploadFile;
+    private DotNetObjectReference<AttachmentUpload>? _dotNetRef;
+
+    public class UploadResult
+    {
+        public required string FileName { get; set; }
+        public bool Success { get; set; }
+        public string? Message { get; set; }
+        public long? AttachmentId { get; set; }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                // Initialize drag and drop
+                await JSRuntime.InvokeVoidAsync("initializeFileDrop", 
+                    DotNetObjectReference.Create(this), 
+                    dropZoneElement, 
+                    await JSRuntime.InvokeAsync<IJSObjectReference>("document.getElementById", $"fileInput-{componentId}"));
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to initialize drag and drop");
+            }
+        }
+    }
+
+    private string GetDropZoneClass()
+    {
+        return isDragOver ? "drop-zone drag-over" : "drop-zone";
+    }
+
+    private async Task HandleFileSelection(InputFileChangeEventArgs e)
+    {
+        var files = AllowMultiple ? e.GetMultipleFiles(ApplicationConstants.FileUpload.MaxFilesPerUpload) : new[] { e.File };
+        var directUploadSettings = StorageOptions.Value.DirectUpload ?? new DirectUploadSettings();
+        var useDirectUpload = ShouldUseDirectUpload();
+        
+        var index = 0;
+        foreach (var file in files)
+        {
+            if (file.Size > MaxFileSize)
+            {
+                Logger.LogWarning("File {FileName} exceeds maximum size of {MaxSize}", file.Name, MaxFileSize);
+                index++;
+                continue;
+            }
+
+            var fileModel = new FileUploadModel
+            {
+                Name = file.Name,
+                Size = file.Size,
+                ContentType = file.ContentType,
+                Type = DetermineAttachmentType(file.Name, file.ContentType),
+                BrowserFile = file,
+                FileIndex = index,
+                IsDirectUpload = useDirectUpload && file.Size >= directUploadSettings.ThresholdBytes
+            };
+
+            selectedFiles.Add(fileModel);
+            await OnFileSelected.InvokeAsync(fileModel);
+            index++;
+        }
+
+        StateHasChanged();
+
+        if (AutoUpload)
+        {
+            // Delay auto-upload slightly to ensure file references are stable
+            await Task.Delay(100);
+            await UploadFiles();
+        }
+    }
+
+    private bool ShouldUseDirectUpload()
+    {
+        var settings = StorageOptions.Value;
+        var directUploadSettings = settings.DirectUpload ?? new DirectUploadSettings();
+        
+        // Direct upload requires Azure Blob Storage and must be enabled
+        return settings.Provider == StorageProvider.AzureBlobStorage && directUploadSettings.Enabled;
+    }
+
+    private AttachmentType DetermineAttachmentType(string fileName, string contentType)
+    {
+        var extension = Path.GetExtension(fileName).ToLowerInvariant();
+
+        // Check by content type first
+        if (contentType.StartsWith("image/"))
+            return AttachmentType.Image;
+        if (contentType.StartsWith("video/"))
+            return AttachmentType.Video;
+        if (contentType.StartsWith("audio/"))
+            return AttachmentType.Audio;
+        if (contentType == "application/pdf")
+            return AttachmentType.Document;
+
+        // Check by file extension
+        return extension switch
+        {
+            ".jpg" or ".jpeg" or ".png" or ".gif" or ".bmp" or ".webp" or ".svg" => AttachmentType.Image,
+            ".mp4" or ".avi" or ".mov" or ".wmv" or ".flv" or ".webm" => AttachmentType.Video,
+            ".mp3" or ".wav" or ".ogg" or ".m4a" or ".flac" => AttachmentType.Audio,
+            ".pdf" or ".doc" or ".docx" or ".xls" or ".xlsx" or ".ppt" or ".pptx" or ".txt" => AttachmentType.Document,
+            ".zip" or ".rar" or ".7z" or ".tar" or ".gz" => AttachmentType.Archive,
+            _ => AttachmentType.File
+        };
+    }
+
+    private string GetFileIcon(AttachmentType type)
+    {
+        return type switch
+        {
+            AttachmentType.Image => "bi bi-file-earmark-image",
+            AttachmentType.Video => "bi bi-file-earmark-play",
+            AttachmentType.Audio => "bi bi-file-earmark-music",
+            AttachmentType.Document => "bi bi-file-earmark-text",
+            AttachmentType.Archive => "bi bi-file-earmark-zip",
+            _ => "bi bi-file-earmark"
+        };
+    }
+
+    private async Task RemoveFile(FileUploadModel file)
+    {
+        selectedFiles.Remove(file);
+        await OnFileRemoved.InvokeAsync(file);
+    }
+
+    private void ClearFiles()
+    {
+        selectedFiles.Clear();
+        uploadResults.Clear();
+    }
+
+    private string FormatFileSize(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB" };
+        int order = 0;
+        double size = bytes;
+        
+        while (size >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            size /= 1024;
+        }
+
+        return $"{size:0.##} {sizes[order]}";
+    }
+
+    public async Task UploadFiles()
+    {
+        isUploading = true;
+        uploadResults.Clear();
+        var uploadedIds = new List<long>();
+        _dotNetRef ??= DotNetObjectReference.Create(this);
+
+        foreach (var file in selectedFiles.Where(f => !f.IsUploaded))
+        {
+            file.IsUploading = true;
+            file.Progress = 0;
+            StateHasChanged();
+
+            try
+            {
+                long attachmentId;
+
+                if (file.IsDirectUpload)
+                {
+                    // Use direct upload for large files
+                    attachmentId = await UploadFileDirectly(file);
+                }
+                else
+                {
+                    // Use traditional server upload for small files
+                    attachmentId = await UploadFileThroughServer(file);
+                }
+
+                if (attachmentId > 0)
+                {
+                    // Check for duplicates if CollectibleItemId is provided
+                    var shouldInclude = true;
+                    if (CollectibleItemId.HasValue)
+                    {
+                        var duplicateResult = await CheckForDuplicateAsync(attachmentId);
+                        if (duplicateResult.IsDuplicateWithinItem)
+                        {
+                            // Block the attachment - it's a duplicate within the same item
+                            file.IsUploading = false;
+                            file.IsProcessing = false;
+                            file.Error = "This file is a duplicate of an existing attachment in this item and will be ignored.";
+                            shouldInclude = false;
+
+                            // Delete the just-created attachment since it's a duplicate
+                            await DeleteAttachmentAsync(attachmentId);
+
+                            uploadResults.Add(new UploadResult
+                            {
+                                FileName = file.Name,
+                                Success = false,
+                                Message = "Duplicate attachment - file already exists in this item"
+                            });
+                        }
+                        else if (duplicateResult.IsDuplicateElsewhere)
+                        {
+                            // Allow but warn - duplicate exists in another item
+                            file.DuplicateWarning = duplicateResult.DuplicateCollectibleItemName != null
+                                ? $"Note: A duplicate of this file exists in \"{duplicateResult.DuplicateCollectibleItemName}\"."
+                                : "Note: A duplicate of this file exists in another item.";
+                        }
+                    }
+
+                    if (shouldInclude)
+                    {
+                        file.IsUploading = false;
+                        file.IsProcessing = false;
+                        file.IsUploaded = true;
+                        file.Progress = 100;
+                        file.AttachmentId = attachmentId;
+
+                        uploadedIds.Add(attachmentId);
+
+                        uploadResults.Add(new UploadResult
+                        {
+                            FileName = file.Name,
+                            Success = true,
+                            AttachmentId = attachmentId,
+                            Message = file.IsDirectUpload ? "Direct upload successful" : "Upload successful"
+                        });
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error uploading file {FileName}", file.Name);
+                
+                file.IsUploading = false;
+                file.IsProcessing = false;
+                file.Error = ex.Message;
+
+                uploadResults.Add(new UploadResult
+                {
+                    FileName = file.Name,
+                    Success = false,
+                    Message = ex.Message
+                });
+            }
+
+            StateHasChanged();
+        }
+
+        isUploading = false;
+
+        if (uploadedIds.Any())
+        {
+            await OnUploadCompleted.InvokeAsync(uploadedIds);
+        }
+    }
+
+    private async Task<long> UploadFileDirectly(FileUploadModel file)
+    {
+        _currentDirectUploadFile = file;
+        var inputId = $"fileInput-{componentId}";
+
+        try
+        {
+            // Step 1: Initiate upload - get SAS URL via MediatR (direct call, no HTTP loopback)
+            var initiateCommand = new InitiateDirectUploadCommand
+            {
+                FileName = file.Name,
+                FileSize = file.Size,
+                ContentType = file.ContentType,
+                ShowcaseId = ShowcaseId,
+            };
+
+            Logger.LogInformation("Initiating direct upload for {FileName}, size: {FileSize}", file.Name, file.Size);
+            var initiation = await Mediator.Send(initiateCommand);
+            Logger.LogInformation("Initiated direct upload for {FileName}, blob: {BlobName}", file.Name, initiation.BlobName);
+
+            // Step 2: Upload directly to Azure using JavaScript
+            var uploadResult = await JSRuntime.InvokeAsync<DirectUploadResult>(
+                "directUpload.uploadFromInput",
+                inputId,
+                file.FileIndex,
+                initiation.SasUrl,
+                _dotNetRef,
+                file.ContentType);
+
+            if (!uploadResult.Success)
+            {
+                throw new Exception($"Direct upload failed: {uploadResult.Error}");
+            }
+
+            // Step 3: Complete upload - create attachment record via MediatR
+            file.IsProcessing = true;
+            StateHasChanged();
+
+            var completeCommand = new CompleteDirectUploadCommand
+            {
+                UploadId = initiation.UploadId,
+                BlobName = initiation.BlobName,
+                OriginalFileName = file.Name,
+                ContentType = file.ContentType,
+                FileSize = file.Size,
+                AttachmentType = file.Type,
+                ShowcaseId = ShowcaseId,
+            };
+
+            var attachmentId = await Mediator.Send(completeCommand);
+            Logger.LogInformation("Completed direct upload for {FileName}, attachmentId: {AttachmentId}", file.Name, attachmentId);
+            return attachmentId;
+        }
+        finally
+        {
+            _currentDirectUploadFile = null;
+        }
+    }
+
+    private async Task<long> UploadFileThroughServer(FileUploadModel file)
+    {
+        // Read file content with immediate stream handling to prevent stale references
+        byte[] fileContent;
+        
+        try
+        {
+            using var stream = file.BrowserFile.OpenReadStream(MaxFileSize);
+            using var memoryStream = new MemoryStream();
+            
+            // Copy with progress tracking
+            var buffer = new byte[4096];
+            var totalRead = 0L;
+            int read;
+            
+            while ((read = await stream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+            {
+                await memoryStream.WriteAsync(buffer, 0, read);
+                totalRead += read;
+                file.Progress = (int)((totalRead * 100) / file.Size);
+                
+                // Throttle StateHasChanged to prevent excessive UI updates
+                if (totalRead % (file.Size / 20) < buffer.Length || totalRead == file.Size)
+                {
+                    StateHasChanged();
+                }
+            }
+            
+            fileContent = memoryStream.ToArray();
+        }
+        catch (JSException jsEx) when (jsEx.Message.Contains("There is no file with ID"))
+        {
+            // File reference became stale, skip this file
+            Logger.LogWarning("File reference became stale for {FileName}, skipping", file.Name);
+            file.IsUploading = false;
+            file.Error = "File reference expired. Please select the file again.";
+            uploadResults.Add(new UploadResult
+            {
+                FileName = file.Name,
+                Success = false,
+                Message = "File reference expired. Please select the file again."
+            });
+            return 0;
+        }
+
+        // Mark as processing after upload completes
+        file.IsProcessing = true;
+        StateHasChanged();
+
+        // Create attachment
+        var command = new CreateAttachmentCommand
+        {
+            Name = file.Name,
+            OriginalFilename = file.Name,
+            FileType = file.ContentType,
+            AttachmentType = file.Type,
+            Base64Content = Convert.ToBase64String(fileContent),
+            ShowcaseId = ShowcaseId
+        };
+
+        return await Mediator.Send(command);
+    }
+
+    /// <summary>
+    /// Called from JavaScript during direct upload to report progress.
+    /// </summary>
+    [JSInvokable]
+    public void OnDirectUploadProgress(int percentComplete)
+    {
+        if (_currentDirectUploadFile != null)
+        {
+            _currentDirectUploadFile.Progress = percentComplete;
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    // Helper classes for direct upload
+    private record DirectUploadResult(bool Success, string? Error);
+
+    /// <summary>
+    /// Checks if the uploaded attachment is a duplicate.
+    /// </summary>
+    private async Task<DuplicateCheckResult> CheckForDuplicateAsync(long attachmentId)
+    {
+        try
+        {
+            // Get the attachment's content hash
+            await using var context = await DbContextFactory.CreateDbContextAsync();
+            var attachment = await context.Attachments
+                .Where(a => a.Id == attachmentId)
+                .Select(a => new { a.ContentHash })
+                .FirstOrDefaultAsync();
+
+            if (attachment?.ContentHash == null)
+            {
+                // No hash available, can't check for duplicates
+                return new DuplicateCheckResult();
+            }
+
+            // Check for duplicates using the hash
+            return await DuplicateDetectionService.CheckForDuplicatesAsync(
+                attachment.ContentHash,
+                CollectibleItemId,
+                attachmentId); // Exclude the attachment we just created
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to check for duplicate attachment {AttachmentId}", attachmentId);
+            return new DuplicateCheckResult();
+        }
+    }
+
+    /// <summary>
+    /// Deletes an attachment that was identified as a duplicate.
+    /// </summary>
+    private async Task DeleteAttachmentAsync(long attachmentId)
+    {
+        try
+        {
+            await using var context = await DbContextFactory.CreateDbContextAsync();
+            var attachment = await context.Attachments.FindAsync(attachmentId);
+            if (attachment != null)
+            {
+                context.Attachments.Remove(attachment);
+                await context.SaveChangesAsync(CancellationToken.None);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to delete duplicate attachment {AttachmentId}", attachmentId);
+        }
+    }
+
+    public List<long> GetUploadedAttachmentIds()
+    {
+        return selectedFiles
+            .Where(f => f.IsUploaded && f.AttachmentId.HasValue)
+            .Select(f => f.AttachmentId!.Value)
+            .ToList();
+    }
+
+    public void Reset()
+    {
+        ClearFiles();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (dropZoneElement.Id != null)
+            {
+                await JSRuntime.InvokeVoidAsync("disposeFileDrop", dropZoneElement);
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+            // Expected when the circuit disconnects before disposal (e.g., user navigates away)
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error disposing drag and drop");
+        }
+
+        _dotNetRef?.Dispose();
+    }
+}

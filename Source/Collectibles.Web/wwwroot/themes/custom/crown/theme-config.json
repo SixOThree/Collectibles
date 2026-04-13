@@ -1,0 +1,21 @@
+{
+  "name": "Crown",
+  "description": "Crown Bootstrap 5 Dashboard Theme - Dark modern design",
+  "author": "Bootstrap Gallery",
+  "version": "1.0.0",
+  "category": "custom",
+  "tags": ["dark", "modern", "dashboard", "bootstrap5"],
+  "cssPath": "themes/custom/crown/theme.css",
+  "backgroundImage": null,
+  "customProperties": {
+    "primaryColor": "#338dd7",
+    "secondaryColor": "#96bad7",
+    "dangerColor": "#ff5d88",
+    "successColor": "#26c77b",
+    "infoColor": "#34bfd4",
+    "warningColor": "#ffcd2a",
+    "bodyBackground": "#2a323b",
+    "bodyColor": "#bccee2",
+    "darkMode": true
+  }
+}

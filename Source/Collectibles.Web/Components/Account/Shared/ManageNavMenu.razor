@@ -1,0 +1,72 @@
+﻿@using Microsoft.AspNetCore.Identity
+@using Microsoft.Extensions.Options
+@using Collectibles.Infrastructure.Persistence
+@using Collectibles.Domain.Configuration
+
+@inject SignInManager<ApplicationUser> SignInManager
+@inject UserManager<ApplicationUser> UserManager
+@inject IdentityUserAccessor UserAccessor
+@inject IOptions<SyncToolSettings> SyncToolOptions
+
+<ul class="nav nav-pills flex-column">
+    <li class="nav-item">
+        <NavLink class="nav-link" href="Account/Manage" Match="NavLinkMatch.All">
+            <i class="bi bi-person-circle me-2"></i>Profile
+        </NavLink>
+    </li>
+    <li class="nav-item">
+        <NavLink class="nav-link" href="Account/Manage/Email">
+            <i class="bi bi-envelope me-2"></i>Email
+        </NavLink>
+    </li>
+    <li class="nav-item">
+        <NavLink class="nav-link" href="Account/Manage/ChangePassword">
+            <i class="bi bi-key me-2"></i>Password
+        </NavLink>
+    </li>
+    @if (hasExternalLogins)
+    {
+        <li class="nav-item">
+            <NavLink class="nav-link" href="Account/Manage/ExternalLogins">
+                <i class="bi bi-link-45deg me-2"></i>External logins
+            </NavLink>
+        </li>
+    }
+    <li class="nav-item">
+        <NavLink class="nav-link" href="Account/Manage/TwoFactorAuthentication">
+            <i class="bi bi-shield-lock me-2"></i>Two-factor authentication
+        </NavLink>
+    </li>
+    <li class="nav-item">
+        <NavLink class="nav-link" href="Account/Manage/PersonalData">
+            <i class="bi bi-file-earmark-person me-2"></i>Personal data
+        </NavLink>
+    </li>
+    @if (_showSyncToolLink)
+    {
+        <li class="nav-item">
+            <NavLink class="nav-link" href="Account/Manage/SyncTool" Match="NavLinkMatch.All">
+                <i class="bi bi-arrow-repeat me-2"></i>Sync Tool
+            </NavLink>
+        </li>
+    }
+</ul>
+
+@code {
+    private bool hasExternalLogins;
+    private bool _showSyncToolLink;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        hasExternalLogins = (await SignInManager.GetExternalAuthenticationSchemesAsync()).Any();
+
+        if (SyncToolOptions.Value.Enabled)
+        {
+            var user = await UserAccessor.GetRequiredUserAsync(HttpContext);
+            _showSyncToolLink = user.SyncToolEnabled;
+        }
+    }
+}

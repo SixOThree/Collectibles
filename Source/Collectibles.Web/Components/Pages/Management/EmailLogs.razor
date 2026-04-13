@@ -1,0 +1,686 @@
+@page "/management/email-logs"
+@rendermode InteractiveServerWithoutPrerender
+@attribute [Authorize(Roles = "Administrator")]
+@inherits LoggablePageBase
+@using Collectibles.Application.Features.EmailLogs.Dtos
+@using Collectibles.Application.Features.EmailLogs.Queries
+@using Collectibles.Domain.Entities
+@inject IMediator Mediator
+@implements IDisposable
+
+<PageTitle>Email Logs - Management</PageTitle>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>
+            <i class="bi bi-envelope"></i> Email Logs
+        </h1>
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary" @onclick="RefreshLogs">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Filters Section -->
+    <div class="card mb-4">
+        <div class="card-header" @onclick="ToggleFilters" style="cursor: pointer;">
+            <h5 class="mb-0 d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-funnel"></i> Filters</span>
+                <i class="bi @(_showFilters ? "bi-chevron-up" : "bi-chevron-down")"></i>
+            </h5>
+        </div>
+        <div class="collapse @(_showFilters ? "show" : "")">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Date Range</label>
+                        <div class="input-group">
+                            <input type="datetime-local" class="form-control" @bind="_startDate" />
+                            <span class="input-group-text">to</span>
+                            <input type="datetime-local" class="form-control" @bind="_endDate" />
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Status</label>
+                        <select class="form-select" @bind="_statusFilter">
+                            <option value="">All Statuses</option>
+                            @foreach (var status in Enum.GetValues<EmailStatus>())
+                            {
+                                <option value="@status">@status</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">To Email</label>
+                        <input type="text" class="form-control" placeholder="Recipient email" @bind="_toEmailFilter" />
+                    </div>
+                </div>
+                <div class="row g-3 mt-1">
+                    <div class="col-md-8">
+                        <label class="form-label">Search</label>
+                        <input type="text" class="form-control" placeholder="Search in subject, recipient, or error messages..." @bind="_searchFilter" />
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <div class="btn-group w-100" role="group">
+                            <button class="btn btn-primary" @onclick="ApplyFilters">
+                                <i class="bi bi-check-lg"></i> Apply Filters
+                            </button>
+                            <button class="btn btn-outline-secondary" @onclick="ClearFilters">
+                                <i class="bi bi-x-lg"></i> Clear All
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Quick Status Filters -->
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <label class="form-label">Quick Filters:</label>
+                        <div class="btn-group" role="group">
+                            <button class="btn ms-2 @(_quickFilter == "all" ? "btn-primary" : "btn-outline-primary")" 
+                                    @onclick='() => SetQuickFilter("all")'>
+                                All Emails
+                            </button>
+                            <button class="btn ms-2 @(_quickFilter == "pending" ? "btn-warning" : "btn-outline-warning")" 
+                                    @onclick='() => SetQuickFilter("pending")'>
+                                <i class="bi bi-clock"></i> Pending
+                            </button>
+                            <button class="btn ms-2 @(_quickFilter == "sent" ? "btn-success" : "btn-outline-success")"
+                                    @onclick='() => SetQuickFilter("sent")'>
+                                <i class="bi bi-check-circle"></i> Sent
+                            </button>
+                            <button class="btn ms-2 @(_quickFilter == "failed" ? "btn-danger" : "btn-outline-danger")"
+                                    @onclick='() => SetQuickFilter("failed")'>
+                                <i class="bi bi-x-circle"></i> Failed
+                            </button>
+                            <button class="btn ms-2 @(_quickFilter == "inprogress" ? "btn-info" : "btn-outline-info")"
+                                    @onclick='() => SetQuickFilter("inprogress")'>
+                                <i class="bi bi-arrow-repeat"></i> In Progress
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Bar -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="alert alert-info py-2 mb-0">
+                <i class="bi bi-info-circle"></i> 
+                Showing @_currentCount of @_totalCount total emails
+                @if (_isLoading)
+                {
+                    <span class="ms-3 d-inline-flex align-items-center">
+                        <Spinner Type="SpinnerType.Dots" Size="SpinnerSize.Small" Color="SpinnerColor.Primary" Class="me-2" />
+                        Loading...
+                    </span>
+                }
+                <span class="ms-3">
+                    <span class="badge bg-warning">@_pendingCount Pending</span>
+                    <span class="badge bg-info">@_inProgressCount In Progress</span>
+                    <span class="badge bg-success">@_sentCount Sent</span>
+                    <span class="badge bg-danger">@_failedCount Failed</span>
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Timezone Indicator -->
+    <div class="small text-muted mb-2">
+        <i class="bi bi-clock"></i>
+        @if (_timeZoneDetected)
+        {
+            @:Times are displayed in your local time (@_browserTimeZoneId)
+        }
+        else
+        {
+            @:Times are displayed in UTC
+        }
+    </div>
+
+    <!-- Email Logs Table -->
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-sm mb-0">
+                    <thead class="bg-light" style="position: sticky; top: 0; z-index: 1;">
+                        <tr>
+                            <th style="width: 150px;">Created</th>
+                            <th style="width: 100px;">Status</th>
+                            <th style="width: 200px;">Recipient</th>
+                            <th>Subject</th>
+                            <th style="width: 100px;">Priority</th>
+                            <th style="width: 80px;">Attempts</th>
+                            <th style="width: 150px;">Scheduled/Sent</th>
+                            <th style="width: 80px;">Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (_emailLogs.Any())
+                        {
+                            @foreach (var log in _emailLogs)
+                            {
+                                <tr @key="log.Id" class="@GetRowClass(log.Status)">
+                                    <td>
+                                        <small>@FormatTimestamp(log.Created)</small>
+                                    </td>
+                                    <td>
+                                        @{
+                                            var (statusClass, statusIcon) = GetStatusClassAndIcon(log.Status);
+                                        }
+                                        <span class="badge bg-@statusClass">
+                                            <i class="bi bi-@statusIcon"></i> @log.Status
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div>
+                                            <small class="fw-bold">@log.ToEmail</small>
+                                            @if (!string.IsNullOrEmpty(log.ToName))
+                                            {
+                                                <br />
+                                                <small class="text-muted">@log.ToName</small>
+                                            }
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <small>
+                                            @if (log.Subject.Length > 100)
+                                            {
+                                                @log.Subject.Substring(0, 100)<span>...</span>
+                                            }
+                                            else
+                                            {
+                                                @log.Subject
+                                            }
+                                        </small>
+                                        @if (!string.IsNullOrEmpty(log.TemplateName))
+                                        {
+                                            <br />
+                                            <span class="badge bg-secondary">
+                                                <i class="bi bi-file-text"></i> @log.TemplateName
+                                            </span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <span class="badge @(log.Priority > 0 ? "bg-warning" : "bg-light text-dark")">
+                                            @if (log.Priority > 0)
+                                            {
+                                                <i class="bi bi-star-fill"></i>
+                                            }
+                                            @log.Priority
+                                        </span>
+                                    </td>
+                                    <td>
+                                        @if (log.AttemptCount > 0)
+                                        {
+                                            <span class="badge @(log.AttemptCount >= 3 ? "bg-danger" : "bg-secondary")">
+                                                @log.AttemptCount
+                                            </span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <small>
+                                            @if (log.SentAt.HasValue)
+                                            {
+                                                <span class="text-success">
+                                                    <i class="bi bi-check"></i> @FormatTimestamp(log.SentAt, "MM/dd HH:mm")
+                                                </span>
+                                            }
+                                            else if (log.ScheduledFor.HasValue)
+                                            {
+                                                <span class="text-warning">
+                                                    <i class="bi bi-clock"></i> @FormatTimestamp(log.ScheduledFor, "MM/dd HH:mm")
+                                                </span>
+                                            }
+                                            else if (log.LastAttemptAt.HasValue)
+                                            {
+                                                <span class="text-danger">
+                                                    <i class="bi bi-x"></i> @FormatTimestamp(log.LastAttemptAt, "MM/dd HH:mm")
+                                                </span>
+                                            }
+                                        </small>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => ShowDetails(log)">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                            
+                            @if (_hasMore && !_isLoading)
+                            {
+                                <tr>
+                                    <td colspan="8" class="text-center py-3">
+                                        <button class="btn btn-sm btn-primary" @onclick="LoadMore">
+                                            Load More
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else if (!_isLoading)
+                        {
+                            <tr>
+                                <td colspan="8" class="text-center py-5 text-muted">
+                                    <i class="bi bi-inbox display-4 d-block mb-2"></i>
+                                    No email logs found matching your criteria
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Details Modal -->
+@if (_selectedLog != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-envelope"></i> Email Details
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CloseDetails"></button>
+                </div>
+                <div class="modal-body">
+                    <dl class="row">
+                        <dt class="col-sm-2">Created</dt>
+                        <dd class="col-sm-10">@FormatTimestamp(_selectedLog.Created)</dd>
+
+                        <dt class="col-sm-2">Status</dt>
+                        <dd class="col-sm-10">
+                            @{
+                                var (statusClass, statusIcon) = GetStatusClassAndIcon(_selectedLog.Status);
+                            }
+                            <span class="badge bg-@statusClass">
+                                <i class="bi bi-@statusIcon"></i> @_selectedLog.Status
+                            </span>
+                        </dd>
+
+                        <dt class="col-sm-2">To</dt>
+                        <dd class="col-sm-10">
+                            @_selectedLog.ToEmail
+                            @if (!string.IsNullOrEmpty(_selectedLog.ToName))
+                            {
+                                <span class="text-muted">(@_selectedLog.ToName)</span>
+                            }
+                        </dd>
+
+                        @if (!string.IsNullOrEmpty(_selectedLog.CcEmails))
+                        {
+                            <dt class="col-sm-2">CC</dt>
+                            <dd class="col-sm-10">@_selectedLog.CcEmails</dd>
+                        }
+
+                        @if (!string.IsNullOrEmpty(_selectedLog.BccEmails))
+                        {
+                            <dt class="col-sm-2">BCC</dt>
+                            <dd class="col-sm-10">@_selectedLog.BccEmails</dd>
+                        }
+
+                        <dt class="col-sm-2">From</dt>
+                        <dd class="col-sm-10">
+                            @_selectedLog.FromEmail
+                            @if (!string.IsNullOrEmpty(_selectedLog.FromName))
+                            {
+                                <span class="text-muted">(@_selectedLog.FromName)</span>
+                            }
+                        </dd>
+
+                        <dt class="col-sm-2">Subject</dt>
+                        <dd class="col-sm-10">@_selectedLog.Subject</dd>
+
+                        <dt class="col-sm-2">Priority</dt>
+                        <dd class="col-sm-10">
+                            <span class="badge @(_selectedLog.Priority > 0 ? "bg-warning" : "bg-light text-dark")">
+                                @if (_selectedLog.Priority > 0)
+                                {
+                                    <i class="bi bi-star-fill"></i>
+                                }
+                                @_selectedLog.Priority
+                            </span>
+                        </dd>
+
+                        <dt class="col-sm-2">Attempts</dt>
+                        <dd class="col-sm-10">
+                            <span class="badge @(_selectedLog.AttemptCount >= 3 ? "bg-danger" : "bg-secondary")">
+                                @_selectedLog.AttemptCount
+                            </span>
+                            @if (_selectedLog.LastAttemptAt.HasValue)
+                            {
+                                <span class="text-muted ms-2">
+                                    Last attempt: @FormatTimestamp(_selectedLog.LastAttemptAt)
+                                </span>
+                            }
+                        </dd>
+
+                        @if (_selectedLog.ScheduledFor.HasValue)
+                        {
+                            <dt class="col-sm-2">Scheduled For</dt>
+                            <dd class="col-sm-10">@FormatTimestamp(_selectedLog.ScheduledFor)</dd>
+                        }
+
+                        @if (_selectedLog.SentAt.HasValue)
+                        {
+                            <dt class="col-sm-2">Sent At</dt>
+                            <dd class="col-sm-10">
+                                <span class="text-success">
+                                    <i class="bi bi-check-circle"></i> @FormatTimestamp(_selectedLog.SentAt)
+                                </span>
+                            </dd>
+                        }
+
+                        @if (!string.IsNullOrEmpty(_selectedLog.Provider))
+                        {
+                            <dt class="col-sm-2">Provider</dt>
+                            <dd class="col-sm-10">@_selectedLog.Provider</dd>
+                        }
+
+                        @if (!string.IsNullOrEmpty(_selectedLog.TemplateName))
+                        {
+                            <dt class="col-sm-2">Template</dt>
+                            <dd class="col-sm-10">
+                                <span class="badge bg-secondary">
+                                    <i class="bi bi-file-text"></i> @_selectedLog.TemplateName
+                                </span>
+                            </dd>
+                        }
+
+                        @if (!string.IsNullOrEmpty(_selectedLog.ErrorMessage))
+                        {
+                            <dt class="col-sm-2">Error</dt>
+                            <dd class="col-sm-10">
+                                <div class="alert alert-danger">
+                                    <pre style="white-space: pre-wrap;">@_selectedLog.ErrorMessage</pre>
+                                </div>
+                            </dd>
+                        }
+
+                        @if (_selectedLog.LastModified.HasValue)
+                        {
+                            <dt class="col-sm-2">Last Modified</dt>
+                            <dd class="col-sm-10">@FormatTimestamp(_selectedLog.LastModified)</dd>
+                        }
+                    </dl>
+                </div>
+                <div class="modal-footer">
+                    @if (_selectedLog.Status == EmailStatus.Failed || _selectedLog.Status == EmailStatus.Sent || _selectedLog.Status == EmailStatus.Cancelled)
+                    {
+                        <button type="button" class="btn btn-warning" @onclick="() => RetryEmail(_selectedLog)">
+                            <i class="bi bi-arrow-repeat"></i> Resend
+                        </button>
+                    }
+                    <button type="button" class="btn btn-secondary" @onclick="CloseDetails">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _isLoading = false;
+    private bool _showFilters = true;
+    private bool _hasMore = true;
+    
+    private List<EmailLogDto> _emailLogs = new();
+    private EmailLogDto? _selectedLog;
+    private int _currentPage = 1;
+    private int _pageSize = 50;
+    private int _totalCount = 0;
+    private int _currentCount = 0;
+    private int _pendingCount = 0;
+    private int _inProgressCount = 0;
+    private int _sentCount = 0;
+    private int _failedCount = 0;
+
+    // Filter fields
+    private DateTime? _startDate;
+    private DateTime? _endDate;
+    private EmailStatus? _statusFilter;
+    private string _toEmailFilter = string.Empty;
+    private string _searchFilter = string.Empty;
+    private string _quickFilter = "all";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadLogs();
+        await CountStatuses();
+    }
+
+    private async Task LoadLogs(bool append = false)
+    {
+        _isLoading = true;
+        
+        try
+        {
+            var query = new GetEmailLogsQuery
+            {
+                PageNumber = _currentPage,
+                PageSize = _pageSize,
+                Status = _statusFilter,
+                StartDate = _startDate,
+                EndDate = _endDate,
+                SearchTerm = _searchFilter,
+                ToEmail = _toEmailFilter
+            };
+
+            var result = await Mediator.Send(query);
+            
+            if (append)
+            {
+                _emailLogs.AddRange(result.Items);
+            }
+            else
+            {
+                _emailLogs = result.Items.ToList();
+            }
+
+            _totalCount = result.TotalCount;
+            _currentCount = _emailLogs.Count;
+            _hasMore = result.HasNextPage;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading email logs: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task CountStatuses()
+    {
+        try
+        {
+            // Get counts for each status
+            var pendingQuery = new GetEmailLogsQuery { Status = EmailStatus.Pending, PageSize = 1 };
+            var pendingResult = await Mediator.Send(pendingQuery);
+            _pendingCount = pendingResult.TotalCount;
+
+            var inProgressQuery = new GetEmailLogsQuery { Status = EmailStatus.InProgress, PageSize = 1 };
+            var inProgressResult = await Mediator.Send(inProgressQuery);
+            _inProgressCount = inProgressResult.TotalCount;
+
+            var sentQuery = new GetEmailLogsQuery { Status = EmailStatus.Sent, PageSize = 1 };
+            var sentResult = await Mediator.Send(sentQuery);
+            _sentCount = sentResult.TotalCount;
+
+            var failedQuery = new GetEmailLogsQuery { Status = EmailStatus.Failed, PageSize = 1 };
+            var failedResult = await Mediator.Send(failedQuery);
+            _failedCount = failedResult.TotalCount;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error counting email statuses: {ex.Message}");
+        }
+    }
+
+    private async Task LoadMore()
+    {
+        if (_isLoading || !_hasMore) return;
+        
+        _currentPage++;
+        await LoadLogs(append: true);
+    }
+
+    private async Task ApplyFilters()
+    {
+        _currentPage = 1;
+        _emailLogs.Clear();
+        await LoadLogs();
+        
+        // Log search action
+        await EventLogService.LogEventAsync(
+            EventAction.Search, 
+            "EmailLog", 
+            null, 
+            "Email logs search",
+            additionalData: System.Text.Json.JsonSerializer.Serialize(new 
+            { 
+                StartDate = _startDate,
+                EndDate = _endDate,
+                StatusFilter = _statusFilter?.ToString(),
+                ToEmailFilter = _toEmailFilter,
+                SearchFilter = _searchFilter,
+                QuickFilter = _quickFilter,
+                ResultCount = _emailLogs.Count,
+                TotalCount = _totalCount
+            }));
+    }
+
+    private async Task ClearFilters()
+    {
+        _startDate = null;
+        _endDate = null;
+        _statusFilter = null;
+        _toEmailFilter = string.Empty;
+        _searchFilter = string.Empty;
+        _quickFilter = "all";
+        
+        await ApplyFilters();
+        
+        // Log clear filters action
+        await EventLogService.LogEventAsync(EventAction.Other, "EmailLog", null, "Clear email log filters");
+    }
+
+    private async Task RefreshLogs()
+    {
+        _currentPage = 1;
+        await LoadLogs();
+        await CountStatuses();
+    }
+
+    private void ToggleFilters()
+    {
+        _showFilters = !_showFilters;
+    }
+
+    private async Task SetQuickFilter(string filter)
+    {
+        _quickFilter = filter;
+        
+        switch (filter)
+        {
+            case "pending":
+                _statusFilter = EmailStatus.Pending;
+                break;
+            case "inprogress":
+                _statusFilter = EmailStatus.InProgress;
+                break;
+            case "sent":
+                _statusFilter = EmailStatus.Sent;
+                break;
+            case "failed":
+                _statusFilter = EmailStatus.Failed;
+                break;
+            default:
+                _statusFilter = null;
+                break;
+        }
+        
+        await ApplyFilters();
+        
+        // Log quick filter action
+        await EventLogService.LogEventAsync(
+            EventAction.Search, 
+            "EmailLog", 
+            null, 
+            $"Quick filter: {filter}",
+            additionalData: System.Text.Json.JsonSerializer.Serialize(new 
+            { 
+                QuickFilter = filter,
+                Status = _statusFilter?.ToString()
+            }));
+    }
+
+    private void ShowDetails(EmailLogDto log)
+    {
+        _selectedLog = log;
+    }
+
+    private void CloseDetails()
+    {
+        _selectedLog = null;
+    }
+
+    private async Task RetryEmail(EmailLogDto log)
+    {
+        try
+        {
+            var command = new Collectibles.Application.Features.EmailLogs.Commands.RetryEmailCommand
+            {
+                EmailLogId = log.Id
+            };
+            
+            await Mediator.Send(command);
+            
+            await JSRuntime.InvokeVoidAsync("alert", $"Email to {log.ToEmail} has been queued for resending. It will be processed within 1 minute.");
+            CloseDetails();
+            await RefreshLogs();
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error retrying email: {ex.Message}");
+        }
+    }
+
+    private string GetRowClass(EmailStatus status)
+    {
+        return status switch
+        {
+            EmailStatus.Failed => "table-danger",
+            EmailStatus.Pending => "table-warning",
+            EmailStatus.InProgress => "table-info",
+            EmailStatus.Sent => "",
+            _ => ""
+        };
+    }
+
+    private (string cssClass, string icon) GetStatusClassAndIcon(EmailStatus status)
+    {
+        return status switch
+        {
+            EmailStatus.Pending => ("warning", "clock"),
+            EmailStatus.InProgress => ("info", "arrow-repeat"),
+            EmailStatus.Sent => ("success", "check-circle"),
+            EmailStatus.Failed => ("danger", "x-circle"),
+            EmailStatus.Cancelled => ("secondary", "slash-circle"),
+            _ => ("secondary", "question-circle")
+        };
+    }
+
+    public void Dispose()
+    {
+        // Cleanup if needed
+    }
+}

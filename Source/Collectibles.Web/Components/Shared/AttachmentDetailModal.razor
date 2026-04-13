@@ -1,0 +1,490 @@
+@using Collectibles.Application.Features.Attachments
+@using Collectibles.Application.Features.Attachments.Queries
+@using Collectibles.Application.Features.Tags.Commands
+@using Collectibles.Application.Features.Tags.Queries
+@using Collectibles.Domain.Entities
+@using Collectibles.Domain.Common.Enums
+@using Collectibles.Application.Interfaces
+@using MediatR
+@using Microsoft.AspNetCore.Authorization
+@using Collectibles.Application.Common.Authorization.Requirements
+@using Collectibles.Application.Features.Attachments.Commands
+@inject IMediator Mediator
+@inject IJSRuntime JSRuntime
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider
+@inject IAuthorizationService AuthorizationService
+@inject Collectibles.Application.Services.IHashIdsService HashIds
+@inject NavigationManager Navigation
+
+@if (IsOpen)
+{
+    @if (_isLoading)
+    {
+        <div class="modal fade show" style="display: block;" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+                <div class="modal-content">
+                    <div class="modal-body text-center p-5">
+                        <Spinner Type="SpinnerType.Dots" Color="SpinnerColor.Primary" />
+                        <p class="mt-2">Loading attachment details...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-backdrop fade show"></div>
+    }
+    else if (attachment != null)
+    {
+        <div class="modal fade show" style="display: block;" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-xl" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">@attachment.Name</h5>
+                        <button type="button" class="btn-close" @onclick="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row">
+                            <div class="col-lg-8">
+                                <div class="attachment-preview-large">
+                                    @if (!string.IsNullOrEmpty(attachment.Base64PreviewThumbnail))
+                                    {
+                                        <img src="data:image/png;base64,@attachment.Base64PreviewThumbnail"
+                                             alt="@attachment.Name" class="img-fluid"
+                                             style="@(_rotationAngle != 0 ? $"transform: rotate({_rotationAngle}deg);" : "")" />
+                                    }
+                                    else if (!string.IsNullOrEmpty(attachment.Base64Content) && attachment.AttachmentType == AttachmentType.Image)
+                                    {
+                                        <img src="data:@(attachment.FileType ?? "image/jpeg");base64,@attachment.Base64Content"
+                                             alt="@attachment.Name" class="img-fluid"
+                                             style="@(_rotationAngle != 0 ? $"transform: rotate({_rotationAngle}deg);" : "")" />
+                                    }
+                                    else
+                                    {
+                                        <div class="placeholder-icon-large">
+                                            @switch (attachment.AttachmentType)
+                                            {
+                                                case AttachmentType.Image:
+                                                    <i class="bi bi-image text-muted"></i>
+                                                    break;
+                                                case AttachmentType.Document:
+                                                    <i class="bi bi-file-earmark-text text-muted"></i>
+                                                    break;
+                                                case AttachmentType.Video:
+                                                    <i class="bi bi-camera-video text-muted"></i>
+                                                    break;
+                                                case AttachmentType.Audio:
+                                                    <i class="bi bi-music-note-beamed text-muted"></i>
+                                                    break;
+                                                default:
+                                                    <i class="bi bi-file-earmark text-muted"></i>
+                                                    break;
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                            <div class="col-lg-4">
+                                <div class="card">
+                                    <div class="card-header d-flex justify-content-between align-items-center">
+                                        <h6 class="mb-0">Details</h6>
+                                        @if (_canEdit)
+                                        {
+                                            <button class="btn btn-sm btn-primary" @onclick="OpenTagModal">
+                                                <i class="bi bi-tags"></i> Tags
+                                            </button>
+                                        }
+                                    </div>
+                                    <div class="card-body">
+                                        <dl class="row mb-0">
+                                            <dt class="col-sm-5">Name:</dt>
+                                            <dd class="col-sm-7">@attachment.Name</dd>
+
+                                            @if (!string.IsNullOrEmpty(attachment.OriginalFilename))
+                                            {
+                                                <dt class="col-sm-5">Original File:</dt>
+                                                <dd class="col-sm-7 text-truncate" title="@attachment.OriginalFilename">@attachment.OriginalFilename</dd>
+                                            }
+
+                                            @if (!string.IsNullOrEmpty(attachment.FileType))
+                                            {
+                                                <dt class="col-sm-5">Type:</dt>
+                                                <dd class="col-sm-7">@attachment.FileType</dd>
+                                            }
+
+                                            @if (attachment.AttachmentType != null)
+                                            {
+                                                <dt class="col-sm-5">Category:</dt>
+                                                <dd class="col-sm-7">
+                                                    <span class="badge bg-secondary">@attachment.AttachmentType</span>
+                                                </dd>
+                                            }
+
+                                            @if (attachment.FileSize > 0)
+                                            {
+                                                <dt class="col-sm-5">Size:</dt>
+                                                <dd class="col-sm-7">@FormatFileSize(attachment.FileSize)</dd>
+                                            }
+
+                                            <dt class="col-sm-5">Created:</dt>
+                                            <dd class="col-sm-7">@attachment.Created.ToString("MMM dd, yyyy h:mm tt")</dd>
+
+                                            @if (attachment.LastModified != null)
+                                            {
+                                                <dt class="col-sm-5">Modified:</dt>
+                                                <dd class="col-sm-7">@attachment.LastModified?.ToString("MMM dd, yyyy h:mm tt")</dd>
+                                            }
+
+                                            @if (!string.IsNullOrEmpty(attachment.CreatedBy))
+                                            {
+                                                <dt class="col-sm-5">Created By:</dt>
+                                                <dd class="col-sm-7">@attachment.CreatedBy</dd>
+                                            }
+                                        </dl>
+
+                                        @if (attachment.Tags != null && attachment.Tags.Any())
+                                        {
+                                            <hr class="my-2" />
+                                            <div class="tags-section mt-2">
+                                                <strong>Tags:</strong>
+                                                <div class="mt-1">
+                                                    @foreach (var tag in attachment.Tags)
+                                                    {
+                                                        <span class="badge bg-info text-white me-1">@tag.Name</span>
+                                                    }
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        @if (attachment.AttachmentType == AttachmentType.Image && _canEdit && !_isRotating)
+                        {
+                            <button type="button" class="btn btn-outline-secondary me-2" @onclick="() => RotateImage(-90)" title="Rotate Left">
+                                <i class="bi bi-arrow-counterclockwise"></i>
+                            </button>
+
+                            <button type="button" class="btn btn-outline-secondary me-2" @onclick="() => RotateImage(90)" title="Rotate Right">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                        }
+                        @if (_isRotating)
+                        {
+                            <div class="text-center mt-2 d-flex align-items-center justify-content-center">
+                                <Spinner Type="SpinnerType.Dots" Size="SpinnerSize.Small" Color="SpinnerColor.Primary" Class="me-2" />
+                                <span>Rotating image...</span>
+                            </div>
+                        }
+                        @if (_canEdit)
+                        {
+                            <button type="button" class="btn btn-primary" @onclick="EditAttachment">
+                                <i class="bi bi-pencil"></i> Edit
+                            </button>
+                        }
+                        @if (_canDelete)
+                        {
+                            <button type="button" class="btn btn-danger" @onclick="DeleteAttachment">
+                                <i class="bi bi-trash"></i> Delete
+                            </button>
+                        }
+                        <a href="/api/attachments/@(HashIds.Encode(attachment.Id))/download" class="btn btn-success" target="_blank">
+                            <i class="bi bi-download"></i> Download
+                        </a>
+                        <button type="button" class="btn btn-secondary" @onclick="Close">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-backdrop fade show"></div>
+    }
+}
+
+@if (isTagModalOpen && attachment != null)
+{
+    <div class="modal fade show" style="display: block; z-index: 1060;" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Manage Tags for @attachment.Name</h5>
+                    <button type="button" class="btn-close" @onclick="() => isTagModalOpen = false"></button>
+                </div>
+                <div class="modal-body" style="min-height: 200px; max-height: 60vh; overflow-y: auto;">
+                    <TagSelector SelectedTags="_editableTags" SelectedTagsChanged="OnEditableTagsChanged" />
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => isTagModalOpen = false">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="HandleTagSave">Save Tags</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show" style="z-index: 1055;"></div>
+}
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public long AttachmentId { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnRotationComplete { get; set; }
+
+    private AttachmentDto? attachment;
+    private List<Collectibles.Application.Features.Tags.TagDto> _editableTags = new();
+    private bool isTagModalOpen = false;
+    private bool _canEdit = false;
+    private bool _canDelete = false;
+    private bool _isLoading = false;
+    private bool _isRotating = false;
+    private int _rotationAngle = 0;
+    private bool _hasRotated = false;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (IsOpen && AttachmentId > 0 && (attachment == null || attachment.Id != AttachmentId))
+        {
+            await LoadAttachment();
+            _rotationAngle = 0; // Reset rotation when loading new attachment
+            _hasRotated = false;
+        }
+        else if (!IsOpen)
+        {
+            attachment = null;
+            _canEdit = false;
+            _canDelete = false;
+            _rotationAngle = 0;
+            _hasRotated = false;
+        }
+    }
+
+    private async Task LoadAttachment()
+    {
+        _isLoading = true;
+        try
+        {
+            var result = await Mediator.Send(new GetAttachmentDetailQuery { Id = AttachmentId });
+            if (result != null)
+            {
+                attachment = result;
+
+                // Check if user can edit this attachment
+                var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+                var user = authState.User;
+                var currentUserId = user?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                if (currentUserId != null && user != null)
+                {
+                    // Create an Attachment entity for authorization
+                    var attachmentEntity = new Attachment
+                    {
+                        Id = attachment.Id,
+                        Name = attachment.Name,
+                        CreatedBy = attachment.CreatedBy
+                    };
+
+                    var authResult = await AuthorizationService.AuthorizeAsync(
+                        user,
+                        attachmentEntity,
+                        new EditAttachmentRequirement());
+                    _canEdit = authResult.Succeeded;
+
+                    var deleteAuthResult = await AuthorizationService.AuthorizeAsync(
+                        user,
+                        attachmentEntity,
+                        new DeleteAttachmentRequirement());
+                    _canDelete = deleteAuthResult.Succeeded;
+                }
+                else
+                {
+                    _canEdit = false;
+                    _canDelete = false;
+                }
+            }
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task Close()
+    {
+        IsOpen = false;
+        await IsOpenChanged.InvokeAsync(false);
+
+        // If rotation happened, notify the parent
+        if (_hasRotated && OnRotationComplete.HasDelegate)
+        {
+            await OnRotationComplete.InvokeAsync();
+        }
+
+        if (OnClose.HasDelegate)
+        {
+            await OnClose.InvokeAsync();
+        }
+    }
+
+    private void EditAttachment()
+    {
+        if (attachment != null)
+        {
+            var attachmentHash = HashIds.Encode(attachment.Id);
+            Navigation.NavigateTo($"/attachments/{attachmentHash}/edit");
+        }
+    }
+
+    private async Task DeleteAttachment()
+    {
+        if (attachment == null || !_canDelete)
+        {
+            return;
+        }
+
+        var confirmDelete = await JSRuntime.InvokeAsync<bool>(
+            "confirm",
+            $"Are you sure you want to delete '{attachment.Name}'? This action cannot be undone.");
+
+        if (confirmDelete)
+        {
+            try
+            {
+                await Mediator.Send(new DeleteAttachmentCommand(attachment.Id));
+
+                // Close the modal and notify parent
+                await Close();
+            }
+            catch (Exception ex)
+            {
+                // Show error message
+                await JSRuntime.InvokeVoidAsync("alert", $"Failed to delete attachment: {ex.Message}");
+            }
+        }
+    }
+
+    private void OpenTagModal()
+    {
+        if (attachment == null || !_canEdit)
+        {
+            return;
+        }
+
+        _editableTags = attachment.Tags?
+            .Select(tag => new Collectibles.Application.Features.Tags.TagDto
+            {
+                Id = tag.Id,
+                Name = tag.Name,
+            })
+            .ToList() ?? new();
+        isTagModalOpen = true;
+    }
+
+    private void OnEditableTagsChanged(List<Collectibles.Application.Features.Tags.TagDto> tags)
+    {
+        _editableTags = tags;
+    }
+
+    private async Task HandleTagSave()
+    {
+        if (!_canEdit || attachment == null)
+        {
+            return;
+        }
+
+        var command = new SetTagsForAttachmentCommand
+        {
+            AttachmentId = attachment.Id,
+            TagIds = _editableTags.Select(t => t.Id).ToList(),
+        };
+        await Mediator.Send(command);
+        isTagModalOpen = false;
+
+        // Refresh attachment data
+        await LoadAttachment();
+    }
+
+    private async Task RotateImage(int degrees)
+    {
+        if (attachment == null || _isRotating)
+        {
+            return;
+        }
+
+        // Apply rotation immediately on client side for visual feedback
+        _rotationAngle = (_rotationAngle + degrees) % 360;
+        if (_rotationAngle < 0)
+        {
+            _rotationAngle += 360;
+        }
+        StateHasChanged();
+
+        _isRotating = true;
+        StateHasChanged();
+
+        try
+        {
+            var command = new RotateAttachmentCommand
+            {
+                AttachmentId = attachment.Id,
+                RotationDegrees = degrees
+            };
+
+            var result = await Mediator.Send(command);
+
+            if (result)
+            {
+                // Success! The image has been permanently rotated on the server
+                // Keep the client-side rotation for now to avoid flashing
+                // We'll reset it when the modal is closed or a new image is loaded
+
+                // Update the LastModified timestamp to indicate the change
+                if (attachment != null)
+                {
+                    attachment.LastModified = DateTime.UtcNow;
+                }
+
+                // Mark that rotation has occurred
+                _hasRotated = true;
+
+                // Don't reload immediately to avoid showing stale cached data
+                // The next time the modal opens, it will load the rotated version
+            }
+            else
+            {
+                // Revert the rotation on failure
+                _rotationAngle = (_rotationAngle - degrees) % 360;
+                if (_rotationAngle < 0)
+                {
+                    _rotationAngle += 360;
+                }
+                await JSRuntime.InvokeVoidAsync("alert", "Failed to rotate image");
+            }
+        }
+        catch (Exception ex)
+        {
+            // Revert the rotation on error
+            _rotationAngle = (_rotationAngle - degrees) % 360;
+            if (_rotationAngle < 0)
+            {
+                _rotationAngle += 360;
+            }
+            await JSRuntime.InvokeVoidAsync("alert", $"Error rotating image: {ex.Message}");
+        }
+        finally
+        {
+            _isRotating = false;
+            StateHasChanged();
+        }
+    }
+
+    private string FormatFileSize(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB", "TB" };
+        double len = bytes;
+        int order = 0;
+        while (len >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            len = len / 1024;
+        }
+        return $"{len:0.##} {sizes[order]}";
+    }
+}

@@ -1,0 +1,91 @@
+﻿@inherits LayoutComponentBase
+@implements IDisposable
+@inject ILogger<MainLayout> Logger
+@inject IWebHostEnvironment Environment
+@inject Collectibles.Web.Services.HttpContextDataService HttpContextDataService
+@inject Collectibles.Application.Interfaces.ISysLogService SysLogService
+
+<CascadingValue Value="HttpContextDataService">
+    <div class="page">
+        <header>
+            <NavMenu />
+        </header>
+
+        <main id="main">
+            <div class="content px-4">
+                <ErrorBoundary @ref="errorBoundary">
+                    <ChildContent>
+                        @Body
+                    </ChildContent>
+                <ErrorContent Context="exception">
+                    @{
+                        // Log the error for production monitoring
+                        Logger.LogError(exception, "Unhandled exception in Blazor component");
+                        // Also log to SysLogs database table
+                        _ = SysLogService.LogErrorAsync("Unhandled Blazor component exception: " + exception.Message, exception, "ErrorBoundary");
+                    }
+                    @if (Environment.IsDevelopment())
+                    {
+                        <div class="alert alert-danger" role="alert">
+                            <h4 class="alert-heading">An error occurred</h4>
+                            <p>@exception.GetType().Name: @exception.Message</p>
+                            @if (exception.InnerException != null)
+                            {
+                                <hr>
+                                <p class="mb-0">Inner Exception: @exception.InnerException.Message</p>
+                            }
+                            <hr>
+                            <details>
+                                <summary>Stack Trace</summary>
+                                <pre>@exception.StackTrace</pre>
+                            </details>
+                            <button class="btn btn-primary mt-3" @onclick="() => errorBoundary?.Recover()">Try Again</button>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-danger" role="alert">
+                            <h4 class="alert-heading">Something went wrong</h4>
+                            <p>We're sorry, but something went wrong. Please try again or contact support if the problem persists.</p>
+                            <div class="mt-3">
+                                <button class="btn btn-primary" @onclick="() => errorBoundary?.Recover()">Try Again</button>
+                                <a href="/" class="btn btn-outline-primary ms-2">Go to Home</a>
+                            </div>
+                        </div>
+                    }
+                </ErrorContent>
+            </ErrorBoundary>
+        </div>
+    </main>
+    </div>
+
+    @if (Environment.IsDevelopment())
+    {
+        <mini-profiler />
+    }
+</CascadingValue>
+
+<div id="blazor-error-ui">
+    An unhandled error has occurred.
+    <a href="" class="reload">Reload</a>
+    <a class="dismiss">🗙</a>
+</div>
+
+@code {
+    private ErrorBoundary? errorBoundary;
+
+    protected override void OnInitialized()
+    {
+        Logger.LogInformation("MainLayout initialized");
+    }
+
+    protected override void OnParametersSet()
+    {
+        errorBoundary?.Recover();
+    }
+
+    public void Dispose()
+    {
+        Logger.LogInformation("MainLayout disposed");
+    }
+}

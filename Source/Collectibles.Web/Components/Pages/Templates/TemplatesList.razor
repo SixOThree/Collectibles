@@ -1,0 +1,265 @@
+@page "/templates"
+@rendermode InteractiveServerWithoutPrerender
+@attribute [Authorize]
+@inherits LoggablePageBase
+@using Collectibles.Application.Features.ContentDefinitions
+@using Collectibles.Application.Features.ContentDefinitions.Commands
+@using Collectibles.Application.Features.ContentDefinitions.Queries
+@using MediatR
+@using Microsoft.AspNetCore.Authorization
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+
+<PageTitle>Templates</PageTitle>
+
+<div class="templates-container mx-auto">
+    <div class="page-header d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
+        <h1>Templates</h1>
+        <button class="btn btn-primary" @onclick="NavigateToCreate">
+            <i class="bi bi-plus-circle"></i> Create Template
+        </button>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="d-flex justify-content-center">
+            <Spinner Type="SpinnerType.Dots" Color="SpinnerColor.Primary" />
+        </div>
+    }
+    else if (_templates.Any())
+    {
+        <div class="templates-grid">
+            @foreach (var template in _templates)
+            {
+                <div class="template-card @(template.IsActive ? "active" : "inactive")" style="@GetTemplateBorderStyle(template)">
+                    <div class="template-header">
+                        <h5 class="template-name text-secondary">
+                            @if (!string.IsNullOrEmpty(template.Icon))
+                            {
+                                <i class="bi @template.Icon me-1" style="@GetTemplateIconStyle(template)"></i>
+                            }
+                            @template.Name
+                        </h5>
+                        <div class="d-flex align-items-center">
+                            <button class="btn btn-link p-0 me-2" @onclick="() => SetAsDefault(template.Id)">
+                                <i class="bi @(template.IsDefault ? "bi-star-fill" : "bi-star")"></i>
+                            </button>
+                            <div class="template-status">
+                                @if (template.IsActive)
+                                {
+                                    <span class="badge bg-success">Active</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">Inactive</span>
+                                }
+                                @if (template.AllowMultipleEntries)
+                                {
+                                    <span class="badge bg-info ms-1"><i class="bi bi-table"></i></span>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                    
+                    @if (!string.IsNullOrEmpty(template.Description))
+                    {
+                        <p class="template-description text-muted">@template.Description</p>
+                    }
+                    
+                    <div class="template-stats bg-light">
+                        <span class="stat text-secondary">
+                            <i class="bi bi-list-ul"></i>
+                            @template.FieldCount field@(template.FieldCount == 1 ? "" : "s")
+                        </span>
+                        <span class="stat text-secondary">
+                            <i class="bi bi-collection"></i>
+                            @template.ItemCount item@(template.ItemCount == 1 ? "" : "s")
+                        </span>
+                    </div>
+                    
+                    <div class="template-dates">
+                        <small class="text-muted">
+                            Created: @FormatDate(template.Created)
+                        </small>
+                    </div>
+                    
+                    <div class="template-actions">
+                        @if (CanEditTemplate(template))
+                        {
+                            <button class="btn btn-outline-primary btn-sm" @onclick="() => NavigateToEdit(template.Id)">
+                                <i class="bi bi-pencil"></i> Edit
+                            </button>
+                            @if (template.ItemCount == 0)
+                            {
+                                <button class="btn btn-outline-danger btn-sm" @onclick="() => ConfirmDelete(template)">
+                                    <i class="bi bi-trash"></i> Delete
+                                </button>
+                            }
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="empty-state text-center p-5">
+            <div class="empty-state-icon">
+                <i class="bi bi-file-earmark-text"></i>
+            </div>
+            <h3 class="text-secondary">No Templates Yet</h3>
+            <p>Create your first template to define custom fields for your collectible items.</p>
+            <button class="btn btn-primary" @onclick="NavigateToCreate">
+                <i class="bi bi-plus-circle"></i> Create Your First Template
+            </button>
+        </div>
+    }
+</div>
+
+@* Delete Confirmation Modal *@
+@if (_templateToDelete != null)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirm Delete</h5>
+                    <button type="button" class="btn-close" @onclick="CancelDelete"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to delete the template "<strong>@_templateToDelete.Name</strong>"?</p>
+                    <p class="text-warning">This action cannot be undone.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CancelDelete">Cancel</button>
+                    <button type="button" class="btn btn-danger" @onclick="DeleteTemplate" disabled="@_deleting">
+                        @if (_deleting)
+                        {
+                            <Spinner Type="SpinnerType.Dots" Size="SpinnerSize.Small" Color="SpinnerColor.Light" Class="me-2" />
+                        }
+                        Delete Template
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<ContentDefinitionListDto> _templates = new();
+    private bool _loading = true;
+    private ContentDefinitionListDto? _templateToDelete;
+    private bool _deleting = false;
+    private string? _currentUserId;
+    private bool _isAdmin = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        _currentUserId = authState.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        _isAdmin = authState.User?.IsInRole("Administrator") == true;
+        await LoadTemplates();
+    }
+
+    private bool CanEditTemplate(ContentDefinitionListDto template)
+    {
+        return _isAdmin || template.CreatedBy == _currentUserId;
+    }
+
+    private async Task LoadTemplates()
+    {
+        _loading = true;
+        try
+        {
+            _templates = await Mediator.Send(new GetContentDefinitionsQuery());
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading templates: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void NavigateToCreate()
+    {
+        Navigation.NavigateTo("/templates/new");
+    }
+
+    private void NavigateToEdit(long templateId)
+    {
+        Navigation.NavigateTo($"/templates/{templateId}/edit");
+    }
+
+    private void ConfirmDelete(ContentDefinitionListDto template)
+    {
+        _templateToDelete = template;
+    }
+
+    private void CancelDelete()
+    {
+        _templateToDelete = null;
+        _deleting = false;
+    }
+
+    private async Task DeleteTemplate()
+    {
+        if (_templateToDelete == null) return;
+
+        _deleting = true;
+        try
+        {
+            await Mediator.Send(new Collectibles.Application.Features.ContentDefinitions.Commands.DeleteContentDefinitionCommand 
+            { 
+                Id = _templateToDelete.Id 
+            });
+            
+            _templates.Remove(_templateToDelete);
+            CancelDelete();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error deleting template: {ex.Message}");
+            _deleting = false;
+        }
+    }
+
+    private async Task SetAsDefault(long templateId)
+    {
+        try
+        {
+            await Mediator.Send(new SetDefaultContentDefinitionCommand { Id = templateId });
+            await LoadTemplates();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error setting default template: {ex.Message}");
+        }
+    }
+
+    private string FormatDate(DateTime? date)
+    {
+        return date?.ToString("MMM d, yyyy") ?? string.Empty;
+    }
+
+    private string GetTemplateBorderStyle(ContentDefinitionListDto template)
+    {
+        if (!string.IsNullOrEmpty(template.BorderColor))
+        {
+            return $"border-color: {template.BorderColor}; border-width: 2px;";
+        }
+        return string.Empty;
+    }
+
+    private string GetTemplateIconStyle(ContentDefinitionListDto template)
+    {
+        if (!string.IsNullOrEmpty(template.BorderColor))
+        {
+            return $"color: {template.BorderColor};";
+        }
+        return string.Empty;
+    }
+}
+

@@ -1,0 +1,311 @@
+@page "/admin/ui-examples/forms"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Administrator")]
+@rendermode InteractiveServer
+
+<PageTitle>Forms — UI Examples</PageTitle>
+
+<div class="container-fluid">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="admin/ui-examples">UI Examples</a></li>
+            <li class="breadcrumb-item active">Forms</li>
+        </ol>
+    </nav>
+
+    <h1 class="mb-4"><i class="bi bi-input-cursor-text me-2"></i>Forms</h1>
+
+    @* Section 1: Text Inputs *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Text Inputs</h5>
+        </div>
+        <div class="card-body">
+            <div class="mb-3">
+                <label class="form-label">Text Input</label>
+                <input type="text" class="form-control" placeholder="Enter text...">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Email Input</label>
+                <input type="email" class="form-control" placeholder="name@@example.com">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Password Input</label>
+                <input type="password" class="form-control" placeholder="Password">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Disabled Input</label>
+                <input type="text" class="form-control" placeholder="Disabled input" disabled>
+            </div>
+        </div>
+    </div>
+
+    @* Section 2: Floating Labels *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Floating Labels</h5>
+        </div>
+        <div class="card-body">
+            <div class="form-floating mb-3">
+                <input type="text" class="form-control" id="floatingText" placeholder="Text">
+                <label for="floatingText">Text</label>
+            </div>
+            <div class="form-floating mb-3">
+                <input type="email" class="form-control" id="floatingEmail" placeholder="name@@example.com">
+                <label for="floatingEmail">Email address</label>
+            </div>
+            <div class="form-floating mb-3">
+                <input type="password" class="form-control" id="floatingPassword" placeholder="Password">
+                <label for="floatingPassword">Password</label>
+            </div>
+            <div class="form-floating mb-3">
+                <textarea class="form-control" id="floatingTextarea" placeholder="Leave a comment here" style="height: 100px"></textarea>
+                <label for="floatingTextarea">Comments</label>
+            </div>
+            <div class="form-floating mb-3">
+                <select class="form-select" id="floatingSelect">
+                    <option selected>Choose...</option>
+                    <option value="1">Option 1</option>
+                    <option value="2">Option 2</option>
+                    <option value="3">Option 3</option>
+                </select>
+                <label for="floatingSelect">Select an option</label>
+            </div>
+        </div>
+    </div>
+
+    @* Section 3: Input Groups *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Input Groups</h5>
+        </div>
+        <div class="card-body">
+            <div class="input-group mb-3">
+                <span class="input-group-text">@@</span>
+                <input type="text" class="form-control" placeholder="Username">
+            </div>
+            <div class="input-group mb-3">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input type="text" class="form-control" placeholder="Search...">
+            </div>
+            <div class="input-group mb-3">
+                <input type="text" class="form-control" placeholder="Amount">
+                <span class="input-group-text">.00</span>
+            </div>
+            <div class="input-group mb-3">
+                <input type="text" class="form-control" placeholder="Search...">
+                <button class="btn btn-outline-secondary" type="button">Go</button>
+            </div>
+        </div>
+    </div>
+
+    @* Section 4: Select Dropdowns *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Select Dropdowns</h5>
+        </div>
+        <div class="card-body">
+            <div class="mb-3">
+                <label class="form-label">Default Select</label>
+                <select class="form-select">
+                    <option selected>Choose...</option>
+                    <option value="1">Option 1</option>
+                    <option value="2">Option 2</option>
+                    <option value="3">Option 3</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Disabled Select</label>
+                <select class="form-select" disabled>
+                    <option selected>Choose...</option>
+                    <option value="1">Option 1</option>
+                    <option value="2">Option 2</option>
+                    <option value="3">Option 3</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Visible Multi-Option Select</label>
+                <select class="form-select" size="3">
+                    <option value="1">Option 1</option>
+                    <option value="2">Option 2</option>
+                    <option value="3">Option 3</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    @* Section 5: Checkboxes *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Checkboxes</h5>
+        </div>
+        <div class="card-body">
+            <h6 class="mb-3">Stacked</h6>
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="stackedCheck1" checked>
+                <label class="form-check-label" for="stackedCheck1">Checked checkbox</label>
+            </div>
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="stackedCheck2">
+                <label class="form-check-label" for="stackedCheck2">Unchecked checkbox</label>
+            </div>
+            <div class="form-check mb-4">
+                <input class="form-check-input" type="checkbox" id="stackedCheck3" disabled>
+                <label class="form-check-label" for="stackedCheck3">Disabled checkbox</label>
+            </div>
+
+            <h6 class="mb-3">Inline</h6>
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" id="inlineCheck1" checked>
+                <label class="form-check-label" for="inlineCheck1">One</label>
+            </div>
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" id="inlineCheck2">
+                <label class="form-check-label" for="inlineCheck2">Two</label>
+            </div>
+            <div class="form-check form-check-inline mb-4">
+                <input class="form-check-input" type="checkbox" id="inlineCheck3">
+                <label class="form-check-label" for="inlineCheck3">Three</label>
+            </div>
+
+            <h6 class="mb-3">Switches</h6>
+            <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" id="switch1" checked>
+                <label class="form-check-label" for="switch1">On switch</label>
+            </div>
+            <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" id="switch2">
+                <label class="form-check-label" for="switch2">Off switch</label>
+            </div>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="switch3" disabled>
+                <label class="form-check-label" for="switch3">Disabled switch</label>
+            </div>
+        </div>
+    </div>
+
+    @* Section 6: Radio Buttons *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Radio Buttons</h5>
+        </div>
+        <div class="card-body">
+            <h6 class="mb-3">Stacked</h6>
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="radio" name="stackedRadio" id="stackedRadio1" checked>
+                <label class="form-check-label" for="stackedRadio1">First radio</label>
+            </div>
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="radio" name="stackedRadio" id="stackedRadio2">
+                <label class="form-check-label" for="stackedRadio2">Second radio</label>
+            </div>
+            <div class="form-check mb-4">
+                <input class="form-check-input" type="radio" name="stackedRadio" id="stackedRadio3">
+                <label class="form-check-label" for="stackedRadio3">Third radio</label>
+            </div>
+
+            <h6 class="mb-3">Inline</h6>
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="inlineRadio" id="inlineRadio1" checked>
+                <label class="form-check-label" for="inlineRadio1">First</label>
+            </div>
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="inlineRadio" id="inlineRadio2">
+                <label class="form-check-label" for="inlineRadio2">Second</label>
+            </div>
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="inlineRadio" id="inlineRadio3">
+                <label class="form-check-label" for="inlineRadio3">Third</label>
+            </div>
+        </div>
+    </div>
+
+    @* Section 7: Textarea *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Textarea</h5>
+        </div>
+        <div class="card-body">
+            <div class="mb-3">
+                <label class="form-label">Small Textarea (3 rows)</label>
+                <textarea class="form-control" rows="3" placeholder="Enter text..."></textarea>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Large Textarea (6 rows)</label>
+                <textarea class="form-control" rows="6" placeholder="Enter more text..."></textarea>
+            </div>
+        </div>
+    </div>
+
+    @* Section 8: Validation States *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Validation States</h5>
+        </div>
+        <div class="card-body">
+            <div class="mb-3">
+                <label class="form-label">Valid Input</label>
+                <input type="text" class="form-control is-valid" value="Correct value">
+                <div class="valid-feedback">Looks good!</div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Invalid Input</label>
+                <input type="text" class="form-control is-invalid">
+                <div class="invalid-feedback">Please provide a value.</div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Valid Select</label>
+                <select class="form-select is-valid">
+                    <option selected>Option 1</option>
+                    <option value="2">Option 2</option>
+                    <option value="3">Option 3</option>
+                </select>
+                <div class="valid-feedback">Looks good!</div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Invalid Select</label>
+                <select class="form-select is-invalid">
+                    <option selected>Choose...</option>
+                    <option value="1">Option 1</option>
+                    <option value="2">Option 2</option>
+                    <option value="3">Option 3</option>
+                </select>
+                <div class="invalid-feedback">Please select an option.</div>
+            </div>
+        </div>
+    </div>
+
+    @* Section 9: Horizontal Form Layout *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Horizontal Form Layout</h5>
+        </div>
+        <div class="card-body">
+            <form>
+                <div class="row mb-3">
+                    <label class="col-sm-3 col-form-label">Email</label>
+                    <div class="col-sm-9">
+                        <input type="email" class="form-control" placeholder="name@@example.com">
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <label class="col-sm-3 col-form-label">Password</label>
+                    <div class="col-sm-9">
+                        <input type="password" class="form-control" placeholder="Password">
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <label class="col-sm-3 col-form-label">Name</label>
+                    <div class="col-sm-9">
+                        <input type="text" class="form-control" placeholder="Full name">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-sm-9 offset-sm-3">
+                        <button type="button" class="btn btn-primary">Submit</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

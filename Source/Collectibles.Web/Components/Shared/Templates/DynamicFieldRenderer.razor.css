@@ -1,0 +1,18 @@
+.inflation-adjusted-price .adjusted-value {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #28a745;
+}
+
+.inflation-adjusted-price .btn-link {
+    color: #6c757d;
+    text-decoration: none;
+}
+
+.inflation-adjusted-price .btn-link:hover {
+    color: #495057;
+}
+
+.dynamic-field .invalid-feedback {
+    font-size: 0.875rem;
+}

@@ -1,0 +1,267 @@
+@page "/admin/ui-examples/spinners"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Administrator")]
+@rendermode InteractiveServer
+
+<PageTitle>Spinners &amp; Progress — UI Examples</PageTitle>
+
+<div class="container-fluid">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="admin/ui-examples">UI Examples</a></li>
+            <li class="breadcrumb-item active">Spinners &amp; Progress</li>
+        </ol>
+    </nav>
+    <h1 class="mb-4"><i class="bi bi-arrow-repeat me-2"></i>Spinners &amp; Progress</h1>
+
+    @* Section 1: BlazorBootstrap — Dots Type *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>BlazorBootstrap — Dots Type</h5>
+        </div>
+        <div class="card-body">
+            <div class="d-flex flex-wrap gap-3">
+                <Spinner Type="SpinnerType.Dots" Color="SpinnerColor.Primary" />
+                <Spinner Type="SpinnerType.Dots" Color="SpinnerColor.Secondary" />
+                <Spinner Type="SpinnerType.Dots" Color="SpinnerColor.Success" />
+                <Spinner Type="SpinnerType.Dots" Color="SpinnerColor.Danger" />
+                <Spinner Type="SpinnerType.Dots" Color="SpinnerColor.Warning" />
+                <Spinner Type="SpinnerType.Dots" Color="SpinnerColor.Info" />
+                <Spinner Type="SpinnerType.Dots" Color="SpinnerColor.Light" />
+                <Spinner Type="SpinnerType.Dots" Color="SpinnerColor.Dark" />
+            </div>
+        </div>
+    </div>
+
+    @* Section 2: BlazorBootstrap — Border Type *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>BlazorBootstrap — Border Type</h5>
+        </div>
+        <div class="card-body">
+            <div class="d-flex flex-wrap gap-3">
+                <Spinner Type="SpinnerType.Border" Color="SpinnerColor.Primary" />
+                <Spinner Type="SpinnerType.Border" Color="SpinnerColor.Secondary" />
+                <Spinner Type="SpinnerType.Border" Color="SpinnerColor.Success" />
+                <Spinner Type="SpinnerType.Border" Color="SpinnerColor.Danger" />
+                <Spinner Type="SpinnerType.Border" Color="SpinnerColor.Warning" />
+                <Spinner Type="SpinnerType.Border" Color="SpinnerColor.Info" />
+                <Spinner Type="SpinnerType.Border" Color="SpinnerColor.Light" />
+                <Spinner Type="SpinnerType.Border" Color="SpinnerColor.Dark" />
+            </div>
+        </div>
+    </div>
+
+    @* Section 3: BlazorBootstrap — Grow Type *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>BlazorBootstrap — Grow Type</h5>
+        </div>
+        <div class="card-body">
+            <div class="d-flex flex-wrap gap-3">
+                <Spinner Type="SpinnerType.Grow" Color="SpinnerColor.Primary" />
+                <Spinner Type="SpinnerType.Grow" Color="SpinnerColor.Secondary" />
+                <Spinner Type="SpinnerType.Grow" Color="SpinnerColor.Success" />
+                <Spinner Type="SpinnerType.Grow" Color="SpinnerColor.Danger" />
+                <Spinner Type="SpinnerType.Grow" Color="SpinnerColor.Warning" />
+                <Spinner Type="SpinnerType.Grow" Color="SpinnerColor.Info" />
+                <Spinner Type="SpinnerType.Grow" Color="SpinnerColor.Light" />
+                <Spinner Type="SpinnerType.Grow" Color="SpinnerColor.Dark" />
+            </div>
+        </div>
+    </div>
+
+    @* Section 4: Spinner Sizes *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Spinner Sizes</h5>
+        </div>
+        <div class="card-body">
+            <h6 class="text-muted mb-3">Dots</h6>
+            <div class="d-flex flex-wrap align-items-center gap-4 mb-4">
+                <div class="text-center">
+                    <p class="mb-2"><strong>Small</strong></p>
+                    <Spinner Type="SpinnerType.Dots" Color="SpinnerColor.Primary" Size="SpinnerSize.Small" />
+                </div>
+                <div class="text-center">
+                    <p class="mb-2"><strong>Default</strong></p>
+                    <Spinner Type="SpinnerType.Dots" Color="SpinnerColor.Primary" />
+                </div>
+                <div class="text-center">
+                    <p class="mb-2"><strong>Large</strong></p>
+                    <Spinner Type="SpinnerType.Dots" Color="SpinnerColor.Primary" Size="SpinnerSize.Large" />
+                </div>
+            </div>
+
+            <h6 class="text-muted mb-3">Border</h6>
+            <div class="d-flex flex-wrap align-items-center gap-4 mb-4">
+                <div class="text-center">
+                    <p class="mb-2"><strong>Small</strong></p>
+                    <Spinner Type="SpinnerType.Border" Color="SpinnerColor.Primary" Size="SpinnerSize.Small" />
+                </div>
+                <div class="text-center">
+                    <p class="mb-2"><strong>Default</strong></p>
+                    <Spinner Type="SpinnerType.Border" Color="SpinnerColor.Primary" />
+                </div>
+                <div class="text-center">
+                    <p class="mb-2"><strong>Large</strong></p>
+                    <Spinner Type="SpinnerType.Border" Color="SpinnerColor.Primary" Size="SpinnerSize.Large" />
+                </div>
+            </div>
+
+            <h6 class="text-muted mb-3">Grow</h6>
+            <div class="d-flex flex-wrap align-items-center gap-4">
+                <div class="text-center">
+                    <p class="mb-2"><strong>Small</strong></p>
+                    <Spinner Type="SpinnerType.Grow" Color="SpinnerColor.Primary" Size="SpinnerSize.Small" />
+                </div>
+                <div class="text-center">
+                    <p class="mb-2"><strong>Default</strong></p>
+                    <Spinner Type="SpinnerType.Grow" Color="SpinnerColor.Primary" />
+                </div>
+                <div class="text-center">
+                    <p class="mb-2"><strong>Large</strong></p>
+                    <Spinner Type="SpinnerType.Grow" Color="SpinnerColor.Primary" Size="SpinnerSize.Large" />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* Section 5: HTML Bootstrap Spinners — Border *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>HTML Bootstrap Spinners — Border</h5>
+        </div>
+        <div class="card-body">
+            <h6 class="text-muted mb-3">Default Size</h6>
+            <div class="d-flex flex-wrap gap-3 mb-4">
+                <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>
+                <div class="spinner-border text-secondary" role="status"><span class="visually-hidden">Loading...</span></div>
+                <div class="spinner-border text-success" role="status"><span class="visually-hidden">Loading...</span></div>
+                <div class="spinner-border text-danger" role="status"><span class="visually-hidden">Loading...</span></div>
+                <div class="spinner-border text-warning" role="status"><span class="visually-hidden">Loading...</span></div>
+                <div class="spinner-border text-info" role="status"><span class="visually-hidden">Loading...</span></div>
+                <div class="spinner-border text-light" role="status"><span class="visually-hidden">Loading...</span></div>
+                <div class="spinner-border text-dark" role="status"><span class="visually-hidden">Loading...</span></div>
+            </div>
+
+            <h6 class="text-muted mb-3">Small Size</h6>
+            <div class="d-flex flex-wrap gap-3">
+                <div class="spinner-border spinner-border-sm text-primary" role="status"><span class="visually-hidden">Loading...</span></div>
+                <div class="spinner-border spinner-border-sm text-secondary" role="status"><span class="visually-hidden">Loading...</span></div>
+                <div class="spinner-border spinner-border-sm text-success" role="status"><span class="visually-hidden">Loading...</span></div>
+                <div class="spinner-border spinner-border-sm text-danger" role="status"><span class="visually-hidden">Loading...</span></div>
+                <div class="spinner-border spinner-border-sm text-warning" role="status"><span class="visually-hidden">Loading...</span></div>
+                <div class="spinner-border spinner-border-sm text-info" role="status"><span class="visually-hidden">Loading...</span></div>
+                <div class="spinner-border spinner-border-sm text-light" role="status"><span class="visually-hidden">Loading...</span></div>
+                <div class="spinner-border spinner-border-sm text-dark" role="status"><span class="visually-hidden">Loading...</span></div>
+            </div>
+        </div>
+    </div>
+
+    @* Section 6: HTML Bootstrap Spinners — Grow *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>HTML Bootstrap Spinners — Grow</h5>
+        </div>
+        <div class="card-body">
+            <h6 class="text-muted mb-3">Default Size</h6>
+            <div class="d-flex flex-wrap gap-3 mb-4">
+                <div class="spinner-grow text-primary" role="status"><span class="visually-hidden">Loading...</span></div>
+                <div class="spinner-grow text-secondary" role="status"><span class="visually-hidden">Loading...</span></div>
+                <div class="spinner-grow text-success" role="status"><span class="visually-hidden">Loading...</span></div>
+                <div class="spinner-grow text-danger" role="status"><span class="visually-hidden">Loading...</span></div>
+                <div class="spinner-grow text-warning" role="status"><span class="visually-hidden">Loading...</span></div>
+                <div class="spinner-grow text-info" role="status"><span class="visually-hidden">Loading...</span></div>
+                <div class="spinner-grow text-light" role="status"><span class="visually-hidden">Loading...</span></div>
+                <div class="spinner-grow text-dark" role="status"><span class="visually-hidden">Loading...</span></div>
+            </div>
+
+            <h6 class="text-muted mb-3">Small Size</h6>
+            <div class="d-flex flex-wrap gap-3">
+                <div class="spinner-grow spinner-grow-sm text-primary" role="status"><span class="visually-hidden">Loading...</span></div>
+                <div class="spinner-grow spinner-grow-sm text-secondary" role="status"><span class="visually-hidden">Loading...</span></div>
+                <div class="spinner-grow spinner-grow-sm text-success" role="status"><span class="visually-hidden">Loading...</span></div>
+                <div class="spinner-grow spinner-grow-sm text-danger" role="status"><span class="visually-hidden">Loading...</span></div>
+                <div class="spinner-grow spinner-grow-sm text-warning" role="status"><span class="visually-hidden">Loading...</span></div>
+                <div class="spinner-grow spinner-grow-sm text-info" role="status"><span class="visually-hidden">Loading...</span></div>
+                <div class="spinner-grow spinner-grow-sm text-light" role="status"><span class="visually-hidden">Loading...</span></div>
+                <div class="spinner-grow spinner-grow-sm text-dark" role="status"><span class="visually-hidden">Loading...</span></div>
+            </div>
+        </div>
+    </div>
+
+    @* Section 7: Progress Bars *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Progress Bars</h5>
+        </div>
+        <div class="card-body">
+            <h6 class="text-muted mb-3">Basic</h6>
+            <div class="progress mb-3" role="progressbar">
+                <div class="progress-bar" style="width: 0%">0%</div>
+            </div>
+            <div class="progress mb-3" role="progressbar">
+                <div class="progress-bar" style="width: 25%">25%</div>
+            </div>
+            <div class="progress mb-3" role="progressbar">
+                <div class="progress-bar" style="width: 50%">50%</div>
+            </div>
+            <div class="progress mb-3" role="progressbar">
+                <div class="progress-bar" style="width: 75%">75%</div>
+            </div>
+            <div class="progress mb-4" role="progressbar">
+                <div class="progress-bar" style="width: 100%">100%</div>
+            </div>
+
+            <h6 class="text-muted mb-3">Colored</h6>
+            <div class="progress mb-3" role="progressbar">
+                <div class="progress-bar bg-success" style="width: 25%">Success 25%</div>
+            </div>
+            <div class="progress mb-3" role="progressbar">
+                <div class="progress-bar bg-info" style="width: 50%">Info 50%</div>
+            </div>
+            <div class="progress mb-3" role="progressbar">
+                <div class="progress-bar bg-warning" style="width: 75%">Warning 75%</div>
+            </div>
+            <div class="progress mb-4" role="progressbar">
+                <div class="progress-bar bg-danger" style="width: 100%">Danger 100%</div>
+            </div>
+
+            <h6 class="text-muted mb-3">Striped</h6>
+            <div class="progress mb-3" role="progressbar">
+                <div class="progress-bar progress-bar-striped bg-success" style="width: 25%">25%</div>
+            </div>
+            <div class="progress mb-3" role="progressbar">
+                <div class="progress-bar progress-bar-striped bg-info" style="width: 50%">50%</div>
+            </div>
+            <div class="progress mb-3" role="progressbar">
+                <div class="progress-bar progress-bar-striped bg-warning" style="width: 75%">75%</div>
+            </div>
+            <div class="progress mb-4" role="progressbar">
+                <div class="progress-bar progress-bar-striped bg-danger" style="width: 100%">100%</div>
+            </div>
+
+            <h6 class="text-muted mb-3">Animated</h6>
+            <div class="progress mb-3" role="progressbar">
+                <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" style="width: 25%">25%</div>
+            </div>
+            <div class="progress mb-3" role="progressbar">
+                <div class="progress-bar progress-bar-striped progress-bar-animated bg-info" style="width: 50%">50%</div>
+            </div>
+            <div class="progress mb-3" role="progressbar">
+                <div class="progress-bar progress-bar-striped progress-bar-animated bg-warning" style="width: 75%">75%</div>
+            </div>
+            <div class="progress mb-4" role="progressbar">
+                <div class="progress-bar progress-bar-striped progress-bar-animated bg-danger" style="width: 100%">100%</div>
+            </div>
+
+            <h6 class="text-muted mb-3">Stacked</h6>
+            <div class="progress" role="progressbar">
+                <div class="progress-bar" style="width: 15%">15%</div>
+                <div class="progress-bar bg-success" style="width: 30%">30%</div>
+                <div class="progress-bar bg-info" style="width: 20%">20%</div>
+            </div>
+        </div>
+    </div>
+</div>

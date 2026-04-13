@@ -1,0 +1,542 @@
+/* Clarity-Static-Background Bootstrap Theme for Collectibles */
+/* Based on Bootstrap 5.3 with glassmorphism - Static background version without animations */
+
+@import url('/themes/bootstrap/bootstrap.min.css');
+@import url('/themes/custom/clarity-static-background/theme-enhancements.css');
+
+:root {
+    --bs-primary: #007AFF;
+    --bs-secondary: #667eea;
+    --bs-success: #34C759;
+    --bs-info: #5AC8FA;
+    --bs-warning: #FF9500;
+    --bs-danger: #FF3B30;
+    --bs-light: rgba(255, 255, 255, 0.9);
+    --bs-dark: #2c3e50;
+    
+    --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --gradient-secondary: linear-gradient(135deg, #66a6ff 0%, #89f7fe 100%);
+    --gradient-accent: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #66a6ff 50%, #89f7fe 75%, #66a6ff 100%);
+    
+    --glass-bg: rgba(255, 255, 255, 0.15);
+    --glass-border: rgba(255, 255, 255, 0.3);
+    --glass-shadow: 0 8px 32px rgba(31, 38, 135, 0.15);
+    --glass-blur: 10px;
+    
+    --bs-body-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --bs-body-color: #2c3e50;
+    --bs-body-bg: transparent;
+}
+
+/* Static gradient background - no animations */
+body {
+    font-family: var(--bs-body-font-family);
+    min-height: 100vh;
+    background: var(--gradient-accent);
+    background-size: 100% 100%;
+    background-attachment: fixed;
+    position: relative;
+    overflow-x: hidden;
+}
+
+
+/* Glass-card style for all Bootstrap cards */
+.card,
+.glass-card {
+    background: var(--glass-bg) !important;
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border-radius: 20px !important;
+    border: 1px solid var(--glass-border) !important;
+    box-shadow: var(--glass-shadow) !important;
+    transition: all 0.3s ease;
+}
+
+.card:hover,
+.glass-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 40px rgba(31, 38, 135, 0.25) !important;
+}
+
+.card-body {
+    padding: 1.5rem;
+}
+
+.card-header {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2) !important;
+    border-radius: 20px 20px 0 0 !important;
+}
+
+.card-footer {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.2) !important;
+    border-radius: 0 0 20px 20px !important;
+}
+
+/* Navbar glassmorphism */
+.navbar {
+    background: var(--glass-bg) !important;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--glass-border);
+    padding: 0.5rem 0;
+}
+
+.navbar-brand {
+    color: white !important;
+    font-weight: 500;
+}
+
+.navbar .nav-link {
+    color: rgba(255, 255, 255, 0.9) !important;
+    margin: 0 0.5rem;
+    transition: color 0.3s ease;
+}
+
+.navbar .nav-link:hover {
+    color: white !important;
+}
+
+/* Photos grid for image galleries */
+.photos-grid,
+.image-grid,
+.attachment-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 0.75rem;
+    padding: 1rem 0;
+}
+
+.photos-grid .photo-thumb,
+.photos-grid img,
+.image-grid img,
+.attachment-grid .attachment-item {
+    aspect-ratio: 1;
+    width: 100%;
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.2s;
+    object-fit: cover;
+    background: var(--gradient-primary);
+}
+
+.photos-grid .photo-thumb:hover,
+.photos-grid img:hover,
+.image-grid img:hover,
+.attachment-grid .attachment-item:hover {
+    transform: scale(1.05);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+}
+
+/* Buttons with gradient backgrounds */
+.btn-primary {
+    background: var(--gradient-primary) !important;
+    border: none !important;
+    color: white !important;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+}
+
+.btn-secondary {
+    background: var(--glass-bg) !important;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--glass-border) !important;
+    color: var(--bs-dark) !important;
+}
+
+.btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.25) !important;
+    transform: translateY(-2px);
+}
+
+/* Form controls with glass effect */
+.form-control,
+.form-select {
+    background: var(--glass-bg) !important;
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    border: 1px solid var(--glass-border) !important;
+    border-radius: 12px !important;
+    color: var(--bs-dark) !important;
+}
+
+.form-control:focus,
+.form-select:focus {
+    background: rgba(255, 255, 255, 0.25) !important;
+    border-color: var(--bs-primary) !important;
+    box-shadow: 0 0 0 0.25rem rgba(0, 122, 255, 0.25) !important;
+}
+
+/* Tables with glass effect */
+.table {
+    background: var(--glass-bg) !important;
+    color: var(--bs-dark);
+}
+
+.table thead th {
+    background: rgba(255, 255, 255, 0.2) !important;
+    border-bottom: 2px solid var(--glass-border) !important;
+}
+
+.table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Modal with glass effect */
+.modal-content {
+    background: var(--glass-bg) !important;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border) !important;
+    border-radius: 20px !important;
+}
+
+.modal-header {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border-bottom: 1px solid var(--glass-border) !important;
+    border-radius: 20px 20px 0 0 !important;
+}
+
+.modal-footer {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border-top: 1px solid var(--glass-border) !important;
+    border-radius: 0 0 20px 20px !important;
+}
+
+/* Alerts with glass effect */
+.alert {
+    background: var(--glass-bg) !important;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--glass-border) !important;
+    border-radius: 12px !important;
+}
+
+/* Badge styles */
+.badge {
+    border-radius: 8px;
+    padding: 0.35em 0.65em;
+    font-weight: 500;
+}
+
+/* Progress bars */
+.progress {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border-radius: 10px !important;
+    overflow: hidden;
+}
+
+.progress-bar {
+    background: var(--gradient-primary) !important;
+}
+
+/* List groups with glass effect */
+.list-group-item {
+    background: var(--glass-bg) !important;
+    border: 1px solid var(--glass-border) !important;
+    margin-bottom: 0.25rem;
+}
+
+.list-group-item:hover {
+    background: rgba(255, 255, 255, 0.2) !important;
+}
+
+/* Dropdowns with glass effect */
+.dropdown-menu {
+    background: var(--glass-bg) !important;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border) !important;
+    border-radius: 12px !important;
+    box-shadow: var(--glass-shadow) !important;
+}
+
+.dropdown-item:hover {
+    background: rgba(255, 255, 255, 0.2) !important;
+}
+
+/* Pagination with glass effect */
+.pagination .page-link {
+    background: var(--glass-bg) !important;
+    border: 1px solid var(--glass-border) !important;
+    color: var(--bs-dark) !important;
+}
+
+.pagination .page-link:hover {
+    background: rgba(255, 255, 255, 0.25) !important;
+}
+
+.pagination .page-item.active .page-link {
+    background: var(--gradient-primary) !important;
+    border-color: transparent !important;
+    color: white !important;
+}
+
+/* Breadcrumb with glass effect */
+.breadcrumb {
+    background: var(--glass-bg) !important;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 10px !important;
+    padding: 0.75rem 1rem;
+}
+
+/* Toast notifications */
+.toast {
+    background: var(--glass-bg) !important;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border) !important;
+    border-radius: 12px !important;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.5);
+}
+
+/* Specific styles for Collectibles app components */
+
+/* App icon grid similar to Clarity */
+.app-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    gap: 1.5rem;
+    padding: 1.5rem;
+}
+
+.app-icon {
+    text-align: center;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.app-icon:hover {
+    transform: scale(1.1);
+}
+
+.app-icon-img {
+    width: 60px;
+    height: 60px;
+    border-radius: 16px;
+    margin-bottom: 0.5rem;
+    background: var(--gradient-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.5rem;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* Collection item cards */
+.collection-item {
+    background: var(--glass-bg) !important;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 16px !important;
+    padding: 1rem;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.collection-item:hover {
+    transform: translateY(-5px) scale(1.02);
+    box-shadow: 0 10px 30px rgba(31, 38, 135, 0.2) !important;
+}
+
+/* Showcase styles */
+.showcase-card {
+    background: var(--glass-bg) !important;
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    border-radius: 20px !important;
+    overflow: hidden;
+}
+
+.showcase-header {
+    background: var(--gradient-primary) !important;
+    color: white;
+    padding: 1.5rem;
+}
+
+/* Profile avatar */
+.profile-avatar {
+    border-radius: 50%;
+    border: 3px solid rgba(255, 255, 255, 0.5);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* Stats cards */
+.stats-card {
+    background: var(--glass-bg) !important;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 16px !important;
+    padding: 1.5rem;
+    text-align: center;
+}
+
+.stats-card .stats-number {
+    font-size: 2rem;
+    font-weight: 600;
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Loading states */
+.placeholder-glow .placeholder {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .photos-grid,
+    .image-grid,
+    .attachment-grid {
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+        gap: 0.5rem;
+    }
+    
+    .app-grid {
+        grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+        gap: 1rem;
+    }
+    
+    .app-icon-img {
+        width: 50px;
+        height: 50px;
+    }
+}
+
+/* Dark mode adjustments (if needed) */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --glass-bg: rgba(0, 0, 0, 0.3);
+        --glass-border: rgba(255, 255, 255, 0.1);
+        --bs-body-color: rgba(255, 255, 255, 0.9);
+    }
+    
+    .form-control,
+    .form-select {
+        color: rgba(255, 255, 255, 0.9) !important;
+    }
+}
+
+/* Utility classes */
+.glass-effect {
+    background: var(--glass-bg) !important;
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border) !important;
+    border-radius: 12px !important;
+}
+
+.gradient-text {
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.hover-lift {
+    transition: transform 0.3s ease;
+}
+
+.hover-lift:hover {
+    transform: translateY(-5px);
+}
+
+/* Additional enhancements for specific components */
+.attachment-thumbnail {
+    position: relative;
+    overflow: hidden;
+    border-radius: 12px;
+}
+
+.attachment-thumbnail::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(180deg, 
+        transparent 0%, 
+        rgba(0, 0, 0, 0.1) 100%);
+    pointer-events: none;
+}
+
+/* Fix for text readability on gradient backgrounds */
+.text-white-shadow {
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Enhance file upload areas */
+.file-upload-area {
+    background: var(--glass-bg) !important;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 2px dashed var(--glass-border) !important;
+    border-radius: 16px !important;
+    padding: 2rem;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.file-upload-area:hover {
+    background: rgba(255, 255, 255, 0.2) !important;
+    border-color: var(--bs-primary) !important;
+}
+
+/* Special effects for showcase items */
+.showcase-item {
+    position: relative;
+    overflow: hidden;
+}
+
+.showcase-item::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, 
+        rgba(255, 255, 255, 0.1) 0%, 
+        transparent 70%);
+    transform: rotate(45deg);
+    transition: all 0.5s ease;
+    opacity: 0;
+}
+
+.showcase-item:hover::before {
+    opacity: 1;
+    transform: rotate(45deg) translate(50%, 50%);
+}

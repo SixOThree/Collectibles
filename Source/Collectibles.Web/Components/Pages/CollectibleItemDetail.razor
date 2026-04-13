@@ -1,0 +1,877 @@
+@page "/item/{Hash}"
+@rendermode InteractiveServerWithoutPrerender
+@inherits LoggablePageBase
+@using Collectibles.Application.Features.CollectibleItems
+@using Collectibles.Application.Features.CollectibleItems.Commands
+@using Collectibles.Application.Features.CollectibleItems.Queries
+@using Collectibles.Domain.Enums
+@using Collectibles.Application.Features.Attachments.Queries
+@using Collectibles.Application.Features.QRCodes.Commands
+@using Collectibles.Application.Features.ContentDefinitions
+@using Collectibles.Application.Features.ContentDefinitions.Queries
+@using Collectibles.Application.Services
+@using Collectibles.Application.Interfaces
+@using Collectibles.Web.Components.Shared
+@using Collectibles.Web.Components.Collectible
+@using Collectibles.Web.Components.Shared.Templates
+@using MediatR
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.WebUtilities
+@using Microsoft.Extensions.Options
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+@inject IHashIdsService HashIds
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider
+@inject Collectibles.Application.Interfaces.IUserManagementService UserManagementService
+@inject IOptions<Collectibles.Domain.Configuration.ExternalLinksOptions> ExternalLinksOptions
+@implements IDisposable
+
+<PageTitle>@(_item?.Name ?? "Collectible Item")</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="text-center my-5">
+        <Spinner Type="SpinnerType.Dots" Class="me-3" Color="SpinnerColor.Primary" />
+    </div>
+}
+else if (_accessDenied)
+{
+    <div class="alert alert-danger" role="alert">
+        <h4 class="alert-heading">Access Denied</h4>
+        <p>This item is in a private showcase and you don't have permission to view it.</p>
+        <hr>
+        <p class="mb-0">
+            <a href="/showcases" class="btn btn-primary">Browse Showcases</a>
+        </p>
+    </div>
+}
+else if (_item == null)
+{
+    <div class="alert alert-warning" role="alert">
+        <h4 class="alert-heading">Item Not Found</h4>
+        <p>The collectible item you are looking for could not be found.</p>
+        <hr>
+        <p class="mb-0">
+            <a href="/showcases" class="btn btn-primary">Browse Showcases</a>
+        </p>
+    </div>
+}
+else
+{
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-2">
+            <li class="breadcrumb-item"><a href="/">Home</a></li>
+            @if (_contextShowcase != null)
+            {
+                <li class="breadcrumb-item"><a href="/showcases">Showcases</a></li>
+                <li class="breadcrumb-item"><a href="/showcase/@HashIds.Encode(_contextShowcase.Id)">@_contextShowcase.Title</a></li>
+            }
+            @foreach (var parent in _item.ParentHierarchy)
+            {
+                var parentUrl = _contextShowcase != null 
+                    ? $"/item/{HashIds.Encode(parent.Id)}?showcase={HashIds.Encode(_contextShowcase.Id)}" 
+                    : $"/item/{HashIds.Encode(parent.Id)}";
+                <li class="breadcrumb-item">
+                    <a href="@parentUrl">
+                        @parent.Name
+                    </a>
+                </li>
+            }
+            <li class="breadcrumb-item active" aria-current="page">@_item.Name</li>
+        </ol>
+    </nav>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h1 class="card-title mb-3">@_item.Name</h1>
+                    
+                    @if (_item.ParentId.HasValue && !string.IsNullOrEmpty(_item.ParentName))
+                    {
+                        <div class="mb-2">
+                            <small class="text-muted">Parent: </small>
+                            <a href="@($"/item/{HashIds.Encode(_item.ParentId.Value)}{(_contextShowcase != null ? $"?showcase={HashIds.Encode(_contextShowcase.Id)}" : "")}")">@_item.ParentName</a>
+                        </div>
+                    }
+                    
+                    @if (!string.IsNullOrEmpty(_templateName))
+                    {
+                        <div class="mb-2">
+                            <small class="text-muted">Template: </small>
+                            <span>@_templateName</span>
+                        </div>
+                    }
+                    
+                    <div class="d-flex flex-wrap gap-3 small text-muted">
+                        <span>
+                            <i class="bi bi-calendar-event me-1"></i>
+                            @_item.Created.ToString("MMM d, yyyy")
+                        </span>
+                        
+                        @if (_item.LastModified.HasValue)
+                        {
+                            <span>
+                                <i class="bi bi-pencil-square me-1"></i>
+                                @_item.LastModified.Value.ToString("MMM d, yyyy")
+                            </span>
+                        }
+                        
+                        <span>
+                            <i class="bi bi-paperclip me-1"></i>
+                            @_item.Attachments.Count @(_item.Attachments.Count == 1 ? "attachment" : "attachments")
+                        </span>
+                        
+                        <span>
+                            <i class="bi bi-tags me-1"></i>
+                            @_item.Tags.Count @(_item.Tags.Count == 1 ? "tag" : "tags")
+                        </span>
+                        
+                        @if (_item.QRCodeId.HasValue && _currentQRCode != null)
+                        {
+                            <span class="badge bg-success">
+                                <i class="bi bi-qr-code me-1"></i>QR Assigned
+                            </span>
+                        }
+                    </div>
+                    @if (_item.Showcases.Any())
+                    {
+                        <hr class="my-3" />
+                        <div class="d-flex align-items-center">
+                            <small class="text-muted me-2">Part of Showcases:</small>
+                            <small>
+                                @foreach (var showcase in _item.Showcases)
+                                {
+                                    <a href="/showcase/@HashIds.Encode(showcase.Id)" class="text-muted text-decoration-none">
+                                        @showcase.Title
+                                    </a>
+                                    <span class="text-muted"> (@(_showcaseOwnerName))</span>
+                                    @if (showcase != _item.Showcases.Last())
+                                    {
+                                        <span class="text-muted mx-1">•</span>
+                                    }
+                                }
+                            </small>
+                        </div>
+                    }
+                </div>
+                @if (_canEdit)
+                {
+                    <div class="card-footer">
+                        <div class="d-flex gap-2">
+                            <a href="/item/@Hash/edit" class="btn btn-primary btn-sm">
+                                <i class="bi bi-pencil me-1"></i> Edit
+                            </a>
+                            @if (!_item.QRCodeId.HasValue)
+                            {
+                                <button class="btn btn-outline-primary btn-sm" @onclick="ShowQRScanner">
+                                    <i class="bi bi-qr-code-scan me-1"></i> Scan QR
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(_item.DetailedDescription))
+            {
+                <div class="mb-4">
+                    <h3>Description</h3>
+                    <p class="lead">@_item.DetailedDescription</p>
+                </div>
+            }
+
+            @if (_item.ContentDefinitionId.HasValue && _item.FieldValueEntries != null && _item.FieldValueEntries.Any())
+            {
+                <div class="mb-4">
+                    <h3>Details</h3>
+                    <Collectibles.Web.Components.Shared.Templates.MultiEntryDisplay
+                        TemplateId="_item.ContentDefinitionId"
+                        Entries="_item.FieldValueEntries" />
+                </div>
+            }
+            else if (_item.ContentDefinitionId.HasValue && _item.FieldValues.Any())
+            {
+                <div class="mb-4">
+                    <h3>Details</h3>
+                    <DynamicFieldsDisplay
+                        TemplateId="_item.ContentDefinitionId"
+                        FieldValues="_item.FieldValues"
+                        ShowEmptyFields="false"
+                        ShowHelpText="true" />
+                </div>
+            }
+
+            @if (_item.Tags.Any())
+            {
+                <div class="mb-4">
+                    <h3>Tags</h3>
+                    <div class="d-flex flex-wrap gap-2">
+                        @foreach (var tag in _item.Tags)
+                        {
+                            <span class="badge bg-secondary">@tag.Name</span>
+                        }
+                    </div>
+                </div>
+            }
+
+            @if (ExternalLinksOptions.Value.Enabled && _item.ExternalReferences.Any())
+            {
+                <div class="mb-4">
+                    <h3>External Links</h3>
+                    <div class="list-group">
+                        @foreach (var link in _item.ExternalReferences)
+                        {
+                            <div class="list-group-item">
+                                <a href="@link.Url" target="_blank" rel="noopener noreferrer" class="text-decoration-none">
+                                    <div class="d-flex w-100 justify-content-between align-items-center">
+                                        <div>
+                                            <h6 class="mb-1">
+                                                <i class="bi bi-box-arrow-up-right me-2"></i>
+                                                @(!string.IsNullOrWhiteSpace(link.Title) ? link.Title : link.Url)
+                                            </h6>
+                                            @if (!string.IsNullOrWhiteSpace(link.Description))
+                                            {
+                                                <p class="mb-1 text-muted">@link.Description</p>
+                                            }
+                                            @if (!string.IsNullOrWhiteSpace(link.Title))
+                                            {
+                                                <small class="text-muted">@link.Url</small>
+                                            }
+                                        </div>
+                                        <span class="badge bg-primary rounded-pill">
+                                            <i class="bi bi-link-45deg"></i>
+                                        </span>
+                                    </div>
+                                </a>
+                                @if (ExternalLinksOptions.Value.CachingEnabled)
+                                {
+                                    <button type="button" class="btn btn-sm btn-outline-secondary mt-1" @onclick="() => ToggleLinkCaches(link.Id)" title="Show cached snapshots">
+                                        <i class="bi bi-archive me-1"></i>
+                                        @(_linkCaches.ContainsKey(link.Id) ? "Hide Caches" : "Show Caches")
+                                    </button>
+                                    @if (_linkCaches.ContainsKey(link.Id))
+                                    {
+                                        <ul class="list-unstyled mt-2 ms-3">
+                                            @foreach (var cache in _linkCaches[link.Id])
+                                            {
+                                                <li class="mb-1">
+                                                    <small>
+                                                        @cache.CachedDate.ToString("MMM d, yyyy HH:mm") - @cache.Status
+                                                        @if (cache.Status == LinkCacheStatus.Completed)
+                                                        {
+                                                            <a href="/api/link-caches/@cache.Id/content" target="_blank" class="ms-2">HTML</a>
+                                                            <a href="/api/link-caches/@cache.Id/screenshot" target="_blank" class="ms-1">Screenshot</a>
+                                                        }
+                                                    </small>
+                                                </li>
+                                            }
+                                        </ul>
+                                    }
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @if (_item.ShowRelatedItemsFirst && _item.Children.Any())
+            {
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h3>Related Items</h3>
+                        @if (_canEdit && _item.Showcases.Any())
+                        {
+                            <a href="/showcase/@HashIds.Encode(_item.Showcases.First().Id)/item/new?parent=@Hash" class="btn btn-primary btn-sm">
+                                <i class="bi bi-plus-circle me-1"></i> Add Related Item
+                            </a>
+                        }
+                    </div>
+                    <div class="row g-3">
+                        @foreach (var childCard in _childItemCards)
+                        {
+                            <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+                                <CollectibleItemCard Item="childCard" OnItemClick="HandleChildItemClick" />
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+            else if (_item.ShowRelatedItemsFirst && _canEdit && _item.Showcases.Any())
+            {
+                <div class="mb-4">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <h5 class="card-title">No Related Items</h5>
+                            <p class="card-text">This item doesn't have any related items yet.</p>
+                            <a href="/showcase/@HashIds.Encode(_item.Showcases.First().Id)/item/new?parent=@Hash" class="btn btn-primary">
+                                <i class="bi bi-plus-circle me-1"></i> Add Related Item
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            @if (!_hideAttachments)
+            {
+                var featuredAttachments = _item.Attachments.Where(a => a.IsFeatured && a.AttachmentType == Domain.Common.Enums.AttachmentType.Image).ToList();
+                var imageAttachments = _item.Attachments.Where(a => !a.IsFeatured && a.AttachmentType == Domain.Common.Enums.AttachmentType.Image).ToList();
+                var documentAttachments = _item.Attachments.Where(a => a.AttachmentType != Domain.Common.Enums.AttachmentType.Image).ToList();
+
+                @if (featuredAttachments.Any())
+                {
+                    <div class="mb-4">
+                        <h3><i class="bi bi-star-fill me-2" style="color: #52c7b8;"></i>Featured</h3>
+                        <div class="row g-3">
+                            @foreach (var attachment in featuredAttachments)
+                            {
+                                <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+                                    <AttachmentThumbnailView
+                                        Attachment="attachment"
+                                        IsFeatured="true"
+                                        OnImageClick="ShowImagePreview"
+                                        OnViewDetails="ShowAttachmentModal"
+                                        OnFeatureToggle="@(async () => await ToggleFeatured(attachment.Id))"
+                                        CanToggleFeature="_canEdit" />
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (imageAttachments.Any())
+                {
+                    <div class="mb-4">
+                        <h3>Pictures</h3>
+                        <div class="row g-3">
+                            @foreach (var attachment in imageAttachments)
+                            {
+                                <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+                                    <AttachmentThumbnailView
+                                        Attachment="attachment"
+                                        IsFeatured="false"
+                                        OnImageClick="ShowImagePreview"
+                                        OnViewDetails="ShowAttachmentModal"
+                                        OnFeatureToggle="@(async () => await ToggleFeatured(attachment.Id))"
+                                        CanToggleFeature="_canEdit" />
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (documentAttachments.Any())
+                {
+                    <div class="mb-4">
+                        <h3>Documents & Files</h3>
+                        <div class="document-list">
+                            @foreach (var attachment in documentAttachments)
+                            {
+                                <div class="document-item p-3 border rounded">
+                                    <div class="document-preview d-flex align-items-center justify-content-center">
+                                        @if (!string.IsNullOrEmpty(attachment.Base64PreviewThumbnail))
+                                        {
+                                            <img src="@($"data:image/png;base64,{attachment.Base64PreviewThumbnail}")"
+                                                 alt="@attachment.OriginalFilename" />
+                                        }
+                                        else
+                                        {
+                                            <div class="document-icon">
+                                                <i class="@GetDocumentIcon(attachment.AttachmentType ?? Domain.Common.Enums.AttachmentType.File)"></i>
+                                            </div>
+                                        }
+                                    </div>
+                                    <div class="document-info">
+                                        <h6 class="document-name">@attachment.OriginalFilename</h6>
+                                        <div class="document-meta">
+                                            <span class="badge bg-secondary">@attachment.AttachmentType</span>
+                                            <span class="text-muted ms-2">@attachment.Created.ToString("MMM d, yyyy")</span>
+                                        </div>
+                                    </div>
+                                    <div class="document-actions">
+                                        <a href="/attachments/@HashIds.Encode(attachment.Id)" class="btn btn-sm btn-outline-primary" target="_blank">
+                                            <i class="bi bi-eye"></i> View
+                                        </a>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (_relatedAttachments.Any())
+                {
+                    <div class="mb-4">
+                        <h3>Tag Attachments</h3>
+                        <div class="row g-3">
+                            @foreach (var attachment in _relatedAttachments)
+                            {
+                                <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+                                    <AttachmentThumbnailView Attachment="attachment"
+                                                           OnImageClick="ShowImagePreview"
+                                                           OnViewDetails="ShowAttachmentModal" />
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+    
+    @if (!_item.ShowRelatedItemsFirst && _item.Children.Any())
+    {
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h3>Related Items</h3>
+                    @if (_canEdit && _item.Showcases.Any())
+                    {
+                        <a href="/showcase/@HashIds.Encode(_item.Showcases.First().Id)/item/new?parent=@Hash" class="btn btn-primary btn-sm">
+                            <i class="bi bi-plus-circle me-1"></i> Add Related Item
+                        </a>
+                    }
+                </div>
+                <div class="row g-3">
+                    @foreach (var childCard in _childItemCards)
+                    {
+                        <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+                            <CollectibleItemCard Item="childCard" OnItemClick="HandleChildItemClick" />
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+    else if (!_item.ShowRelatedItemsFirst && _canEdit && _item.Showcases.Any())
+    {
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">No Related Items</h5>
+                        <p class="card-text">This item doesn't have any related items yet.</p>
+                        <a href="/showcase/@HashIds.Encode(_item.Showcases.First().Id)/item/new?parent=@Hash" class="btn btn-primary">
+                            <i class="bi bi-plus-circle me-1"></i> Add Related Item
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@if (_isLoadingPreview)
+{
+    <div class="preview-loading-overlay">
+        <div class="preview-loading-content">
+            <Spinner Type="SpinnerType.Dots" Class="me-3" Color="SpinnerColor.Primary" />
+            <p class="text-light mt-2">Loading image...</p>
+        </div>
+    </div>
+}
+
+<ImagePreviewModal @ref="_imagePreviewModal" ImageAttachments="_imageAttachments" OnClose="HandleModalClose" OnViewDetails="ShowAttachmentModal" />
+
+<AttachmentDetailModal @bind-IsOpen="showAttachmentDetailModal" AttachmentId="selectedAttachmentId" OnRotationComplete="HandleAttachmentRotation" />
+
+<QRScannerModal @ref="_qrScannerModal" OnQRCodeScanned="HandleQRCodeScanned" OnClose="HandleScannerClose" />
+
+@if (_isProcessingQR)
+{
+    <div class="position-fixed top-50 start-50 translate-middle" style="z-index: 1060;">
+        <div class="bg-white rounded-3 shadow p-4">
+            <div class="d-flex align-items-center">
+                <Spinner Type="SpinnerType.Dots" Class="me-3" Color="SpinnerColor.Primary" />
+                <span>Processing QR code...</span>
+            </div>
+        </div>
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(_qrMessage))
+{
+    <div class="position-fixed bottom-0 start-50 translate-middle-x mb-3" style="z-index: 1060;">
+        <div class="alert @(_qrMessageType == "success" ? "alert-success" : "alert-danger") alert-dismissible fade show" role="alert">
+            <i class="bi @(_qrMessageType == "success" ? "bi-check-circle-fill" : "bi-exclamation-triangle-fill") me-2"></i>
+            @_qrMessage
+            <button type="button" class="btn-close" @onclick="ClearQRMessage"></button>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string Hash { get; set; } = string.Empty;
+
+    private CollectibleItemDetailDto? _item;
+    private bool _isLoading = true;
+    private bool _isLoadingPreview = false;
+    private ImagePreviewModal? _imagePreviewModal;
+    private QRScannerModal? _qrScannerModal;
+    private List<Application.Features.Attachments.AttachmentBriefDto> _imageAttachments = new();
+    private List<Application.Features.Attachments.AttachmentBriefDto> _relatedAttachments = new();
+    private bool _canEdit = false;
+#pragma warning disable CS0414
+    private bool _canView = false;
+#pragma warning restore CS0414
+    private bool _accessDenied = false;
+    private string? _showcaseHash = null;
+    private ShowcaseBriefDto? _contextShowcase = null;
+    private Application.Features.QRCodes.QRCodeDto? _currentQRCode = null;
+    private string? _templateName = null;
+    private bool _hideAttachments = false;
+    private List<CollectibleItemCardDto> _childItemCards = new();
+    private string _showcaseOwnerName = "Unknown";
+    private Dictionary<long, List<LinkCacheDto>> _linkCaches = new();
+    
+    // Modal states
+    private bool showAttachmentDetailModal = false;
+    private long selectedAttachmentId = 0;
+    
+    // QR Scanner states
+    private bool _isProcessingQR = false;
+    private string _qrMessage = string.Empty;
+    private string _qrMessageType = "success";
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Extract showcase context from query parameters
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        if (QueryHelpers.ParseQuery(uri.Query).TryGetValue("showcase", out var showcaseValue))
+        {
+            _showcaseHash = showcaseValue.ToString();
+        }
+        
+        await LoadItem();
+    }
+
+    private async Task LoadItem()
+    {
+        _isLoading = true;
+        
+        try
+        {
+            var id = HashIds.Decode(Hash);
+            var query = new GetCollectibleItemByIdQuery { Id = id };
+            _item = await Mediator.Send(query);
+        }
+        catch (ArgumentException ex)
+        {
+            await LogErrorToSysLog(ex, "decoding collectible item hash");
+            _item = null;
+        }
+        
+        if (_item != null)
+        {
+            // Check authorization
+            if (_item.Showcases.Any())
+            {
+                // Try to find the showcase from context first
+                if (!string.IsNullOrEmpty(_showcaseHash))
+                {
+                    var showcaseId = HashIds.Decode(_showcaseHash);
+                    _contextShowcase = _item.Showcases.FirstOrDefault(s => s.Id == showcaseId);
+                }
+                
+                // Fall back to first showcase if context not found
+                if (_contextShowcase == null)
+                {
+                    _contextShowcase = _item.Showcases.First();
+                }
+                
+                // Check if user can view (private showcase check)
+                var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+                var currentUserId = authState.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                if (_contextShowcase.IsPrivate && _contextShowcase.UserId != currentUserId)
+                {
+                    _accessDenied = true;
+                    _item = null;
+                }
+                else
+                {
+                    _canView = true;
+                    _canEdit = _contextShowcase.UserId == currentUserId;
+                }
+            }
+            else
+            {
+                // Item not in any showcase - allow viewing but not editing
+                _canView = true;
+                _canEdit = false;
+            }
+            
+            if (_item != null)
+            {
+                _imageAttachments = _item.Attachments
+                    .Where(a => a.AttachmentType == Domain.Common.Enums.AttachmentType.Image)
+                    .ToList();
+
+                if (_item.RelatedTags.Any())
+                {
+                    var relatedTagIds = _item.RelatedTags.Select(t => t.Id).ToList();
+                    _relatedAttachments = await Mediator.Send(new GetAttachmentsByTagsQuery { TagIds = relatedTagIds });
+                }
+                
+                // Load template name if item has a template
+                if (_item.ContentDefinitionId.HasValue)
+                {
+                    try
+                    {
+                        var templateQuery = new GetContentDefinitionByIdQuery(_item.ContentDefinitionId.Value);
+                        var template = await Mediator.Send(templateQuery);
+                        _templateName = template?.Name;
+                        _hideAttachments = template?.HideAttachments ?? false;
+                    }
+                    catch (Exception ex)
+                    {
+                        await LogErrorToSysLog(ex, "loading template name for collectible item");
+                    }
+                }
+                
+                // Prepare child item cards
+                if (_item.Children?.Any() == true)
+                {
+                    _childItemCards = _item.Children.Select(child => new CollectibleItemCardDto
+                    {
+                        Id = child.Id,
+                        Name = child.Name,
+                        Description = child.DetailedDescription,
+                        PreviewImageUrl = child.PreviewImageUrl,
+                        AttachmentCount = child.AttachmentCount,
+                        ChildItemCount = 0, // CollectibleItemDto doesn't have child count
+                        Tags = new List<TagSummaryDto>(), // CollectibleItemDto doesn't have tags
+                        CreatedDate = child.Created,
+                        ParentId = _item.Id,
+                        ParentName = _item.Name,
+                        ContentDefinitionId = child.ContentDefinitionId,
+                        TemplateName = child.ContentDefinitionName,
+                        TemplateBorderColor = child.TemplateBorderColor,
+                        TemplateIcon = child.TemplateIcon,
+                    })
+                    .ToList();
+
+                    // Apply sort order from showcase context
+                    var sortOrder = _contextShowcase?.SortOrder ?? Domain.Enums.ShowcaseSortOrder.Alphabetical;
+                    _childItemCards = sortOrder switch
+                    {
+                        Domain.Enums.ShowcaseSortOrder.NewestFirst => _childItemCards
+                            .OrderByDescending(c => c.CreatedDate).ToList(),
+                        Domain.Enums.ShowcaseSortOrder.TemplateSort => _childItemCards
+                            .OrderBy(c => c.ContentDefinitionId.HasValue ? 0 : 1)
+                            .ThenBy(c => c.TemplateName ?? string.Empty)
+                            .ThenBy(c => c.Name).ToList(),
+                        _ => _childItemCards
+                            .OrderBy(c => c.Name).ToList(),
+                    };
+                }
+                
+                // Load showcase owner display name
+                var showcaseUserId = _item.Showcases.FirstOrDefault()?.UserId;
+                if (!string.IsNullOrEmpty(showcaseUserId))
+                {
+                    try
+                    {
+                        var user = await UserManagementService.GetUserByIdAsync(showcaseUserId);
+                        if (user != null)
+                        {
+                            _showcaseOwnerName = !string.IsNullOrWhiteSpace(user.DisplayName) 
+                                ? user.DisplayName 
+                                : !string.IsNullOrWhiteSpace(user.FullName)
+                                    ? user.FullName
+                                    : user.Email ?? "Unknown";
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        await LogErrorToSysLog(ex, "loading showcase owner display name");
+                        // If user lookup fails, keep default "Unknown"
+                    }
+                }
+            }
+        }
+        
+        _isLoading = false;
+    }
+
+
+    private string GetDocumentIcon(Domain.Common.Enums.AttachmentType type)
+    {
+        return type switch
+        {
+            Domain.Common.Enums.AttachmentType.Video => "bi bi-file-earmark-play-fill bi-3x",
+            Domain.Common.Enums.AttachmentType.Audio => "bi bi-file-earmark-music-fill bi-3x",
+            Domain.Common.Enums.AttachmentType.Document => "bi bi-file-earmark-text-fill bi-3x",
+            Domain.Common.Enums.AttachmentType.Archive => "bi bi-file-earmark-zip-fill bi-3x",
+            _ => "bi bi-file-earmark-fill bi-3x"
+        };
+    }
+
+    private void HandleChildItemClick(CollectibleItemCardDto childItem)
+    {
+        var itemHash = HashIds.Encode(childItem.Id);
+        var url = $"/item/{itemHash}";
+        if (_contextShowcase != null)
+        {
+            url += $"?showcase={HashIds.Encode(_contextShowcase.Id)}";
+        }
+        Navigation.NavigateTo(url);
+    }
+    
+    private async Task ShowImagePreview(long attachmentId)
+    {
+        if (_imagePreviewModal != null)
+        {
+            _isLoadingPreview = true;
+            StateHasChanged();
+            
+            await _imagePreviewModal.ShowModal(attachmentId);
+            
+            _isLoadingPreview = false;
+            StateHasChanged();
+        }
+    }
+
+    private void HandleModalClose()
+    {
+        _isLoadingPreview = false;
+        StateHasChanged();
+    }
+    
+    private void ShowAttachmentModal(long attachmentId)
+    {
+        selectedAttachmentId = attachmentId;
+        showAttachmentDetailModal = true;
+        StateHasChanged();
+    }
+
+    private async Task HandleAttachmentRotation()
+    {
+        // Reload the item to refresh the attachments after rotation
+        await LoadItem();
+        StateHasChanged();
+    }
+
+    private async Task ToggleFeatured(long attachmentId)
+    {
+        if (_item == null) return;
+
+        try
+        {
+            var command = new ToggleAttachmentFeaturedCommand
+            {
+                CollectibleItemId = HashIds.Decode(Hash),
+                AttachmentId = attachmentId
+            };
+
+            var isFeatured = await Mediator.Send(command);
+            
+            // Update the local state
+            var attachment = _item.Attachments.FirstOrDefault(a => a.Id == attachmentId);
+            if (attachment != null)
+            {
+                attachment.IsFeatured = isFeatured;
+            }
+            
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await LogErrorToSysLog(ex, "toggling attachment featured status");
+        }
+    }
+
+    private async Task ShowQRScanner()
+    {
+        if (_qrScannerModal != null)
+        {
+            await _qrScannerModal.ShowModal();
+        }
+    }
+    
+    private async Task HandleQRCodeScanned(string qrCode)
+    {
+        if (_item == null) return;
+        
+        _isProcessingQR = true;
+        StateHasChanged();
+        
+        try
+        {
+            var command = new AssignQRCodeCommand
+            {
+                CollectibleItemHashId = Hash,
+                QRCode = qrCode
+            };
+            
+            var result = await Mediator.Send(command);
+            
+            if (result.Success)
+            {
+                _currentQRCode = result.QRCode;
+                _item.QRCodeId = result.QRCode?.Id;
+                _qrMessage = "QR code successfully assigned to this item!";
+                _qrMessageType = "success";
+            }
+            else
+            {
+                _qrMessage = result.ErrorMessage ?? "Failed to assign QR code";
+                _qrMessageType = "error";
+            }
+        }
+        catch (Exception ex)
+        {
+            await LogErrorToSysLog(ex, "assigning QR code to collectible item");
+            _qrMessage = $"Error: {ex.Message}";
+            _qrMessageType = "error";
+        }
+        finally
+        {
+            _isProcessingQR = false;
+            StateHasChanged();
+            
+            // Auto-hide message after 5 seconds
+            if (!string.IsNullOrEmpty(_qrMessage))
+            {
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(5000);
+                    await InvokeAsync(() =>
+                    {
+                        _qrMessage = string.Empty;
+                        StateHasChanged();
+                    });
+                });
+            }
+        }
+    }
+    
+    private void HandleScannerClose()
+    {
+        // Nothing specific needed when scanner closes
+    }
+    
+    private void ClearQRMessage()
+    {
+        _qrMessage = string.Empty;
+        StateHasChanged();
+    }
+
+    private async Task ToggleLinkCaches(long linkInfoId)
+    {
+        if (_linkCaches.ContainsKey(linkInfoId))
+        {
+            _linkCaches.Remove(linkInfoId);
+        }
+        else
+        {
+            var query = new GetLinkCachesQuery { LinkInfoId = linkInfoId };
+            var caches = await Mediator.Send(query);
+            _linkCaches[linkInfoId] = caches;
+        }
+    }
+
+    public void Dispose()
+    {
+        // No longer need to dispose the modal as it doesn't implement IAsyncDisposable
+    }
+}

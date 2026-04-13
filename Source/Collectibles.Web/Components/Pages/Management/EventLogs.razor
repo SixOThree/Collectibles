@@ -1,0 +1,628 @@
+@page "/management/event-logs"
+@rendermode InteractiveServerWithoutPrerender
+@attribute [Authorize(Roles = "Administrator")]
+@inherits LoggablePageBase
+@using Collectibles.Domain.Entities
+@inject ISiteConfigurationService SiteConfigurationService
+@implements IDisposable
+
+<PageTitle>Event Logs - Management</PageTitle>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>
+            <i class="bi bi-journal-text"></i> Event Logs
+        </h1>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-primary" @onclick="ExportLogs" disabled="@_isExporting">
+                @if (_isExporting)
+                {
+                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                }
+                <i class="bi bi-download"></i> Export
+            </button>
+            <button class="btn btn-primary" @onclick="RefreshLogs">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Filters Section -->
+    <div class="card mb-4">
+        <div class="card-header" @onclick="ToggleFilters" style="cursor: pointer;">
+            <h5 class="mb-0 d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-funnel"></i> Filters</span>
+                <i class="bi @(_showFilters ? "bi-chevron-up" : "bi-chevron-down")"></i>
+            </h5>
+        </div>
+        <div class="collapse @(_showFilters ? "show" : "")">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Date Range</label>
+                        <div class="input-group">
+                            <input type="datetime-local" class="form-control" @bind="_startDate" />
+                            <span class="input-group-text">to</span>
+                            <input type="datetime-local" class="form-control" @bind="_endDate" />
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">User</label>
+                        <input type="text" class="form-control" placeholder="Email or ID" @bind="_userFilter" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Action</label>
+                        <select class="form-select" @bind="_actionFilter">
+                            <option value="">All Actions</option>
+                            @foreach (var action in Enum.GetValues<EventAction>())
+                            {
+                                <option value="@action">@action</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+                <div class="row g-3 mt-1">
+                    <div class="col-md-4">
+                        <label class="form-label">Entity Type</label>
+                        <input type="text" class="form-control" placeholder="Entity type" @bind="_entityTypeFilter" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Entity Name / Search</label>
+                        <input type="text" class="form-control" placeholder="Search entity names..." @bind="_searchFilter" />
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <div class="btn-group w-100" role="group">
+                            <button class="btn btn-primary" @onclick="ApplyFilters">
+                                <i class="bi bi-check-lg"></i> Apply Filters
+                            </button>
+                            <button class="btn btn-outline-secondary" @onclick="ClearFilters">
+                                <i class="bi bi-x-lg"></i> Clear All
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Bar -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="alert alert-info py-2 mb-0">
+                <i class="bi bi-info-circle"></i> 
+                Showing @_logs.Count of @_totalCount total events
+                @if (_isLoading)
+                {
+                    <span class="ms-3">
+                        <span class="spinner-border spinner-border-sm" role="status"></span>
+                        Loading more...
+                    </span>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Timezone Indicator -->
+    <div class="small text-muted mb-2">
+        <i class="bi bi-clock"></i>
+        @if (_timeZoneDetected)
+        {
+            @:Times are displayed in your local time (@_browserTimeZoneId)
+        }
+        else
+        {
+            @:Times are displayed in UTC
+        }
+    </div>
+
+    <!-- Logs Table -->
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-sm mb-0">
+                    <thead class="bg-light" style="position: sticky; top: 0; z-index: 1;">
+                        <tr>
+                            <th style="width: 150px;">Timestamp</th>
+                            <th style="width: 200px;">User</th>
+                            <th style="width: 120px;">Action</th>
+                            <th style="width: 150px;">Entity Type</th>
+                            <th>Entity Name</th>
+                            <th style="width: 120px;">IP Address</th>
+                            <th style="width: 80px;">Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (_logs.Any())
+                        {
+                            @foreach (var log in _logs)
+                            {
+                                <tr @key="log.Id">
+                                    <td>
+                                        <small>@FormatTimestamp(log.Timestamp)</small>
+                                        @if (_lastViewedId.HasValue && log.Id > _lastViewedId.Value)
+                                        {
+                                            <span class="badge bg-info ms-1">NEW</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <small>
+                                            @if (!string.IsNullOrEmpty(log.UserEmail))
+                                            {
+                                                <i class="bi bi-person-fill"></i> @log.UserEmail
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">System</span>
+                                            }
+                                        </small>
+                                    </td>
+                                    <td>
+                                        @{
+                                            var actionClass = log.Action switch
+                                            {
+                                                EventAction.Create => "success",
+                                                EventAction.Update => "info",
+                                                EventAction.Delete => "danger",
+                                                EventAction.Login => "primary",
+                                                EventAction.Logout => "secondary",
+                                                EventAction.ThemeChange => "info",
+                                                _ => "secondary"
+                                            };
+                                        }
+                                        <span class="badge bg-@actionClass">@log.Action</span>
+                                    </td>
+                                    <td>
+                                        <small>@(log.EntityType ?? GetPageFromAdditionalData(log, "type"))</small>
+                                    </td>
+                                    <td>
+                                        <small>@(log.EntityName ?? GetPageFromAdditionalData(log, "name"))</small>
+                                        @if (log.EntityId.HasValue)
+                                        {
+                                            <span class="text-muted">(#@log.EntityId)</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">@log.IPAddress</small>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => ShowDetails(log)">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                            
+                            @if (_hasMore && !_isLoading)
+                            {
+                                <tr>
+                                    <td colspan="7" class="text-center py-3">
+                                        <button class="btn btn-sm btn-primary" @onclick="LoadMore">
+                                            Load More
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else if (!_isLoading)
+                        {
+                            <tr>
+                                <td colspan="7" class="text-center py-5 text-muted">
+                                    <i class="bi bi-inbox display-4 d-block mb-2"></i>
+                                    No event logs found matching your criteria
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Details Modal -->
+@if (_selectedLog != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-info-circle"></i> Event Details
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CloseDetails"></button>
+                </div>
+                <div class="modal-body">
+                    <dl class="row">
+                        <dt class="col-sm-3">Timestamp</dt>
+                        <dd class="col-sm-9">@FormatTimestamp(_selectedLog.Timestamp)</dd>
+
+                        <dt class="col-sm-3">User</dt>
+                        <dd class="col-sm-9">
+                            @(_selectedLog.UserEmail ?? "System")
+                            @if (!string.IsNullOrEmpty(_selectedLog.UserId))
+                            {
+                                <span class="text-muted">(ID: @_selectedLog.UserId)</span>
+                            }
+                        </dd>
+
+                        <dt class="col-sm-3">Action</dt>
+                        <dd class="col-sm-9"><span class="badge bg-secondary">@_selectedLog.Action</span></dd>
+
+                        @if (!string.IsNullOrEmpty(_selectedLog.EntityType))
+                        {
+                            <dt class="col-sm-3">Entity</dt>
+                            <dd class="col-sm-9">
+                                @_selectedLog.EntityType
+                                @if (_selectedLog.EntityId.HasValue)
+                                {
+                                    <span> #@_selectedLog.EntityId</span>
+                                }
+                                @if (!string.IsNullOrEmpty(_selectedLog.EntityName))
+                                {
+                                    <span> - @_selectedLog.EntityName</span>
+                                }
+                            </dd>
+                        }
+
+                        <dt class="col-sm-3">IP Address</dt>
+                        <dd class="col-sm-9">@_selectedLog.IPAddress</dd>
+
+                        @if (!string.IsNullOrEmpty(_selectedLog.UserAgent))
+                        {
+                            <dt class="col-sm-3">User Agent</dt>
+                            <dd class="col-sm-9"><small>@_selectedLog.UserAgent</small></dd>
+                        }
+
+                        @if (!string.IsNullOrEmpty(_selectedLog.SessionId))
+                        {
+                            <dt class="col-sm-3">Session ID</dt>
+                            <dd class="col-sm-9"><code>@_selectedLog.SessionId</code></dd>
+                        }
+
+                        @if (!string.IsNullOrEmpty(_selectedLog.AdditionalData))
+                        {
+                            <dt class="col-sm-3">Additional Data</dt>
+                            <dd class="col-sm-9">
+                                <pre class="bg-light p-2 rounded" style="max-height: 200px; overflow-y: auto;">@FormatJson(_selectedLog.AdditionalData)</pre>
+                            </dd>
+                        }
+
+                        @if (!string.IsNullOrEmpty(_selectedLog.OldValues))
+                        {
+                            <dt class="col-sm-3">Old Values</dt>
+                            <dd class="col-sm-9">
+                                <pre class="bg-light p-2 rounded" style="max-height: 200px; overflow-y: auto;">@FormatJson(_selectedLog.OldValues)</pre>
+                            </dd>
+                        }
+
+                        @if (!string.IsNullOrEmpty(_selectedLog.NewValues))
+                        {
+                            <dt class="col-sm-3">New Values</dt>
+                            <dd class="col-sm-9">
+                                <pre class="bg-light p-2 rounded" style="max-height: 200px; overflow-y: auto;">@FormatJson(_selectedLog.NewValues)</pre>
+                            </dd>
+                        }
+                    </dl>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-primary" @onclick="CopyLogToClipboard">
+                        <i class="bi bi-clipboard"></i> @(_copyButtonText)
+                    </button>
+                    <button type="button" class="btn btn-secondary" @onclick="CloseDetails">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    // Removed timer - no longer using virtual scrolling
+    private bool _isLoading = false;
+    private bool _isExporting = false;
+    private bool _showFilters = true;
+    private bool _hasMore = true;
+    private string _copyButtonText = "Copy";
+    
+    private List<EventLog> _logs = new();
+    private EventLog? _selectedLog;
+    private int _currentPage = 1;
+    private int _pageSize = 50;
+    private int _totalCount = 0;
+    private long? _lastViewedId;
+
+    // Filter fields
+    private DateTime? _startDate;
+    private DateTime? _endDate;
+    private string _userFilter = string.Empty;
+    private EventAction? _actionFilter;
+    private string _entityTypeFilter = string.Empty;
+    private string _searchFilter = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadLastViewedId();
+        await LoadLogs();
+        await SaveLastViewedId();
+    }
+
+    private async Task LoadLastViewedId()
+    {
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authState.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (!string.IsNullOrEmpty(userId))
+            {
+                var value = await SiteConfigurationService.GetConfigurationValueAsync($"LastViewedEventLogId:{userId}");
+                if (long.TryParse(value, out var id))
+                {
+                    _lastViewedId = id;
+                }
+            }
+        }
+        catch
+        {
+            // Leave as null - no badges on error
+        }
+    }
+
+    private async Task SaveLastViewedId()
+    {
+        try
+        {
+            if (!_logs.Any()) return;
+            var maxId = _logs.Max(l => l.Id);
+
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authState.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (!string.IsNullOrEmpty(userId))
+            {
+                await SiteConfigurationService.SetConfigurationValueAsync(
+                    $"LastViewedEventLogId:{userId}",
+                    maxId.ToString());
+            }
+        }
+        catch
+        {
+            // Silently fail - don't disrupt UX for tracking failures
+        }
+    }
+
+    private async Task LoadLogs(bool append = false)
+    {
+        _isLoading = true;
+        
+        try
+        {
+            var logs = await EventLogService.GetEventLogsAsync(
+                userId: _userFilter,
+                startDate: _startDate,
+                endDate: _endDate,
+                action: _actionFilter,
+                entityType: _entityTypeFilter,
+                pageNumber: _currentPage,
+                pageSize: _pageSize);
+
+            var logsList = logs.ToList();
+            
+            if (append)
+            {
+                var existingIds = _logs.Select(l => l.Id).ToHashSet();
+                _logs.AddRange(logsList.Where(l => !existingIds.Contains(l.Id)));
+            }
+            else
+            {
+                _logs = logsList;
+            }
+
+            _hasMore = logsList.Count == _pageSize;
+
+            // Get total count
+            _totalCount = await EventLogService.GetEventLogCountAsync(
+                userId: _userFilter,
+                startDate: _startDate,
+                endDate: _endDate,
+                action: _actionFilter,
+                entityType: _entityTypeFilter);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading logs: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadMore()
+    {
+        if (_isLoading || !_hasMore) return;
+        
+        _currentPage++;
+        await LoadLogs(append: true);
+    }
+
+    private Task OnScroll()
+    {
+        // Removed - no longer using virtual scrolling
+        return Task.CompletedTask;
+    }
+
+    private async Task ApplyFilters()
+    {
+        _currentPage = 1;
+        _logs.Clear();
+        await LoadLogs();
+        
+        // Log search action
+        await EventLogService.LogEventAsync(
+            EventAction.Search, 
+            "EventLog", 
+            null, 
+            "Event logs search",
+            additionalData: System.Text.Json.JsonSerializer.Serialize(new 
+            { 
+                UserFilter = _userFilter,
+                StartDate = _startDate,
+                EndDate = _endDate,
+                ActionFilter = _actionFilter?.ToString(),
+                EntityTypeFilter = _entityTypeFilter,
+                SearchFilter = _searchFilter,
+                ResultCount = _logs.Count,
+                TotalCount = _totalCount
+            }));
+    }
+
+    private async Task ClearFilters()
+    {
+        _startDate = null;
+        _endDate = null;
+        _userFilter = string.Empty;
+        _actionFilter = null;
+        _entityTypeFilter = string.Empty;
+        _searchFilter = string.Empty;
+        
+        await ApplyFilters();
+        
+        // Log clear filters action
+        await EventLogService.LogEventAsync(EventAction.Other, "EventLog", null, "Clear event log filters");
+    }
+
+    private async Task RefreshLogs()
+    {
+        _currentPage = 1;
+        await LoadLogs();
+    }
+
+    private void ToggleFilters()
+    {
+        _showFilters = !_showFilters;
+    }
+
+    private void ShowDetails(EventLog log)
+    {
+        _selectedLog = log;
+    }
+
+    private void CloseDetails()
+    {
+        _selectedLog = null;
+        _copyButtonText = "Copy";
+    }
+
+    private async Task CopyLogToClipboard()
+    {
+        if (_selectedLog == null) return;
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"Timestamp: {FormatTimestamp(_selectedLog.Timestamp)}");
+        sb.AppendLine($"User: {_selectedLog.UserEmail ?? "System"}");
+        if (!string.IsNullOrEmpty(_selectedLog.UserId))
+            sb.AppendLine($"User ID: {_selectedLog.UserId}");
+        sb.AppendLine($"Action: {_selectedLog.Action}");
+        if (!string.IsNullOrEmpty(_selectedLog.EntityType))
+        {
+            var entity = _selectedLog.EntityType;
+            if (_selectedLog.EntityId.HasValue)
+                entity += $" #{_selectedLog.EntityId}";
+            if (!string.IsNullOrEmpty(_selectedLog.EntityName))
+                entity += $" - {_selectedLog.EntityName}";
+            sb.AppendLine($"Entity: {entity}");
+        }
+        sb.AppendLine($"IP Address: {_selectedLog.IPAddress}");
+        if (!string.IsNullOrEmpty(_selectedLog.UserAgent))
+            sb.AppendLine($"User Agent: {_selectedLog.UserAgent}");
+        if (!string.IsNullOrEmpty(_selectedLog.SessionId))
+            sb.AppendLine($"Session ID: {_selectedLog.SessionId}");
+        if (!string.IsNullOrEmpty(_selectedLog.AdditionalData))
+            sb.AppendLine($"Additional Data:\n{FormatJson(_selectedLog.AdditionalData)}");
+        if (!string.IsNullOrEmpty(_selectedLog.OldValues))
+            sb.AppendLine($"Old Values:\n{FormatJson(_selectedLog.OldValues)}");
+        if (!string.IsNullOrEmpty(_selectedLog.NewValues))
+            sb.AppendLine($"New Values:\n{FormatJson(_selectedLog.NewValues)}");
+
+        await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", sb.ToString());
+        _copyButtonText = "Copied!";
+        StateHasChanged();
+    }
+
+    private string? GetPageFromAdditionalData(EventLog log, string field)
+    {
+        if (string.IsNullOrEmpty(log.AdditionalData)) return null;
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(log.AdditionalData);
+            if (doc.RootElement.TryGetProperty("Page", out var pageProp))
+            {
+                var page = pageProp.GetString();
+                if (!string.IsNullOrEmpty(page))
+                    return field == "type" ? "Page" : page;
+            }
+        }
+        catch { }
+        return null;
+    }
+
+    private string FormatJson(string? json)
+    {
+        if (string.IsNullOrEmpty(json)) return string.Empty;
+        
+        try
+        {
+            var parsed = System.Text.Json.JsonDocument.Parse(json);
+            return System.Text.Json.JsonSerializer.Serialize(parsed, new System.Text.Json.JsonSerializerOptions 
+            { 
+                WriteIndented = true 
+            });
+        }
+        catch
+        {
+            return json;
+        }
+    }
+
+    private async Task ExportLogs()
+    {
+        _isExporting = true;
+        
+        try
+        {
+            // In a real implementation, this would call an export command
+            await Task.Delay(1000); // Simulate export
+            
+            // Log the export action
+            await EventLogService.LogEventAsync(
+                EventAction.Export,
+                "EventLog",
+                null,
+                "Export event logs",
+                additionalData: System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    TotalCount = _totalCount,
+                    ExportedCount = _logs.Count,
+                    Filters = new
+                    {
+                        StartDate = _startDate,
+                        EndDate = _endDate,
+                        UserFilter = _userFilter,
+                        ActionFilter = _actionFilter?.ToString(),
+                        EntityTypeFilter = _entityTypeFilter,
+                        SearchFilter = _searchFilter
+                    }
+                }));
+            
+            await JSRuntime.InvokeVoidAsync("alert", "Export functionality will be implemented");
+        }
+        finally
+        {
+            _isExporting = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        // Cleanup if needed
+    }
+}

@@ -1,0 +1,24 @@
+<Project>
+  <PropertyGroup>
+    <!-- Enable .NET analyzers -->
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <!-- Treat warnings as warnings, not errors (initially) -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <!-- Code analysis settings -->
+    <CodeAnalysisTreatWarningsAsErrors>false</CodeAnalysisTreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <!-- Missing XML comment for publicly visible type or member -->
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- StyleCop.Analyzers for all projects -->
+    <PackageReference Include="StyleCop.Analyzers">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Include stylecop.json in all projects -->
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)stylecop.json" Link="stylecop.json" />
+  </ItemGroup>
+</Project>

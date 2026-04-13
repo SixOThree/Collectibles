@@ -1,0 +1,287 @@
+@using Collectibles.Application.Features.Maintenance.Queries
+@using Collectibles.Application.Features.Maintenance.Commands
+@using Collectibles.Application.Interfaces
+@using MediatR
+@inject IMediator Mediator
+@inject ISysLogService SysLogService
+
+@if (_isLoading)
+{
+    <div class="col-md-4 d-flex">
+        <div class="card w-100">
+            <div class="card-body placeholder-glow">
+                <h5 class="card-title"><span class="placeholder col-6"></span></h5>
+                <p class="placeholder col-3" style="height: 3rem;"></p>
+                <small><span class="placeholder col-8"></span></small>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="col-md-4 d-flex">
+        <div class="card w-100 @(_orphanStats.OrphanedAttachmentCount + _orphanStats.OrphanedBlobCount + _orphanStats.EmptyItemCount > 0 ? "border-warning" : "border-secondary")">
+            <div class="card-body">
+                <h5 class="card-title @(_orphanStats.OrphanedAttachmentCount + _orphanStats.OrphanedBlobCount + _orphanStats.EmptyItemCount > 0 ? "text-warning" : "text-secondary")">
+                    <i class="bi bi-link-45deg"></i> Orphaned Records
+                </h5>
+                @if (_orphanStats.OrphanedAttachmentCount + _orphanStats.OrphanedBlobCount + _orphanStats.EmptyItemCount > 0)
+                {
+                    <div class="mb-2">
+                        @if (_orphanStats.OrphanedAttachmentCount > 0)
+                        {
+                            <div>
+                                <span class="badge bg-warning">@_orphanStats.OrphanedAttachmentCount</span>
+                                unlinked attachment@(_orphanStats.OrphanedAttachmentCount != 1 ? "s" : "")
+                                <small class="text-muted">(@FormatBytes(_orphanStats.OrphanedAttachmentBytes))</small>
+                            </div>
+                        }
+                        @if (_orphanStats.OrphanedBlobCount > 0)
+                        {
+                            <div>
+                                <span class="badge bg-warning">@_orphanStats.OrphanedBlobCount</span>
+                                orphaned blob@(_orphanStats.OrphanedBlobCount != 1 ? "s" : "") in storage
+                                <small class="text-muted">(@FormatBytes(_orphanStats.OrphanedBlobBytes))</small>
+                            </div>
+                        }
+                        @if (_orphanStats.EmptyItemCount > 0)
+                        {
+                            <div>
+                                <span class="badge bg-warning">@_orphanStats.EmptyItemCount</span>
+                                empty item@(_orphanStats.EmptyItemCount != 1 ? "s" : "")
+                            </div>
+                        }
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-info" @onclick="ShowDetails" disabled="@_isLoadingDetails">
+                            @if (_isLoadingDetails)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                            }
+                            <i class="bi bi-list-ul"></i> View
+                        </button>
+                        <button class="btn btn-sm btn-outline-warning" @onclick="CleanupOrphans" disabled="@_isCleaningOrphans">
+                            @if (_isCleaningOrphans)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                            }
+                            <i class="bi bi-trash"></i> Cleanup
+                        </button>
+                    </div>
+                    @if (_cleanupResult != null)
+                    {
+                        <small class="text-success ms-2">
+                            Removed @_cleanupResult.AttachmentsDeleted attachment@(_cleanupResult.AttachmentsDeleted != 1 ? "s" : ""),
+                            @_cleanupResult.OrphanedBlobsDeleted blob@(_cleanupResult.OrphanedBlobsDeleted != 1 ? "s" : ""),
+                            @_cleanupResult.ItemsDeleted item@(_cleanupResult.ItemsDeleted != 1 ? "s" : "")
+                            (@FormatBytes(_cleanupResult.BytesFreed + _cleanupResult.BlobBytesFreed) freed)
+                        </small>
+                    }
+                }
+                else
+                {
+                    <p class="card-text display-6">0</p>
+                    <small class="text-muted">No orphaned records found</small>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@if (_showDetailsModal && _orphanDetails != null)
+{
+    <div class="modal-backdrop show" @onclick="CloseDetails"></div>
+    <div class="modal show d-block" tabindex="-1" @onclick="CloseDetails">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable" @onclick:stopPropagation="true">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-link-45deg"></i> Orphaned Records</h5>
+                    <button type="button" class="btn-close" @onclick="CloseDetails"></button>
+                </div>
+                <div class="modal-body">
+                    @if (_orphanDetails.Attachments.Any())
+                    {
+                        <h6 class="mb-2">Unlinked Attachments <span class="badge bg-warning">@_orphanDetails.Attachments.Count</span></h6>
+                        <div class="table-responsive mb-4">
+                            <table class="table table-sm table-striped mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Original File</th>
+                                        <th>Type</th>
+                                        <th class="text-end">Size</th>
+                                        <th>Created</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var a in _orphanDetails.Attachments)
+                                    {
+                                        <tr>
+                                            <td>@a.Name</td>
+                                            <td class="text-muted">@(a.OriginalFilename ?? "—")</td>
+                                            <td>@(a.FileType ?? "—")</td>
+                                            <td class="text-end">@FormatBytes(a.FileSize)</td>
+                                            <td>@(a.Created?.ToString("yyyy-MM-dd") ?? "—")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+
+                    @if (_orphanDetails.Blobs.Any())
+                    {
+                        <h6 class="mb-2">Orphaned Blobs <span class="badge bg-warning">@_orphanDetails.Blobs.Count</span></h6>
+                        <div class="table-responsive mb-4">
+                            <table class="table table-sm table-striped mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Blob Name</th>
+                                        <th class="text-end">Size</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var b in _orphanDetails.Blobs)
+                                    {
+                                        <tr>
+                                            <td class="text-break">@b.Name</td>
+                                            <td class="text-end">@FormatBytes(b.SizeBytes)</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+
+                    @if (_orphanDetails.Items.Any())
+                    {
+                        <h6 class="mb-2">Empty Items <span class="badge bg-warning">@_orphanDetails.Items.Count</span></h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-striped mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Created</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var item in _orphanDetails.Items)
+                                    {
+                                        <tr>
+                                            <td>@(item.Name ?? "—")</td>
+                                            <td>@(item.Created?.ToString("yyyy-MM-dd") ?? "—")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseDetails">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int RefreshKey { get; set; }
+
+    private bool _isLoading = true;
+    private OrphanStatsDto _orphanStats = new();
+    private bool _isCleaningOrphans;
+    private CleanupOrphansResult? _cleanupResult;
+    private int _previousRefreshKey;
+    private bool _showDetailsModal;
+    private bool _isLoadingDetails;
+    private OrphanDetailsDto? _orphanDetails;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _previousRefreshKey = RefreshKey;
+        await LoadData();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (RefreshKey != _previousRefreshKey)
+        {
+            _previousRefreshKey = RefreshKey;
+            await LoadData();
+        }
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            _orphanStats = await Mediator.Send(new GetOrphanStatsQuery());
+        }
+        catch (Exception ex)
+        {
+            try { await SysLogService.LogErrorAsync($"Dashboard: Error loading orphan stats data: {ex.Message}", ex, "BlazorPage"); } catch { }
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task CleanupOrphans()
+    {
+        _isCleaningOrphans = true;
+        _cleanupResult = null;
+        StateHasChanged();
+
+        try
+        {
+            _cleanupResult = await Mediator.Send(new CleanupOrphansCommand());
+            _orphanStats = await Mediator.Send(new GetOrphanStatsQuery());
+        }
+        catch (Exception ex)
+        {
+            try { await SysLogService.LogErrorAsync($"Dashboard: Error cleaning up orphaned records: {ex.Message}", ex, "BlazorPage"); } catch { }
+        }
+        finally
+        {
+            _isCleaningOrphans = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ShowDetails()
+    {
+        _isLoadingDetails = true;
+        StateHasChanged();
+
+        try
+        {
+            _orphanDetails = await Mediator.Send(new GetOrphanDetailsQuery());
+            _showDetailsModal = true;
+        }
+        catch (Exception ex)
+        {
+            try { await SysLogService.LogErrorAsync($"Dashboard: Error loading orphan details: {ex.Message}", ex, "BlazorPage"); } catch { }
+        }
+        finally
+        {
+            _isLoadingDetails = false;
+            StateHasChanged();
+        }
+    }
+
+    private void CloseDetails()
+    {
+        _showDetailsModal = false;
+        _orphanDetails = null;
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F0} KB";
+        if (bytes < 1024 * 1024 * 1024) return $"{bytes / (1024.0 * 1024.0):F1} MB";
+        return $"{bytes / (1024.0 * 1024.0 * 1024.0):F2} GB";
+    }
+}

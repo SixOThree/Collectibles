@@ -1,0 +1,413 @@
+@page "/users/{UserId}"
+@rendermode InteractiveServerWithoutPrerender
+@inherits LoggablePageBase
+@using Collectibles.Application.Features.Users.Commands
+@using Collectibles.Application.Features.Users.Dtos
+@using Collectibles.Application.Features.Users.Queries
+@using Collectibles.Infrastructure.Services
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using MediatR
+@attribute [Authorize(Policy = "CanViewUsers")]
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+@inject IAuthorizationService AuthorizationService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>User Details</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="text-center">
+        <Spinner Type="SpinnerType.Dots" Class="me-3" Color="SpinnerColor.Primary" />
+    </div>
+}
+else if (_user != null)
+{
+    <div class="page-header">
+        <h1>User Details</h1>
+        <div>
+            @if (_canEditUsers)
+            {
+                <button class="btn btn-primary" @onclick="EditUser">
+                    <i class="bi bi-pencil"></i> Edit
+                </button>
+            }
+            <button class="btn btn-secondary ms-2" @onclick="BackToList">
+                <i class="bi bi-arrow-left"></i> Back to Users
+            </button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(_statusMessage))
+    {
+        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+            @_statusMessage
+            <button type="button" class="btn-close" @onclick="DismissStatusMessage" aria-label="Close"></button>
+        </div>
+    }
+
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body text-center">
+                    @if (!string.IsNullOrEmpty(_user.ProfilePictureUrl))
+                    {
+                        <img src="@_user.ProfilePictureUrl" alt="@_user.FullName" class="rounded-circle mb-3" style="width: 150px; height: 150px; object-fit: cover;">
+                    }
+                    else
+                    {
+                        <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center mb-3 mx-auto" style="width: 150px; height: 150px; font-size: 3rem;">
+                            <i class="bi bi-person-fill"></i>
+                        </div>
+                    }
+                    <h3>@_user.FullName</h3>
+                    <p class="text-muted">@_user.Email</p>
+                    
+                    <div class="mb-3">
+                        @if (_user.IsLockedOut)
+                        {
+                            <span class="badge bg-danger fs-6">Locked</span>
+                        }
+                        else if (_user.IsActive)
+                        {
+                            <span class="badge bg-success fs-6">Active</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary fs-6">Inactive</span>
+                        }
+                    </div>
+
+                    @if (_canEditUsers)
+                    {
+                        <div class="d-grid gap-2">
+                            @if (_user.IsLockedOut)
+                            {
+                                <button class="btn btn-success" @onclick="UnlockUser">
+                                    <i class="bi bi-unlock"></i> Unlock Account
+                                </button>
+                            }
+                            else
+                            {
+                                <button class="btn btn-warning" @onclick="LockUser">
+                                    <i class="bi bi-lock"></i> Lock Account
+                                </button>
+                            }
+                            <button class="btn btn-outline-secondary" @onclick="ResetPassword">
+                                <i class="bi bi-key"></i> Reset Password
+                            </button>
+                            <button class="btn btn-outline-danger" @onclick="DeleteUser">
+                                <i class="bi bi-trash"></i> Delete User
+                            </button>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-8">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="mb-0">Account Information</h5>
+                </div>
+                <div class="card-body">
+                    <dl class="row">
+                        <dt class="col-sm-3">Email</dt>
+                        <dd class="col-sm-9">
+                            @_user.Email
+                            @if (!_user.EmailConfirmed)
+                            {
+                                <span class="badge bg-warning ms-2">Unconfirmed</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-success ms-2">Confirmed</span>
+                            }
+                        </dd>
+
+                        <dt class="col-sm-3">Two-Factor Auth</dt>
+                        <dd class="col-sm-9">
+                            @if (_user.TwoFactorEnabled)
+                            {
+                                <span class="badge bg-success">Enabled</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">Disabled</span>
+                            }
+                        </dd>
+
+                        <dt class="col-sm-3">Lockout Status</dt>
+                        <dd class="col-sm-9">
+                            @if (_user.LockoutEnd.HasValue && _user.LockoutEnd > DateTimeOffset.UtcNow)
+                            {
+                                <span class="text-danger">Locked until @_user.LockoutEnd.Value.ToString("g")</span>
+                            }
+                            else
+                            {
+                                <span class="text-success">Not locked</span>
+                            }
+                        </dd>
+
+                        <dt class="col-sm-3">Failed Login Attempts</dt>
+                        <dd class="col-sm-9">@_user.AccessFailedCount</dd>
+
+                        <dt class="col-sm-3">Last Login</dt>
+                        <dd class="col-sm-9">
+                            @if (_user.LastLoginDate.HasValue)
+                            {
+                                @_user.LastLoginDate.Value.ToString("g")
+                            }
+                            else
+                            {
+                                <span class="text-muted">Never</span>
+                            }
+                        </dd>
+
+                        <dt class="col-sm-3">Created</dt>
+                        <dd class="col-sm-9">
+                            @_user.CreatedDate.ToString("g")
+                            @if (!string.IsNullOrEmpty(_user.CreatedBy))
+                            {
+                                <span class="text-muted"> by @_user.CreatedBy</span>
+                            }
+                        </dd>
+
+                        @if (_user.ModifiedDate.HasValue)
+                        {
+                            <dt class="col-sm-3">Last Modified</dt>
+                            <dd class="col-sm-9">
+                                @_user.ModifiedDate.Value.ToString("g")
+                                @if (!string.IsNullOrEmpty(_user.ModifiedBy))
+                                {
+                                    <span class="text-muted"> by @_user.ModifiedBy</span>
+                                }
+                            </dd>
+                        }
+                    </dl>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Roles</h5>
+                </div>
+                <div class="card-body">
+                    @if (_user.Roles.Any())
+                    {
+                        <div class="d-flex flex-wrap gap-2">
+                            @foreach (var role in _user.Roles)
+                            {
+                                <span class="badge bg-primary fs-6">@role</span>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted mb-0">No roles assigned</p>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (_showResetPasswordModal)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Reset Password</h5>
+                        <button type="button" class="btn-close" @onclick="CloseResetPasswordModal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="newPassword" class="form-label">New Password</label>
+                            <input type="password" class="form-control" id="newPassword" @bind="_newPassword" />
+
+                        </div>
+                        <div class="mb-3">
+                            <label for="confirmNewPassword" class="form-label">Confirm New Password</label>
+                            <input type="password" class="form-control" id="confirmNewPassword" @bind="_confirmNewPassword" />
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="requireChange" @bind="_requirePasswordChange" />
+                            <label class="form-check-label" for="requireChange">
+                                Require user to change password on next login
+                            </label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseResetPasswordModal">Cancel</button>
+                        <button type="button" class="btn btn-primary" @onclick="ConfirmResetPassword" 
+                                disabled="@(!IsPasswordValid())">Reset Password</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public string UserId { get; set; } = string.Empty;
+
+    private UserDto? _user;
+    private bool _isLoading = true;
+    private bool _canEditUsers = false;
+    private string? _statusMessage;
+    
+    // Reset password modal
+    private bool _showResetPasswordModal = false;
+    private string _newPassword = "";
+    private string _confirmNewPassword = "";
+    private bool _requirePasswordChange = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CheckPermissions();
+        await LoadUser();
+    }
+
+    private async Task CheckPermissions()
+    {
+        var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var authorizationResult = await AuthorizationService.AuthorizeAsync(
+            authenticationState.User,
+            "UserManager");
+        _canEditUsers = authorizationResult.Succeeded;
+    }
+
+    private async Task LoadUser()
+    {
+        _isLoading = true;
+        try
+        {
+            _user = await Mediator.Send(new GetUserByIdQuery(UserId));
+        }
+        catch (Exception)
+        {
+            Navigation.NavigateTo("/users");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void EditUser()
+    {
+        Navigation.NavigateTo($"/users/{UserId}/edit");
+    }
+
+    private void BackToList()
+    {
+        Navigation.NavigateTo("/users");
+    }
+
+    private async Task LockUser()
+    {
+        if (_user == null) return;
+
+        try
+        {
+            await Mediator.Send(new LockUnlockUserCommand
+            {
+                UserId = UserId,
+                IsLocked = true,
+                LockoutDays = 30
+            });
+            await LoadUser();
+        }
+        catch (Exception)
+        {
+            // Handle error
+        }
+    }
+
+    private async Task UnlockUser()
+    {
+        if (_user == null) return;
+
+        try
+        {
+            await Mediator.Send(new LockUnlockUserCommand
+            {
+                UserId = UserId,
+                IsLocked = false
+            });
+            await LoadUser();
+        }
+        catch (Exception)
+        {
+            // Handle error
+        }
+    }
+
+    private void ResetPassword()
+    {
+        _showResetPasswordModal = true;
+        _newPassword = "";
+        _confirmNewPassword = "";
+        _requirePasswordChange = false;
+    }
+
+    private void CloseResetPasswordModal()
+    {
+        _showResetPasswordModal = false;
+    }
+
+    private bool IsPasswordValid()
+    {
+        return !string.IsNullOrWhiteSpace(_newPassword) &&
+               _newPassword.Length >= 12 &&
+               _newPassword == _confirmNewPassword;
+    }
+
+    private async Task ConfirmResetPassword()
+    {
+        if (!IsPasswordValid()) return;
+
+        try
+        {
+            await Mediator.Send(new ChangeUserPasswordCommand
+            {
+                UserId = UserId,
+                NewPassword = _newPassword,
+                RequirePasswordChange = _requirePasswordChange
+            });
+            CloseResetPasswordModal();
+            // Show success message
+        }
+        catch (Exception)
+        {
+            // Handle error
+        }
+    }
+
+    private async Task DeleteUser()
+    {
+        // In a real application, show a confirmation dialog
+        try
+        {
+            await Mediator.Send(new DeleteUserCommand(UserId));
+            Navigation.NavigateTo("/users");
+        }
+        catch (Exception ex)
+        {
+            var errorInfo = UserDeletionErrorInfo.FromException(ex);
+            _statusMessage = errorInfo.Message;
+
+            if (errorInfo.UserLikelyMissing)
+            {
+                var encodedStatus = Uri.EscapeDataString(errorInfo.Message);
+                Navigation.NavigateTo($"/users?status={encodedStatus}");
+            }
+        }
+    }
+
+    private void DismissStatusMessage()
+    {
+        _statusMessage = null;
+    }
+}

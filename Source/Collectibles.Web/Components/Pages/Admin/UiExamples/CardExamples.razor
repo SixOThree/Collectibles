@@ -1,0 +1,323 @@
+@page "/admin/ui-examples/cards"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Administrator")]
+@rendermode InteractiveServer
+
+<PageTitle>Cards &amp; Panels — UI Examples</PageTitle>
+
+<div class="container-fluid">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="admin/ui-examples">UI Examples</a></li>
+            <li class="breadcrumb-item active">Cards &amp; Panels</li>
+        </ol>
+    </nav>
+
+    <h1 class="mb-4"><i class="bi bi-card-heading me-2"></i>Cards &amp; Panels</h1>
+
+    <!-- 1. Basic Card -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Basic Card</h5>
+        </div>
+        <div class="card-body">
+            <div class="card">
+                <div class="card-header">Card Header</div>
+                <div class="card-body">
+                    <h5 class="card-title">Card Title</h5>
+                    <p class="card-text">Some quick example text to build on the card title and make up the bulk of the card's content.</p>
+                    <a href="#" class="btn btn-primary">Go somewhere</a>
+                </div>
+                <div class="card-footer text-muted">Card Footer</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Colored Border Cards -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Colored Border Cards</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <div class="card border-primary">
+                        <div class="card-body">
+                            <h5 class="card-title">Primary Border</h5>
+                            <p class="card-text">A card with a primary border color to indicate important or highlighted content.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card border-secondary">
+                        <div class="card-body">
+                            <h5 class="card-title">Secondary Border</h5>
+                            <p class="card-text">A card with a secondary border color for neutral or supplementary content.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card border-success">
+                        <div class="card-body">
+                            <h5 class="card-title">Success Border</h5>
+                            <p class="card-text">A card with a success border color to indicate positive outcomes or confirmations.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card border-danger">
+                        <div class="card-body">
+                            <h5 class="card-title">Danger Border</h5>
+                            <p class="card-text">A card with a danger border color to highlight errors or critical warnings.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card border-warning">
+                        <div class="card-body">
+                            <h5 class="card-title">Warning Border</h5>
+                            <p class="card-text">A card with a warning border color to draw attention to cautionary information.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card border-info">
+                        <div class="card-body">
+                            <h5 class="card-title">Info Border</h5>
+                            <p class="card-text">A card with an info border color to present informational or educational content.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Colored Header Cards -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Colored Header Cards</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">Primary Header</div>
+                        <div class="card-body">
+                            <p class="card-text">This card uses a primary colored header to emphasize its importance within the layout.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header bg-success text-white">Success Header</div>
+                        <div class="card-body">
+                            <p class="card-text">This card uses a success colored header to indicate a positive or completed state.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header bg-danger text-white">Danger Header</div>
+                        <div class="card-body">
+                            <p class="card-text">This card uses a danger colored header to signal errors or critical information.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header bg-warning text-dark">Warning Header</div>
+                        <div class="card-body">
+                            <p class="card-text">This card uses a warning colored header to draw attention to cautionary details.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header bg-info text-dark">Info Header</div>
+                        <div class="card-body">
+                            <p class="card-text">This card uses an info colored header to present helpful or contextual information.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. Card with Table -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Card with Table</h5>
+        </div>
+        <div class="card-body">
+            <div class="card">
+                <div class="card-body">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Alice Johnson</td>
+                                <td>alice@example.com</td>
+                                <td>Administrator</td>
+                            </tr>
+                            <tr>
+                                <td>Bob Smith</td>
+                                <td>bob@example.com</td>
+                                <td>Editor</td>
+                            </tr>
+                            <tr>
+                                <td>Carol Davis</td>
+                                <td>carol@example.com</td>
+                                <td>Viewer</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 5. Card with Form -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Card with Form</h5>
+        </div>
+        <div class="card-body">
+            <div class="card">
+                <div class="card-body">
+                    <form>
+                        <div class="mb-3">
+                            <label for="exampleInput" class="form-label">Name</label>
+                            <input type="text" class="form-control" id="exampleInput" placeholder="Enter your name">
+                        </div>
+                        <div class="mb-3">
+                            <label for="exampleSelect" class="form-label">Category</label>
+                            <select class="form-select" id="exampleSelect">
+                                <option selected>Choose a category...</option>
+                                <option value="1">Electronics</option>
+                                <option value="2">Clothing</option>
+                                <option value="3">Books</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Submit</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 6. Card with List Group -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Card with List Group</h5>
+        </div>
+        <div class="card-body">
+            <div class="card">
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item">Dashboard Overview</li>
+                    <li class="list-group-item">User Management</li>
+                    <li class="list-group-item">System Settings</li>
+                    <li class="list-group-item">Activity Logs</li>
+                    <li class="list-group-item">Notifications</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- 7. Grid Layouts -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Grid Layouts</h5>
+        </div>
+        <div class="card-body">
+            <h6 class="mb-3">2-Column Layout</h6>
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Column 1 of 2</h5>
+                            <p class="card-text">This card occupies the first half of a two-column responsive grid layout.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Column 2 of 2</h5>
+                            <p class="card-text">This card occupies the second half of a two-column responsive grid layout.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <h6 class="mb-3">3-Column Layout</h6>
+            <div class="row g-3 mb-4">
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Column 1 of 3</h5>
+                            <p class="card-text">This card occupies one-third of a three-column responsive grid layout.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Column 2 of 3</h5>
+                            <p class="card-text">This card occupies one-third of a three-column responsive grid layout.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Column 3 of 3</h5>
+                            <p class="card-text">This card occupies one-third of a three-column responsive grid layout.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <h6 class="mb-3">4-Column Layout</h6>
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Column 1 of 4</h5>
+                            <p class="card-text">One-quarter width card in a four-column layout.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Column 2 of 4</h5>
+                            <p class="card-text">One-quarter width card in a four-column layout.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Column 3 of 4</h5>
+                            <p class="card-text">One-quarter width card in a four-column layout.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Column 4 of 4</h5>
+                            <p class="card-text">One-quarter width card in a four-column layout.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,40 @@
+.modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1050;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-dialog {
+    max-width: 600px;
+    margin: 1.75rem;
+    max-height: calc(100vh - 3.5rem);
+    display: flex;
+    flex-direction: column;
+}
+
+::deep .modal-content {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    max-height: 100%;
+}
+
+::deep .modal-body {
+    overflow-y: auto;
+}
+
+.list-group-item {
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.list-group-item:hover:not(.active) {
+    background-color: #f8f9fa;
+}

@@ -1,0 +1,817 @@
+@page "/templates/{Id:long}/edit"
+@rendermode InteractiveServerWithoutPrerender
+@attribute [Authorize]
+@inherits LoggablePageBase
+@using Collectibles.Application.Features.ContentDefinitions
+@using Collectibles.Application.Features.ContentDefinitions.Commands
+@using Collectibles.Application.Features.ContentDefinitions.Queries
+@using Collectibles.Domain.ValueObjects.Templates
+@using MediatR
+@using Microsoft.AspNetCore.Authorization
+@using System.Text.Json
+@using Collectibles.Application.Features.Showcases.Queries
+@using Collectibles.Application.Features.Showcases
+@using Microsoft.AspNetCore.Identity
+@using Collectibles.Infrastructure.Persistence
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+@inject UserManager<ApplicationUser> UserManager
+@inject IJSRuntime JSRuntime
+
+<link rel="stylesheet" href="css/template-form.css" />
+
+<PageTitle>Edit Template</PageTitle>
+
+<div class="template-form-container">
+    <div class="page-header d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
+        <h1>Edit Template</h1>
+        <button class="btn btn-link" @onclick="NavigateBack">
+            <i class="bi bi-arrow-left"></i> Back to Templates
+        </button>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="d-flex justify-content-center">
+            <Spinner Type="SpinnerType.Dots" Color="SpinnerColor.Primary" />
+        </div>
+    }
+    else if (_template == null)
+    {
+        <div class="alert alert-warning">
+            <h4>Template not found</h4>
+            <p>The template you're trying to edit doesn't exist.</p>
+            <button class="btn btn-primary" @onclick="NavigateBack">Back to Templates</button>
+        </div>
+    }
+    else
+    {
+        <EditForm Model="_command" OnValidSubmit="HandleValidSubmit">
+            <DataAnnotationsValidator />
+
+            <div class="template-form">
+                <div class="basic-info-section">
+                    <h3 class="text-secondary">Basic Information</h3>
+                    
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Template Name <span class="text-danger">*</span></label>
+                        <InputText id="name" class="form-control" @bind-Value="_command.Name" placeholder="e.g., Trading Cards, Comics, Coins" />
+                        <ValidationMessage For="@(() => _command.Name)" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <InputTextArea id="description" class="form-control" @bind-Value="_command.Description" rows="3" 
+                                       placeholder="Describe what this template is for and when to use it..." />
+                        <ValidationMessage For="@(() => _command.Description)" />
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <InputCheckbox class="form-check-input" @bind-Value="_command.IsActive" id="isActive" />
+                            <label class="form-check-label" for="isActive">
+                                Active Template
+                            </label>
+                            <small class="form-text text-muted d-block">Only active templates can be used when creating new items.</small>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <InputCheckbox class="form-check-input" @bind-Value="_command.HideAttachments" id="hideAttachments" />
+                            <label class="form-check-label" for="hideAttachments">
+                                Show Related Items Only
+                            </label>
+                            <small class="form-text text-muted d-block">When enabled, items using this template will only display related items on the detail page. Pictures and attachments will be hidden, but a preview image can still be set in edit mode.</small>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <InputCheckbox class="form-check-input" @bind-Value="_command.AllowMultipleEntries" id="allowMultipleEntries" />
+                            <label class="form-check-label" for="allowMultipleEntries">
+                                Allow Multiple Entries
+                            </label>
+                            <small class="form-text text-muted d-block">When enabled, items using this template can store multiple rows of field values (e.g., multiple issues of a magazine within a single item).</small>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Template Scope</label>
+                        <div class="form-check">
+                            <InputRadioGroup @bind-Value="_templateScope">
+                                @if (_isAdmin)
+                                {
+                                    <div class="form-check">
+                                        <InputRadio class="form-check-input" Value="@("global")" id="scopeGlobal" />
+                                        <label class="form-check-label" for="scopeGlobal">
+                                            <strong>Global Template</strong>
+                                            <small class="d-block text-muted">Available to all showcases (Admin only)</small>
+                                        </label>
+                                    </div>
+                                }
+                                <div class="form-check">
+                                    <InputRadio class="form-check-input" Value="@("showcase")" id="scopeShowcase" />
+                                    <label class="form-check-label" for="scopeShowcase">
+                                        <strong>Showcase-Specific Template</strong>
+                                        <small class="d-block text-muted">Available only to a specific showcase</small>
+                                    </label>
+                                </div>
+                            </InputRadioGroup>
+                        </div>
+                    </div>
+
+                    @if (_templateScope == "showcase")
+                    {
+                        <div class="mb-3">
+                            <label for="showcase" class="form-label">Select Showcase <span class="text-danger">*</span></label>
+                            <InputSelect class="form-select" @bind-Value="_selectedShowcaseId">
+                                <option value="">-- Select a Showcase --</option>
+                                @foreach (var showcase in _showcases)
+                                {
+                                    <option value="@showcase.Id">@showcase.Name</option>
+                                }
+                            </InputSelect>
+                            <ValidationMessage For="@(() => _command.ShowcaseId)" />
+                        </div>
+                    }
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Card Border Color</label>
+                                <div class="d-flex align-items-center gap-2">
+                                    <input type="color" class="form-control form-control-color"
+                                           value="@(_command.BorderColor ?? "#e5e7eb")"
+                                           @onchange="OnBorderColorChanged" />
+                                    @if (!string.IsNullOrEmpty(_command.BorderColor))
+                                    {
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="ClearBorderColor">
+                                            <i class="bi bi-x"></i> Clear
+                                        </button>
+                                    }
+                                    <small class="text-muted">Items using this template will show this border color</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Card Icon</label>
+                                <div class="icon-selector">
+                                    <div class="icon-grid">
+                                        @foreach (var icon in _availableIcons)
+                                        {
+                                            <button type="button"
+                                                    class="icon-option @(_command.Icon == icon.Value ? "selected" : "")"
+                                                    style="@(_command.Icon == icon.Value && !string.IsNullOrEmpty(_command.BorderColor) ? $"border-color: {_command.BorderColor}; color: {_command.BorderColor};" : "")"
+                                                    @onclick="() => SelectIcon(icon.Value)"
+                                                    title="@icon.Label">
+                                                <i class="bi @icon.Value"></i>
+                                            </button>
+                                        }
+                                    </div>
+                                    @if (!string.IsNullOrEmpty(_command.Icon))
+                                    {
+                                        <button type="button" class="btn btn-sm btn-outline-secondary mt-1" @onclick="ClearIcon">
+                                            <i class="bi bi-x"></i> Clear Icon
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(_command.BorderColor) || !string.IsNullOrEmpty(_command.Icon))
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Preview</label>
+                            <div class="card-preview" style="@GetPreviewBorderStyle()">
+                                <div class="card-preview-content">
+                                    @if (!string.IsNullOrEmpty(_command.Icon))
+                                    {
+                                        <i class="bi @_command.Icon" style="@GetPreviewIconStyle()"></i>
+                                    }
+                                    <span>Sample Item Card</span>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    @if (_template.ItemCount > 0)
+                    {
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i>
+                            This template is currently used by <strong>@_template.ItemCount</strong> collectible item@(_template.ItemCount == 1 ? "" : "s").
+                            Changes to field structure may affect existing data.
+                        </div>
+                    }
+                </div>
+
+                <div class="fields-section">
+                    <div class="section-header d-flex justify-content-between align-items-center mb-4">
+                        <h3 class="text-secondary">Fields</h3>
+                        <button type="button" class="btn btn-outline-primary" @onclick="AddField">
+                            <i class="bi bi-plus"></i> Add Field
+                        </button>
+                    </div>
+
+                    @if (_command.Fields.Any())
+                    {
+                        <div class="fields-list">
+                            @for (int i = 0; i < _command.Fields.Count; i++)
+                            {
+                                var index = i; // Capture for lambda
+                                var field = _command.Fields[index];
+                                
+                                <div class="field-editor @(_expandedFieldIndex == index ? "expanded" : "")">
+                                    <div class="field-header" @onclick="() => ToggleFieldExpansion(index)">
+                                        <div class="field-info">
+                                            <span class="field-name">@(!string.IsNullOrEmpty(field.Label) ? field.Label : "New Field")</span>
+                                            <span class="field-type badge bg-secondary">@field.FieldType</span>
+                                            @if (field.IsRequired)
+                                            {
+                                                <span class="badge bg-warning text-dark">Required</span>
+                                            }
+                                        </div>
+                                        <div class="field-actions">
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick:stopPropagation="true" @onclick="() => MoveFieldUp(index)" disabled="@(index == 0)">
+                                                <i class="bi bi-arrow-up"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick:stopPropagation="true" @onclick="() => MoveFieldDown(index)" disabled="@(index == _command.Fields.Count - 1)">
+                                                <i class="bi bi-arrow-down"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-outline-danger" @onclick:stopPropagation="true" @onclick="() => RemoveField(index)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                            <i class="bi bi-chevron-@(_expandedFieldIndex == index ? "up" : "down")"></i>
+                                        </div>
+                                    </div>
+
+                                    @if (_expandedFieldIndex == index)
+                                    {
+                                        <div class="field-details">
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <div class="mb-3">
+                                                        <label class="form-label">Field Name <span class="text-danger">*</span></label>
+                                                        <InputText class="form-control" @bind-Value="field.Name" placeholder="e.g., manufacturer, condition" />
+                                                        <small class="form-text text-muted">Used internally (no spaces, alphanumeric only)</small>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="mb-3">
+                                                        <label class="form-label">Display Label <span class="text-danger">*</span></label>
+                                                        <InputText class="form-control" @bind-Value="field.Label" placeholder="e.g., Manufacturer, Condition" />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <div class="mb-3">
+                                                        <label class="form-label">Field Type <span class="text-danger">*</span></label>
+                                                        <InputSelect class="form-select" @bind-Value="field.FieldType">
+                                                            <option value="@FieldType.Text">Text (Single Line)</option>
+                                                            <option value="@FieldType.MultilineText">Multi-line Text</option>
+                                                            <option value="@FieldType.LargeText">Large Text Area</option>
+                                                            <option value="@FieldType.Number">Number</option>
+                                                            <option value="@FieldType.Date">Date</option>
+                                                            <option value="@FieldType.DateTime">Date & Time</option>
+                                                            <option value="@FieldType.Boolean">Checkbox</option>
+                                                            <option value="@FieldType.InflationAdjustedPrice">Inflation-Adjusted Price</option>
+                                                            <option value="@FieldType.Dropdown">Dropdown</option>
+                                                        </InputSelect>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="mb-3">
+                                                        <div class="form-check">
+                                                            <InputCheckbox class="form-check-input" @bind-Value="field.IsRequired" id="@($"required_{index}")" />
+                                                            <label class="form-check-label" for="@($"required_{index}")">
+                                                                Required Field
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div class="mb-3">
+                                                <label class="form-label">Placeholder Text</label>
+                                                <InputText class="form-control" @bind-Value="field.Placeholder" placeholder="Hint text for users..." />
+                                            </div>
+
+                                            <div class="mb-3">
+                                                <label class="form-label">Help Text</label>
+                                                <InputText class="form-control" @bind-Value="field.HelpText" placeholder="Additional guidance for this field..." />
+                                            </div>
+
+                                            <div class="mb-3">
+                                                <label class="form-label">Default Value</label>
+                                                <InputText class="form-control" @bind-Value="field.DefaultValue" placeholder="Default value when creating new items..." />
+                                            </div>
+
+                                            @if (field.FieldType == FieldType.Dropdown)
+                                            {
+                                                <div class="mb-3">
+                                                    <label class="form-label">Dropdown Options <span class="text-danger">*</span></label>
+                                                    <div class="dropdown-options-editor">
+                                                        @{
+                                                            var dropdownOptions = GetDropdownOptions(field);
+                                                            // Initialize the input references list for this field if needed
+                                                            if (!_dropdownInputs.ContainsKey(field))
+                                                            {
+                                                                _dropdownInputs[field] = new List<ElementReference>();
+                                                            }
+                                                            _dropdownInputs[field].Clear();
+                                                        }
+                                                        @for (int optionIndex = 0; optionIndex < dropdownOptions.Count; optionIndex++)
+                                                        {
+                                                            var optIndex = optionIndex;
+                                                            ElementReference inputRef = new ElementReference();
+                                                            _dropdownInputs[field].Add(inputRef);
+                                                            <div class="dropdown-option-item">
+                                                                <input type="text" class="form-control" value="@dropdownOptions[optIndex]" 
+                                                                       @ref="inputRef"
+                                                                       @oninput="(e) => UpdateDropdownOption(field, optIndex, e.Value?.ToString() ?? string.Empty)"
+                                                                       placeholder="Option value..." />
+                                                                <button type="button" class="btn btn-sm btn-outline-danger" 
+                                                                        @onclick="() => RemoveDropdownOption(field, optIndex)">
+                                                                    <i class="bi bi-trash"></i>
+                                                                </button>
+                                                            </div>
+                                                        }
+                                                        <button type="button" class="btn btn-sm btn-outline-primary" 
+                                                                @onclick="async () => await AddDropdownOption(field)">
+                                                            <i class="bi bi-plus"></i> Add Option
+                                                        </button>
+                                                    </div>
+                                                    <small class="form-text text-muted">
+                                                        Define the selectable options for this dropdown. Users can also leave it unset.
+                                                    </small>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="no-fields">
+                            <p class="text-muted">No fields added yet. Click "Add Field" to create your first custom field.</p>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <div class="alert alert-danger border-danger" role="alert" style="border-left: 5px solid #dc3545 !important;">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i><strong>@_errorMessage</strong>
+                </div>
+            }
+
+            <div class="form-actions d-flex gap-3 justify-content-end pt-4 border-top">
+                <button type="submit" class="btn btn-primary" disabled="@_submitting">
+                    @if (_submitting)
+                    {
+                        <Spinner Type="SpinnerType.Dots" Size="SpinnerSize.Small" Color="SpinnerColor.Light" Class="me-2" />
+                        <span>Saving...</span>
+                    }
+                    else
+                    {
+                        <span>Save Changes</span>
+                    }
+                </button>
+                <button type="button" class="btn btn-secondary" @onclick="NavigateBack">Cancel</button>
+            </div>
+
+            <ValidationSummary />
+        </EditForm>
+    }
+</div>
+
+@code {
+    [Parameter] public long Id { get; set; }
+
+    private ContentDefinitionDto? _template;
+    private UpdateContentDefinitionCommand _command = new();
+    private bool _loading = true;
+    private bool _submitting = false;
+    private string? _errorMessage;
+    private int _expandedFieldIndex = -1;
+    private string _templateScope = "showcase";
+    private string? _selectedShowcaseId = "";
+    private List<ShowcaseCardDto> _showcases = new();
+    private bool _isAdmin = false;
+    private Dictionary<FieldDefinitionDto, List<ElementReference>> _dropdownInputs = new();
+
+    private static readonly List<(string Value, string Label)> _availableIcons = new()
+    {
+        ("bi-alt", "Alt"),
+        ("bi-airplane", "Airplane"),
+        ("bi-app", "App"),
+        ("bi-app-indicator", "App Indicator"),
+        ("bi-at", "At"),
+        ("bi-award", "Award"),
+        ("bi-backspace", "Backspace"),
+        ("bi-backspace-reverse", "Backspace Reverse"),
+        ("bi-bookmark", "Bookmark"),
+        ("bi-card-list", "Card List"),
+        ("bi-card-text", "Card Text"),
+        ("bi-caret-down", "Caret Down"),
+        ("bi-caret-left", "Caret Left"),
+        ("bi-caret-right", "Caret Right"),
+        ("bi-caret-up", "Caret Up"),
+        ("bi-chat-left", "Chat Left"),
+        ("bi-circle", "Circle"),
+        ("bi-controller", "Controller"),
+        ("bi-box", "Box"),
+        ("bi-book", "Book"),
+        ("bi-dpad", "D-Pad"),
+        ("bi-download", "Download"),
+        ("bi-diamond", "Diamond"),
+        ("bi-ethernet", "Ethernet"),
+        ("bi-floppy", "Floppy"),
+        ("bi-folder", "Folder"),
+        ("bi-gem", "Gem"),
+        ("bi-hdd", "HDD"),
+        ("bi-image", "Image"),
+        ("bi-info", "Info"),
+        ("bi-music-note-beamed", "Music"),
+        ("bi-pause", "Pause"),
+        ("bi-pc", "PC"),
+        ("bi-pc-display", "PC Display"),
+        ("bi-pc-display-horizontal", "PC Display Horizontal"),
+        ("bi-pc-horizontal", "PC Horizontal"),
+        ("bi-pci-card", "PCI Card"),
+        ("bi-robot", "Robot"),
+        ("bi-rocket", "Rocket"),
+        ("bi-steam", "Steam"),
+        ("bi-tv", "TV"),
+        ("bi-puzzle", "Puzzle"),
+    };
+
+    private string? _currentUserId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+
+        // Check if user is admin
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        _isAdmin = user.IsInRole("Administrator");
+        _currentUserId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        // Load showcases for the current user
+        var showcasesQuery = new GetShowcasesListQuery();
+        _showcases = await Mediator.Send(showcasesQuery);
+
+        await LoadTemplate();
+
+        // Verify edit permission
+        if (_template != null && !_isAdmin && _template.CreatedBy != _currentUserId)
+        {
+            Navigation.NavigateTo("/templates", replace: true);
+            return;
+        }
+    }
+
+    private async Task LoadTemplate()
+    {
+        _loading = true;
+        try
+        {
+            _template = await Mediator.Send(new GetContentDefinitionByIdQuery(Id));
+            if (_template != null)
+            {
+                _command = new UpdateContentDefinitionCommand
+                {
+                    Id = _template.Id,
+                    Name = _template.Name,
+                    Description = _template.Description,
+                    IsActive = _template.IsActive,
+                    HideAttachments = _template.HideAttachments,
+                    AllowMultipleEntries = _template.AllowMultipleEntries,
+                    IsGlobal = _template.IsGlobal,
+                    ShowcaseId = _template.ShowcaseId,
+                    BorderColor = _template.BorderColor,
+                    Icon = _template.Icon,
+                    Fields = _template.Fields.ToList()
+                };
+                
+                // Set the template scope based on loaded data
+                if (_template.IsGlobal)
+                {
+                    _templateScope = "global";
+                }
+                else
+                {
+                    _templateScope = "showcase";
+                    _selectedShowcaseId = _template.ShowcaseId?.ToString() ?? "";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading template: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void AddField()
+    {
+        var newField = new FieldDefinitionDto
+        {
+            Name = "",
+            Label = "",
+            FieldType = FieldType.Text,
+            IsRequired = false,
+            DisplayOrder = _command.Fields.Count,
+            ValidationRules = new FieldValidationRulesDto()
+        };
+        
+        _command.Fields.Add(newField);
+        _expandedFieldIndex = _command.Fields.Count - 1;
+    }
+
+    private void RemoveField(int index)
+    {
+        _command.Fields.RemoveAt(index);
+        if (_expandedFieldIndex == index)
+        {
+            _expandedFieldIndex = -1;
+        }
+        else if (_expandedFieldIndex > index)
+        {
+            _expandedFieldIndex--;
+        }
+        
+        // Update display orders
+        for (int i = 0; i < _command.Fields.Count; i++)
+        {
+            _command.Fields[i].DisplayOrder = i;
+        }
+    }
+
+    private void MoveFieldUp(int index)
+    {
+        if (index <= 0) return;
+        
+        var field = _command.Fields[index];
+        _command.Fields.RemoveAt(index);
+        _command.Fields.Insert(index - 1, field);
+        
+        // Update display orders
+        for (int i = 0; i < _command.Fields.Count; i++)
+        {
+            _command.Fields[i].DisplayOrder = i;
+        }
+        
+        if (_expandedFieldIndex == index)
+        {
+            _expandedFieldIndex = index - 1;
+        }
+        else if (_expandedFieldIndex == index - 1)
+        {
+            _expandedFieldIndex = index;
+        }
+    }
+
+    private void MoveFieldDown(int index)
+    {
+        if (index >= _command.Fields.Count - 1) return;
+        
+        var field = _command.Fields[index];
+        _command.Fields.RemoveAt(index);
+        _command.Fields.Insert(index + 1, field);
+        
+        // Update display orders
+        for (int i = 0; i < _command.Fields.Count; i++)
+        {
+            _command.Fields[i].DisplayOrder = i;
+        }
+        
+        if (_expandedFieldIndex == index)
+        {
+            _expandedFieldIndex = index + 1;
+        }
+        else if (_expandedFieldIndex == index + 1)
+        {
+            _expandedFieldIndex = index;
+        }
+    }
+
+    private void ToggleFieldExpansion(int index)
+    {
+        _expandedFieldIndex = _expandedFieldIndex == index ? -1 : index;
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        _submitting = true;
+        _errorMessage = null;
+
+        try
+        {
+            // Set the command properties based on template scope selection
+            if (_templateScope == "global")
+            {
+                _command.IsGlobal = true;
+                _command.ShowcaseId = null;
+            }
+            else
+            {
+                _command.IsGlobal = false;
+                if (!string.IsNullOrEmpty(_selectedShowcaseId) && long.TryParse(_selectedShowcaseId, out var showcaseId))
+                {
+                    _command.ShowcaseId = showcaseId;
+                }
+                else
+                {
+                    _errorMessage = "Please select a showcase.";
+                    return;
+                }
+            }
+
+            await Mediator.Send(_command);
+            Navigation.NavigateTo("/templates");
+        }
+        catch (FluentValidation.ValidationException vex)
+        {
+            _errorMessage = string.Join(" ", vex.Errors.Select(e => e.ErrorMessage));
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _submitting = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void OnBorderColorChanged(ChangeEventArgs e)
+    {
+        var color = e.Value?.ToString();
+        _command.BorderColor = color == "#e5e7eb" ? null : color;
+    }
+
+    private void ClearBorderColor()
+    {
+        _command.BorderColor = null;
+    }
+
+    private void SelectIcon(string icon)
+    {
+        _command.Icon = _command.Icon == icon ? null : icon;
+    }
+
+    private void ClearIcon()
+    {
+        _command.Icon = null;
+    }
+
+    private string GetPreviewBorderStyle()
+    {
+        if (!string.IsNullOrEmpty(_command.BorderColor))
+        {
+            return $"border: 2px solid {_command.BorderColor};";
+        }
+        return "border: 1px solid #e5e7eb;";
+    }
+
+    private string GetPreviewIconStyle()
+    {
+        if (!string.IsNullOrEmpty(_command.BorderColor))
+        {
+            return $"color: {_command.BorderColor};";
+        }
+        return string.Empty;
+    }
+
+    private void NavigateBack()
+    {
+        Navigation.NavigateTo("/templates");
+    }
+
+    private List<string> GetDropdownOptions(FieldDefinitionDto field)
+    {
+        if (field.Options.TryGetValue("dropdownOptions", out var optionsObj))
+        {
+            // Handle different types that might come from serialization
+            if (optionsObj is List<string> options)
+            {
+                return options;
+            }
+            else if (optionsObj is System.Text.Json.JsonElement jsonElement)
+            {
+                // Handle JSON deserialization case
+                var deserializedOptions = jsonElement.Deserialize<List<string>>() ?? new List<string>();
+                field.Options["dropdownOptions"] = deserializedOptions;
+                return deserializedOptions;
+            }
+            else if (optionsObj is string[] stringArray)
+            {
+                // Handle array case
+                var listOptions = stringArray.ToList();
+                field.Options["dropdownOptions"] = listOptions;
+                return listOptions;
+            }
+        }
+        
+        // Initialize with empty list if not present
+        var newOptions = new List<string>();
+        field.Options["dropdownOptions"] = newOptions;
+        return newOptions;
+    }
+
+    private async Task AddDropdownOption(FieldDefinitionDto field)
+    {
+        var options = GetDropdownOptions(field);
+        options.Add(string.Empty);
+        // Ensure we're storing as List<string> not any other type
+        field.Options["dropdownOptions"] = new List<string>(options);
+        
+        // Force a render to ensure the new input is in the DOM
+        StateHasChanged();
+        
+        // Use a small delay to ensure the DOM has been updated
+        await Task.Delay(50);
+        
+        // Find and focus the last input element
+        await FocusLastDropdownOption(field);
+    }
+    
+    private async Task FocusLastDropdownOption(FieldDefinitionDto field)
+    {
+        // We need to trigger a re-render first to get the updated ElementReferences
+        StateHasChanged();
+        await Task.Yield(); // Allow the UI to update
+        
+        // The ElementReferences will be populated after the next render
+        // We'll need to use JavaScript interop for this
+        await InvokeAsync(async () =>
+        {
+            await Task.Delay(100); // Small delay to ensure DOM is ready
+            
+            // Use JavaScript to focus the last input in the dropdown options
+            await FocusLastDropdownInput(field);
+        });
+    }
+    
+    private async Task FocusLastDropdownInput(FieldDefinitionDto field)
+    {
+        try
+        {
+            // Find the field index
+            var fieldIndex = _command.Fields.IndexOf(field);
+            if (fieldIndex >= 0)
+            {
+                // Use JavaScript to find and focus the last input
+                await JSRuntime.InvokeVoidAsync("eval", 
+                    $@"(() => {{
+                        const fieldEditor = document.querySelectorAll('.field-editor')[{fieldIndex}];
+                        if (fieldEditor) {{
+                            const inputs = fieldEditor.querySelectorAll('.dropdown-option-item input');
+                            if (inputs.length > 0) {{
+                                inputs[inputs.length - 1].focus();
+                            }}
+                        }}
+                    }})()");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error focusing dropdown input: {ex.Message}");
+        }
+    }
+
+    private void RemoveDropdownOption(FieldDefinitionDto field, int index)
+    {
+        var options = GetDropdownOptions(field);
+        if (index >= 0 && index < options.Count)
+        {
+            options.RemoveAt(index);
+            // Ensure we're storing as List<string> not any other type
+            field.Options["dropdownOptions"] = new List<string>(options);
+        }
+    }
+
+    private void UpdateDropdownOption(FieldDefinitionDto field, int index, string value)
+    {
+        var options = GetDropdownOptions(field);
+        if (index >= 0 && index < options.Count)
+        {
+            options[index] = value;
+            // Ensure we're storing as List<string> not any other type
+            field.Options["dropdownOptions"] = new List<string>(options);
+        }
+    }
+}

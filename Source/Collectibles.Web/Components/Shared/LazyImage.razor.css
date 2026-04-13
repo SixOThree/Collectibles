@@ -1,0 +1,12 @@
+.image-placeholder,
+.image-error {
+    min-height: 200px;
+}
+
+img.loading {
+    opacity: 0;
+}
+
+img.error {
+    display: none;
+}

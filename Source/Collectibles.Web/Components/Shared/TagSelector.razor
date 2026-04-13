@@ -1,0 +1,254 @@
+@using Collectibles.Application.Features.Tags
+@using Collectibles.Application.Features.Tags.Commands
+@using Collectibles.Application.Features.Tags.Queries
+@using MediatR
+@inject IMediator Mediator
+@inject IJSRuntime JSRuntime
+
+<div class="tag-selector">
+    <div class="input-group mb-2">
+        <input type="text"
+               class="form-control"
+               placeholder="Search or add tags..."
+               @bind="searchTerm"
+               @bind:event="oninput"
+               @onkeydown="@OnSearchKeyDown"
+               @onfocus="@(() => showDropdown = true)"
+               @ref="searchInput" />
+        <button class="btn btn-outline-secondary" type="button" @onclick="ClearSearch">
+            <i class="bi bi-x"></i>
+        </button>
+    </div>
+
+    @if (showDropdown && (filteredTags.Any() || (!string.IsNullOrWhiteSpace(searchTerm) && !tagExists)))
+    {
+        <div class="dropdown-menu show tag-dropdown">
+            @if (!tagExists && !string.IsNullOrWhiteSpace(searchTerm))
+            {
+                <button type="button" class="dropdown-item create-tag-item" @onclick="CreateNewTag">
+                    <i class="bi bi-plus-circle me-2"></i>
+                    Create new tag: "@searchTerm"
+                </button>
+                @if (filteredTags.Any())
+                {
+                    <div class="dropdown-divider"></div>
+                }
+            }
+            @foreach (var tag in filteredTags)
+            {
+                <button type="button" class="dropdown-item @(IsTagSelected(tag) ? "disabled" : "")" 
+                        @onclick="@(() => SelectTag(tag))"
+                        disabled="@IsTagSelected(tag)">
+                    @tag.Name
+                    @if (tag.UsageCount > 0)
+                    {
+                        <span class="badge bg-secondary ms-2">@tag.UsageCount</span>
+                    }
+                    @if (IsTagSelected(tag))
+                    {
+                        <span class="text-muted ms-2">(already selected)</span>
+                    }
+                </button>
+            }
+        </div>
+    }
+
+    <div class="selected-tags mt-2">
+        @foreach (var tag in SelectedTags)
+        {
+            <span class="badge bg-primary me-1 mb-1">
+                @tag.Name
+                <button type="button" class="btn-close btn-close-white ms-1" 
+                        aria-label="Remove tag"
+                        @onclick="@(() => RemoveTag(tag))"></button>
+            </span>
+        }
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center mt-2">
+            <Spinner Type="SpinnerType.Dots" Size="SpinnerSize.Small" Color="SpinnerColor.Primary" />
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show mt-2" role="alert">
+            @errorMessage
+            <button type="button" class="btn-close" @onclick="@(() => errorMessage = null)"></button>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public List<TagDto> SelectedTags { get; set; } = new();
+    [Parameter] public EventCallback<List<TagDto>> SelectedTagsChanged { get; set; }
+    [Parameter] public string? Placeholder { get; set; } = "Search or add tags...";
+    [Parameter] public int MaxTags { get; set; } = 10;
+
+    private string searchTerm = string.Empty;
+    private List<TagDto> allTags = new();
+    private List<TagDto> filteredTags = new();
+    private bool showDropdown = false;
+    private bool isLoading = false;
+    private string? errorMessage;
+    private bool tagExists = false;
+    private ElementReference searchInput;
+    private System.Timers.Timer? searchTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTags();
+        searchTimer = new System.Timers.Timer(300);
+        searchTimer.Elapsed += async (sender, e) => await SearchTags();
+        searchTimer.AutoReset = false;
+    }
+
+    private async Task LoadTags()
+    {
+        try
+        {
+            isLoading = true;
+            var query = new GetTagsListQuery();
+            allTags = await Mediator.Send(query);
+        }
+        catch (Exception)
+        {
+            errorMessage = "Failed to load tags.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SearchTags()
+    {
+        await InvokeAsync(async () =>
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(searchTerm))
+                {
+                    filteredTags = allTags.Take(10).ToList();
+                    tagExists = false;
+                }
+                else
+                {
+                    var query = new SearchTagsQuery { SearchTerm = searchTerm, MaxResults = 10 };
+                    filteredTags = await Mediator.Send(query);
+                    tagExists = filteredTags.Any(t => t.Name.Equals(searchTerm, StringComparison.OrdinalIgnoreCase));
+                }
+                StateHasChanged();
+            }
+            catch (Exception)
+            {
+                errorMessage = "Failed to search tags.";
+                StateHasChanged();
+            }
+        });
+    }
+
+    private async Task OnSearchKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(searchTerm))
+        {
+            if (!tagExists && filteredTags.Any())
+            {
+                await SelectTag(filteredTags.First());
+            }
+            else if (!tagExists)
+            {
+                await CreateNewTag();
+            }
+        }
+        else if (e.Key == "Escape")
+        {
+            showDropdown = false;
+            searchTerm = string.Empty;
+        }
+        else
+        {
+            searchTimer?.Stop();
+            searchTimer?.Start();
+        }
+    }
+
+    private async Task CreateNewTag()
+    {
+        if (string.IsNullOrWhiteSpace(searchTerm))
+            return;
+
+        if (SelectedTags.Count >= MaxTags)
+        {
+            errorMessage = $"Maximum of {MaxTags} tags allowed.";
+            return;
+        }
+
+        try
+        {
+            isLoading = true;
+            var command = new CreateTagCommand { Name = searchTerm.Trim() };
+            var newTag = await Mediator.Send(command);
+            
+            SelectedTags.Add(newTag);
+            await SelectedTagsChanged.InvokeAsync(SelectedTags);
+            
+            searchTerm = string.Empty;
+            showDropdown = false;
+            await LoadTags();
+        }
+        catch (Exception)
+        {
+            errorMessage = "Failed to create tag. It may already exist.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SelectTag(TagDto tag)
+    {
+        if (IsTagSelected(tag) || SelectedTags.Count >= MaxTags)
+        {
+            if (SelectedTags.Count >= MaxTags)
+                errorMessage = $"Maximum of {MaxTags} tags allowed.";
+            return;
+        }
+
+        SelectedTags.Add(tag);
+        await SelectedTagsChanged.InvokeAsync(SelectedTags);
+        searchTerm = string.Empty;
+        showDropdown = false;
+    }
+
+    private async Task RemoveTag(TagDto tag)
+    {
+        SelectedTags.Remove(tag);
+        await SelectedTagsChanged.InvokeAsync(SelectedTags);
+    }
+
+    private bool IsTagSelected(TagDto tag)
+    {
+        return SelectedTags.Any(t => t.Id == tag.Id);
+    }
+
+    private void ClearSearch()
+    {
+        searchTerm = string.Empty;
+        showDropdown = false;
+    }
+
+    public void Dispose()
+    {
+        searchTimer?.Dispose();
+    }
+
+    public List<TagDto> GetSelectedTags()
+    {
+        return SelectedTags;
+    }
+}

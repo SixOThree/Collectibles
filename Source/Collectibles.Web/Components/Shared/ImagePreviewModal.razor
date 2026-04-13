@@ -1,0 +1,377 @@
+@using Collectibles.Application.Features.Attachments.Queries
+@using Collectibles.Application.Features.Attachments
+@using MediatR
+@inject IMediator Mediator
+@inject IJSRuntime JSRuntime
+
+@if (_isVisible)
+{
+    <div class="modal-backdrop" @onclick="CloseModal">
+        <div class="modal-dialog" @onclick:stopPropagation="true">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@_currentAttachment?.Name</h5>
+                    <div class="modal-controls">
+                        @if (_loadedFromCache)
+                        {
+                            <div class="cache-indicator-header" title="Loaded from cache">
+                                <i class="bi bi-lightning-fill"></i>
+                            </div>
+                        }
+                        @if (_isMaximized && !_isLoading && _currentAttachment != null)
+                        {
+                            <div class="zoom-controls">
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="ZoomOut" title="Zoom Out (Ctrl -)">
+                                    <i class="bi bi-zoom-out"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="ResetZoom" title="Reset Zoom (Ctrl 0)">
+                                    <i class="bi bi-aspect-ratio"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="ZoomIn" title="Zoom In (Ctrl +)">
+                                    <i class="bi bi-zoom-in"></i>
+                                </button>
+                            </div>
+                        }
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="ShowInfo" title="View Details">
+                            <i class="bi bi-info-circle"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="DownloadImage" title="Download">
+                            <i class="bi bi-download"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="ToggleMaximize" title="@(_isMaximized ? "Restore" : "Maximize")">
+                            <i class="bi @(_isMaximized ? "bi-fullscreen-exit" : "bi-arrows-fullscreen")"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="CloseModal" title="Close">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="modal-body @(_isMaximized ? "maximized" : "")">
+                    @if (_isLoading)
+                    {
+                        <div class="d-flex justify-content-center align-items-center" style="height: 400px;">
+                            <Spinner Type="SpinnerType.Dots" Color="SpinnerColor.Light" />
+                        </div>
+                    }
+                    else if (_currentAttachment != null && !string.IsNullOrEmpty(_currentAttachment.Base64Content))
+                    {
+                        <div class="image-container @(_isMaximized ? "zoom-container" : "")">
+                            <img src="data:@_currentAttachment.FileType;base64,@_currentAttachment.Base64Content" 
+                                 alt="@_currentAttachment.Name" 
+                                 class="preview-image @(_isMaximized ? "maximized" : "")" />
+                        </div>
+                        @if (_isMaximized)
+                        {
+                            <div class="zoom-hint">
+                                <i class="bi bi-info-circle"></i> Use mouse wheel to zoom, drag to pan, double-click to reset
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle"></i> Unable to load image
+                        </div>
+                    }
+                </div>
+                @if (ImageAttachments.Count > 1)
+                {
+                    <div class="modal-footer">
+                        <div class="navigation-controls">
+                            <button class="btn btn-outline-primary" @onclick="ShowPrevious" disabled="@(!HasPrevious)">
+                                <i class="bi bi-chevron-left"></i> Previous
+                            </button>
+                            <span class="image-counter">@(_currentIndex + 1) of @ImageAttachments.Count</span>
+                            <button class="btn btn-outline-primary" @onclick="ShowNext" disabled="@(!HasNext)">
+                                Next <i class="bi bi-chevron-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+
+@code {
+    [Parameter] public List<AttachmentBriefDto> ImageAttachments { get; set; } = new();
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<long> OnViewDetails { get; set; }
+
+    private bool _isVisible = false;
+    private bool _isLoading = false;
+    private bool _isMaximized = false;
+    private bool _loadedFromCache = false;
+    private int _currentIndex = 0;
+    private AttachmentDto? _currentAttachment = null;
+    private CancellationTokenSource? _loadCancellationTokenSource;
+    
+    // Client-side cache for loaded images
+    private readonly Dictionary<long, AttachmentDto> _imageCache = new();
+    // Track which images are being preloaded
+    private readonly HashSet<long> _preloadingImages = new();
+    // Number of images to preload in each direction
+    private const int PreloadRadius = 1;
+
+    private bool HasPrevious => _currentIndex > 0;
+    private bool HasNext => _currentIndex < ImageAttachments.Count - 1;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JSRuntime.InvokeAsync<IJSObjectReference>(
+                "import", "./js/imagePreviewModalComplete.js");
+        }
+    }
+
+    public async Task ShowModal(long attachmentId)
+    {
+        var index = ImageAttachments.FindIndex(a => a.Id == attachmentId);
+        if (index >= 0)
+        {
+            _currentIndex = index;
+            _isMaximized = true;
+            _isVisible = true;
+            StateHasChanged();
+
+            await LoadCurrentImage();
+
+            // Start preloading adjacent images
+            _ = PreloadAdjacentImages();
+
+            await JSRuntime.InvokeVoidAsync("imagePreviewModal.initializeModal");
+        }
+    }
+
+    private async Task LoadCurrentImage()
+    {
+        if (_currentIndex < 0 || _currentIndex >= ImageAttachments.Count)
+        {
+            return;
+        }
+
+        var attachmentId = ImageAttachments[_currentIndex].Id;
+        
+        // Check if image is already in cache
+        if (_imageCache.TryGetValue(attachmentId, out var cachedImage))
+        {
+            _currentAttachment = cachedImage;
+            _isLoading = false;
+            _loadedFromCache = true;
+            StateHasChanged();
+            
+            // Start preloading adjacent images
+            _ = PreloadAdjacentImages();
+            return;
+        }
+
+        // Cancel any previous load operation
+        _loadCancellationTokenSource?.Cancel();
+        _loadCancellationTokenSource?.Dispose();
+        _loadCancellationTokenSource = new CancellationTokenSource();
+
+        _isLoading = true;
+        _loadedFromCache = false;
+        StateHasChanged();
+
+        try
+        {
+            var query = new GetAttachmentForPreviewQuery(attachmentId);
+            var attachment = await Mediator.Send(query, _loadCancellationTokenSource.Token);
+            
+            // Add to cache
+            _imageCache[attachmentId] = attachment;
+            _currentAttachment = attachment;
+        }
+        catch (OperationCanceledException)
+        {
+            // This is expected when we cancel the operation
+            return;
+        }
+        catch
+        {
+            _currentAttachment = null;
+        }
+        finally
+        {
+            if (!_loadCancellationTokenSource.Token.IsCancellationRequested)
+            {
+                _isLoading = false;
+                StateHasChanged();
+                
+                // Start preloading adjacent images
+                _ = PreloadAdjacentImages();
+            }
+        }
+    }
+
+    private async Task ShowPrevious()
+    {
+        if (HasPrevious)
+        {
+            if (_isMaximized)
+            {
+                await JSRuntime.InvokeVoidAsync("imagePreviewModal.cleanupZoomPan");
+            }
+            
+            _currentIndex--;
+            await LoadCurrentImage();
+            
+            if (_isMaximized)
+            {
+                await Task.Delay(150); // Allow DOM to update
+                await JSRuntime.InvokeVoidAsync("imagePreviewModal.initializeZoomPan");
+            }
+        }
+    }
+
+    private async Task ShowNext()
+    {
+        if (HasNext)
+        {
+            if (_isMaximized)
+            {
+                await JSRuntime.InvokeVoidAsync("imagePreviewModal.cleanupZoomPan");
+            }
+            
+            _currentIndex++;
+            await LoadCurrentImage();
+            
+            if (_isMaximized)
+            {
+                await Task.Delay(150); // Allow DOM to update
+                await JSRuntime.InvokeVoidAsync("imagePreviewModal.initializeZoomPan");
+            }
+        }
+    }
+
+    private async Task ToggleMaximize()
+    {
+        _isMaximized = !_isMaximized;
+        StateHasChanged(); // Force immediate UI update
+        
+        if (_isMaximized)
+        {
+            await Task.Delay(150); // Allow DOM to update
+            await JSRuntime.InvokeVoidAsync("imagePreviewModal.initializeZoomPan");
+        }
+        else if (!_isMaximized)
+        {
+            await JSRuntime.InvokeVoidAsync("imagePreviewModal.cleanupZoomPan");
+        }
+    }
+
+    private async Task ZoomIn()
+    {
+        await JSRuntime.InvokeVoidAsync("imagePreviewModal.zoomIn");
+    }
+
+    private async Task ZoomOut()
+    {
+        await JSRuntime.InvokeVoidAsync("imagePreviewModal.zoomOut");
+    }
+
+    private async Task ResetZoom()
+    {
+        await JSRuntime.InvokeVoidAsync("imagePreviewModal.resetZoom");
+    }
+
+    private async Task ShowInfo()
+    {
+        if (_currentAttachment != null && OnViewDetails.HasDelegate)
+        {
+            await OnViewDetails.InvokeAsync(_currentAttachment.Id);
+        }
+    }
+
+    private async Task DownloadImage()
+    {
+        if (_currentAttachment != null && !string.IsNullOrEmpty(_currentAttachment.Base64Content))
+        {
+            var fileName = _currentAttachment.OriginalFilename ?? _currentAttachment.Name;
+            await JSRuntime.InvokeVoidAsync("downloadFile", 
+                _currentAttachment.Base64Content, 
+                _currentAttachment.FileType, 
+                fileName);
+        }
+    }
+
+    private async Task PreloadAdjacentImages()
+    {
+        var tasks = new List<Task>();
+        
+        // Preload previous images
+        for (int i = 1; i <= PreloadRadius; i++)
+        {
+            var prevIndex = _currentIndex - i;
+            if (prevIndex >= 0)
+            {
+                var attachmentId = ImageAttachments[prevIndex].Id;
+                if (!_imageCache.ContainsKey(attachmentId) && !_preloadingImages.Contains(attachmentId))
+                {
+                    tasks.Add(PreloadImage(attachmentId));
+                }
+            }
+        }
+        
+        // Preload next images
+        for (int i = 1; i <= PreloadRadius; i++)
+        {
+            var nextIndex = _currentIndex + i;
+            if (nextIndex < ImageAttachments.Count)
+            {
+                var attachmentId = ImageAttachments[nextIndex].Id;
+                if (!_imageCache.ContainsKey(attachmentId) && !_preloadingImages.Contains(attachmentId))
+                {
+                    tasks.Add(PreloadImage(attachmentId));
+                }
+            }
+        }
+        
+        await Task.WhenAll(tasks);
+    }
+    
+    private async Task PreloadImage(long attachmentId)
+    {
+        _preloadingImages.Add(attachmentId);
+        
+        try
+        {
+            var query = new GetAttachmentForPreviewQuery(attachmentId);
+            var attachment = await Mediator.Send(query);
+            
+            // Add to cache
+            _imageCache[attachmentId] = attachment;
+        }
+        catch
+        {
+            // Silently fail for preloading
+        }
+        finally
+        {
+            _preloadingImages.Remove(attachmentId);
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        // Cancel any pending operations
+        _loadCancellationTokenSource?.Cancel();
+        _loadCancellationTokenSource?.Dispose();
+        _loadCancellationTokenSource = null;
+
+        _isVisible = false;
+        _isMaximized = false;
+        _currentAttachment = null;
+        
+        // Clear cache to free memory
+        _imageCache.Clear();
+        _preloadingImages.Clear();
+        
+        await JSRuntime.InvokeVoidAsync("imagePreviewModal.cleanup");
+
+        await OnClose.InvokeAsync();
+    }
+}

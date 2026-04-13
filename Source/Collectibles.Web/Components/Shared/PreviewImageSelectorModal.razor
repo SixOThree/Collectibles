@@ -1,0 +1,239 @@
+@using Collectibles.Application.Features.Attachments
+@using Collectibles.Application.Features.CollectibleItems
+@using Collectibles.Application.Features.CollectibleItems.Queries
+@using MediatR
+@inject IMediator Mediator
+@inject Collectibles.Application.Services.IHashIdsService HashIds
+
+@if (_isVisible)
+{
+    <div class="modal-backdrop" @onclick="CloseModal">
+        <div class="modal-dialog modal-xl" @onclick:stopPropagation="true">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Select Preview Image</h5>
+                    <button type="button" class="btn-close" @onclick="CloseModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="previewOption" id="noPreviewOption" 
+                                   checked="@(_selectedAttachmentId == null)"
+                                   @onchange="@(() => _selectedAttachmentId = null)" />
+                            <label class="form-check-label" for="noPreviewOption">
+                                No preview image
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="row g-4">
+                        <div class="col-12 col-lg-6">
+                            <h6 class="section-title mb-2">This Item (@CurrentItemName)</h6>
+                            @if (CurrentItemAttachments?.Any(a => a.AttachmentType == Domain.Common.Enums.AttachmentType.Image) == true)
+                            {
+                                <div class="row g-3">
+                                    @foreach (var att in CurrentItemAttachments!.Where(a => a.AttachmentType == Domain.Common.Enums.AttachmentType.Image))
+                                    {
+                                        <div class="col-6 col-md-4 col-xl-3">
+                                            <div class="card selectable @(att.Id == _selectedAttachmentId ? "selected" : "")" @onclick="(() => Select(att))">
+                                                <div class="ratio ratio-1x1">
+                                                    <img class="card-img-top" style="object-fit: cover;" src="@GetPreviewSrc(att)" alt="@att.OriginalFilename" />
+                                                </div>
+                                                <div class="card-body p-2">
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="radio" name="previewOption" id="@($"att_{att.Id}")" checked="@(att.Id == _selectedAttachmentId)" />
+                                                        <label class="form-check-label small text-truncate d-block" for="@($"att_{att.Id}")" title="@att.OriginalFilename">@att.OriginalFilename</label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="alert alert-info">No image attachments for this item.</div>
+                            }
+                        </div>
+
+                        <div class="col-12 col-lg-6">
+                            <h6 class="section-title mb-2">Related Items</h6>
+                            @if (ChildItems?.Any() == true)
+                            {
+                                <div class="accordion" id="childItemsAccordion">
+                                    @foreach (var child in ChildItems!)
+                                    {
+                                        var collapseId = $"collapse_{child.Id}";
+                                        var headingId = $"heading_{child.Id}";
+                                        <div class="accordion-item">
+                                            <h2 class="accordion-header" id="@headingId">
+                                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#@collapseId" aria-expanded="false" aria-controls="@collapseId" @onclick="(() => ToggleChild(child.Id))">
+                                                    @child.Name
+                                                    <span class="badge bg-secondary ms-2">@child.AttachmentCount</span>
+                                                </button>
+                                            </h2>
+                                            <div id="@collapseId" class="accordion-collapse collapse" aria-labelledby="@headingId" data-bs-parent="#childItemsAccordion">
+                                                <div class="accordion-body">
+                                                    @if (_loadingChildren.Contains(child.Id))
+                                                    {
+                                                        <div class="text-center my-3">
+                                                            <Spinner Type="SpinnerType.Dots" Color="SpinnerColor.Primary" />
+                                                        </div>
+                                                    }
+                                                    else if (_childAttachments.TryGetValue(child.Id, out var list) && list.Any(a => a.AttachmentType == Domain.Common.Enums.AttachmentType.Image))
+                                                    {
+                                                        <div class="row g-3">
+                                                            @foreach (var att in list.Where(a => a.AttachmentType == Domain.Common.Enums.AttachmentType.Image))
+                                                            {
+                                                                <div class="col-6 col-md-4">
+                                                                    <div class="card selectable @(att.Id == _selectedAttachmentId ? "selected" : "")" @onclick="(() => Select(att))">
+                                                                        <div class="ratio ratio-1x1">
+                                                                            <img class="card-img-top" style="object-fit: cover;" src="@GetPreviewSrc(att)" alt="@att.OriginalFilename" />
+                                                                        </div>
+                                                                        <div class="card-body p-2">
+                                                                            <div class="form-check">
+                                                                                <input class="form-check-input" type="radio" name="previewOption" id="@($"childatt_{att.Id}")" checked="@(att.Id == _selectedAttachmentId)" />
+                                                                                <label class="form-check-label small text-truncate d-block" for="@($"childatt_{att.Id}")" title="@att.OriginalFilename">@att.OriginalFilename</label>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            }
+                                                        </div>
+                                                    }
+                                                    else if (_childAttachments.ContainsKey(child.Id))
+                                                    {
+                                                        <div class="alert alert-info">No image attachments for this child.</div>
+                                                    }
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="alert alert-info">This item has no child items.</div>
+                            }
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="ConfirmSelection">Select</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+
+@code {
+    [Parameter] public long CurrentItemId { get; set; }
+    [Parameter] public string CurrentItemName { get; set; } = string.Empty;
+    [Parameter] public List<AttachmentBriefDto> CurrentItemAttachments { get; set; } = new();
+    [Parameter] public List<CollectibleItemDto> ChildItems { get; set; } = new();
+
+    [Parameter] public EventCallback<AttachmentBriefDto?> OnAttachmentSelected { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private bool _isVisible = false;
+    private long? _selectedAttachmentId;
+    private AttachmentBriefDto? _selectedAttachment;
+    private readonly Dictionary<long, List<AttachmentBriefDto>> _childAttachments = new();
+    private readonly HashSet<long> _loadingChildren = new();
+
+    public Task ShowModal(long? preselectedAttachmentId = null)
+    {
+        _selectedAttachmentId = preselectedAttachmentId;
+        _selectedAttachment = null;
+        _isVisible = true;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private void Select(AttachmentBriefDto att)
+    {
+        _selectedAttachmentId = att.Id;
+        _selectedAttachment = att;
+    }
+
+    private async Task ToggleChild(long childId)
+    {
+        if (_childAttachments.ContainsKey(childId) || _loadingChildren.Contains(childId))
+        {
+            return;
+        }
+
+        _loadingChildren.Add(childId);
+        StateHasChanged();
+
+        try
+        {
+            var detail = await Mediator.Send(new GetCollectibleItemByIdQuery { Id = childId });
+            var list = detail?.Attachments ?? new List<AttachmentBriefDto>();
+            _childAttachments[childId] = list;
+        }
+        catch
+        {
+            _childAttachments[childId] = new List<AttachmentBriefDto>();
+        }
+        finally
+        {
+            _loadingChildren.Remove(childId);
+            StateHasChanged();
+        }
+    }
+
+    private async Task ConfirmSelection()
+    {
+        if (_selectedAttachmentId == null)
+        {
+            await OnAttachmentSelected.InvokeAsync(null);
+        }
+        else if (_selectedAttachment != null)
+        {
+            await OnAttachmentSelected.InvokeAsync(_selectedAttachment);
+        }
+        else
+        {
+            // Try resolve from current item
+            var fromCurrent = CurrentItemAttachments.FirstOrDefault(a => a.Id == _selectedAttachmentId);
+            if (fromCurrent != null)
+            {
+                await OnAttachmentSelected.InvokeAsync(fromCurrent);
+            }
+            else
+            {
+                // Search loaded children
+                foreach (var list in _childAttachments.Values)
+                {
+                    var found = list.FirstOrDefault(a => a.Id == _selectedAttachmentId);
+                    if (found != null)
+                    {
+                        await OnAttachmentSelected.InvokeAsync(found);
+                        break;
+                    }
+                }
+            }
+        }
+
+        await CloseModal();
+    }
+
+    private async Task CloseModal()
+    {
+        _isVisible = false;
+        await OnClose.InvokeAsync();
+    }
+
+    private string GetPreviewSrc(AttachmentBriefDto att)
+    {
+        if (!string.IsNullOrEmpty(att.Base64PreviewThumbnail) && !string.IsNullOrEmpty(att.FileType))
+        {
+            return $"data:{att.FileType};base64,{att.Base64PreviewThumbnail}";
+        }
+        var hash = HashIds.Encode(att.Id);
+        return $"/api/attachments/{hash}/preview";
+    }
+}

@@ -1,0 +1,80 @@
+﻿@page "/Account/RegisterConfirmation"
+
+@using System.Text
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.WebUtilities
+@using Collectibles.Infrastructure.Persistence
+@using Collectibles.Application.Interfaces
+@using Collectibles.Domain.Entities
+
+@inject UserManager<ApplicationUser> UserManager
+@inject IEventLogService EventLogService
+@inject IEmailSender<ApplicationUser> EmailSender
+@inject NavigationManager NavigationManager
+@inject IdentityRedirectManager RedirectManager
+@inject IEmailConfigurationService EmailConfigurationService
+@inject ISiteConfigurationService SiteConfigurationService
+
+<PageTitle>Register confirmation</PageTitle>
+
+<h1>Register confirmation</h1>
+
+<StatusMessage Message="@statusMessage" />
+
+@if (!EmailConfigurationService.IsEmailConfigured())
+{
+    <div class="alert alert-info" role="alert">
+        <h4 class="alert-heading">Registration Pending</h4>
+        <p>@registrationMessage</p>
+    </div>
+}
+else
+{
+    <p>Please check your email to confirm your account.</p>
+}
+
+@code {
+    private string? statusMessage;
+    private string registrationMessage = "Please contact the site administrator to complete your registration.";
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    private string? Email { get; set; }
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await EventLogService.LogEventAsync(
+                EventAction.View,
+                additionalData: System.Text.Json.JsonSerializer.Serialize(new { Page = "RegisterConfirmation" }));
+        }
+        catch { }
+
+        if (Email is null)
+        {
+            RedirectManager.RedirectTo("");
+        }
+
+        var user = await UserManager.FindByEmailAsync(Email);
+        if (user is null)
+        {
+            HttpContext.Response.StatusCode = StatusCodes.Status404NotFound;
+            statusMessage = "Error finding user for unspecified email";
+        }
+        else if (!EmailConfigurationService.IsEmailConfigured())
+        {
+            // Load the configurable registration message
+            var message = await SiteConfigurationService.GetConfigurationValueAsync(
+                "RegistrationPendingMessage",
+                "Please contact the site administrator to complete your registration.");
+            registrationMessage = message;
+        }
+    }
+
+}

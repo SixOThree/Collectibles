@@ -1,0 +1,33 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Azure.Communication.Email" />
+    <PackageReference Include="Azure.Storage.Blobs" />
+    <PackageReference Include="Hangfire.Core" />
+    <PackageReference Include="Hangfire.SqlServer" />
+    <PackageReference Include="Hashids.net" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" />
+    <PackageReference Include="Microsoft.Playwright" />
+    <PackageReference Include="Polly" />
+    <PackageReference Include="MailKit" />
+    <PackageReference Include="QRCoder" />
+    <PackageReference Include="SendGrid" />
+    <PackageReference Include="DocumentFormat.OpenXml" />
+    <PackageReference Include="FFMpegCore" />
+    <PackageReference Include="PDFtoImage" />
+    <PackageReference Include="Serilog" />
+    <PackageReference Include="SixLabors.ImageSharp" />
+    <PackageReference Include="SixLabors.ImageSharp.Drawing" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Collectibles.Application\Collectibles.Application.csproj" />
+    <ProjectReference Include="..\Collectibles.Domain\Collectibles.Domain.csproj" />
+  </ItemGroup>
+</Project>

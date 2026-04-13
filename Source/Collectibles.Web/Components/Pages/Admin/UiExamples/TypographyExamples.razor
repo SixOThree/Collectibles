@@ -1,0 +1,179 @@
+@page "/admin/ui-examples/typography"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Administrator")]
+@rendermode InteractiveServer
+
+<PageTitle>Typography — UI Examples</PageTitle>
+
+<div class="container-fluid">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="admin/ui-examples">UI Examples</a></li>
+            <li class="breadcrumb-item active">Typography</li>
+        </ol>
+    </nav>
+
+    <h1 class="mb-4"><i class="bi bi-fonts me-2"></i>Typography</h1>
+
+    @* Section 1: Headings *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Headings</h5>
+        </div>
+        <div class="card-body">
+            <h1>h1. Heading <small class="text-muted">Secondary text</small></h1>
+            <h2>h2. Heading <small class="text-muted">Secondary text</small></h2>
+            <h3>h3. Heading <small class="text-muted">Secondary text</small></h3>
+            <h4>h4. Heading <small class="text-muted">Secondary text</small></h4>
+            <h5>h5. Heading <small class="text-muted">Secondary text</small></h5>
+            <h6>h6. Heading <small class="text-muted">Secondary text</small></h6>
+        </div>
+    </div>
+
+    @* Section 2: Display Headings *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Display Headings</h5>
+        </div>
+        <div class="card-body">
+            <p class="display-1">Display 1</p>
+            <p class="display-2">Display 2</p>
+            <p class="display-3">Display 3</p>
+            <p class="display-4">Display 4</p>
+            <p class="display-5">Display 5</p>
+            <p class="display-6">Display 6</p>
+        </div>
+    </div>
+
+    @* Section 3: Body Text *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Body Text</h5>
+        </div>
+        <div class="card-body">
+            <p>This is a standard paragraph. It uses the default body font size and line height defined by Bootstrap. Regular paragraphs like this one form the backbone of most page content.</p>
+            <p class="lead">This is a lead paragraph. It stands out from regular paragraphs by using a slightly larger font size and lighter font weight, making it ideal for introductory text.</p>
+            <p>This is a longer paragraph to demonstrate how body text wraps and flows across multiple lines. Good typography ensures that line length, spacing, and font choices work together to create a comfortable reading experience. When text is well-formatted, readers can focus on the content without being distracted by visual inconsistencies or awkward layouts. Bootstrap provides sensible defaults that handle most of these concerns automatically.</p>
+        </div>
+    </div>
+
+    @* Section 4: Inline Text Elements *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Inline Text Elements</h5>
+        </div>
+        <div class="card-body">
+            <p><strong>Bold text</strong> — rendered using the <code>&lt;strong&gt;</code> element</p>
+            <p><em>Italic text</em> — rendered using the <code>&lt;em&gt;</code> element</p>
+            <p><u>Underlined text</u> — rendered using the <code>&lt;u&gt;</code> element</p>
+            <p><s>Strikethrough text</s> — rendered using the <code>&lt;s&gt;</code> element</p>
+            <p><small>Small text</small> — rendered using the <code>&lt;small&gt;</code> element</p>
+            <p><mark>Highlighted text</mark> — rendered using the <code>&lt;mark&gt;</code> element</p>
+            <p><code>Inline code</code> — rendered using the <code>&lt;code&gt;</code> element</p>
+            <p><abbr title="abbreviation">Abbr</abbr> — rendered using the <code>&lt;abbr&gt;</code> element with a title attribute</p>
+        </div>
+    </div>
+
+    @* Section 5: Blockquotes *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Blockquotes</h5>
+        </div>
+        <div class="card-body">
+            <figure>
+                <blockquote class="blockquote">
+                    <p>A well-designed collection is never finished, only abandoned to make room for more treasures.</p>
+                </blockquote>
+                <figcaption class="blockquote-footer">
+                    An avid collector in <cite title="The Art of Collecting">The Art of Collecting</cite>
+                </figcaption>
+            </figure>
+            <figure class="mt-4">
+                <blockquote class="blockquote">
+                    <p>The beauty of a collection lies not in the individual pieces, but in the story they tell together.</p>
+                </blockquote>
+                <figcaption class="blockquote-footer">
+                    Anonymous curator
+                </figcaption>
+            </figure>
+        </div>
+    </div>
+
+    @* Section 6: Lists *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Lists</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3">
+                    <h6>Unordered List</h6>
+                    <ul>
+                        <li>First item</li>
+                        <li>Second item</li>
+                        <li>Third item</li>
+                        <li>Fourth item</li>
+                    </ul>
+                </div>
+                <div class="col-md-3">
+                    <h6>Ordered List</h6>
+                    <ol>
+                        <li>First item</li>
+                        <li>Second item</li>
+                        <li>Third item</li>
+                        <li>Fourth item</li>
+                    </ol>
+                </div>
+                <div class="col-md-3">
+                    <h6>Unstyled List</h6>
+                    <ul class="list-unstyled">
+                        <li>First item</li>
+                        <li>Second item</li>
+                        <li>Third item</li>
+                        <li>Fourth item</li>
+                    </ul>
+                </div>
+                <div class="col-md-3">
+                    <h6>Description List</h6>
+                    <dl>
+                        <dt>Term One</dt>
+                        <dd>Definition for the first term.</dd>
+                        <dt>Term Two</dt>
+                        <dd>Definition for the second term.</dd>
+                        <dt>Term Three</dt>
+                        <dd>Definition for the third term.</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* Section 7: Text Color Utilities *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Text Color Utilities</h5>
+        </div>
+        <div class="card-body">
+            <p class="text-primary">This text uses the <code>text-primary</code> color utility.</p>
+            <p class="text-secondary">This text uses the <code>text-secondary</code> color utility.</p>
+            <p class="text-success">This text uses the <code>text-success</code> color utility.</p>
+            <p class="text-danger">This text uses the <code>text-danger</code> color utility.</p>
+            <p class="text-warning">This text uses the <code>text-warning</code> color utility.</p>
+            <p class="text-info">This text uses the <code>text-info</code> color utility.</p>
+            <p class="text-muted">This text uses the <code>text-muted</code> color utility.</p>
+            <p class="text-body">This text uses the <code>text-body</code> color utility.</p>
+        </div>
+    </div>
+
+    @* Section 8: Text Alignment *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Text Alignment</h5>
+        </div>
+        <div class="card-body">
+            <p class="text-start">This text is aligned to the start (left) using <code>text-start</code>.</p>
+            <p class="text-center">This text is centered using <code>text-center</code>.</p>
+            <p class="text-end">This text is aligned to the end (right) using <code>text-end</code>.</p>
+        </div>
+    </div>
+</div>

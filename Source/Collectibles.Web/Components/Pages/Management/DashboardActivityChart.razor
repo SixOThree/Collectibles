@@ -1,0 +1,137 @@
+@using Collectibles.Application.Features.Maintenance.Queries
+@using Collectibles.Application.Interfaces
+@using MediatR
+@inject IMediator Mediator
+@inject ISysLogService SysLogService
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+
+@if (_isLoading)
+{
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-graph-up"></i> Activity Overview (Last 7 Days)</h5>
+                </div>
+                <div class="card-body">
+                    <div class="placeholder-glow" style="height: 300px;">
+                        <span class="placeholder w-100 h-100 rounded"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-graph-up"></i> Activity Overview (Last 7 Days)</h5>
+                </div>
+                <div class="card-body">
+                    <div style="height: 300px;">
+                        <canvas id="activityChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int RefreshKey { get; set; }
+
+    private bool _isLoading = true;
+    private ActivityOverviewDto? _activityOverview;
+    private bool _chartInitialized;
+    private int _previousRefreshKey;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _previousRefreshKey = RefreshKey;
+        await LoadData();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (RefreshKey != _previousRefreshKey)
+        {
+            _previousRefreshKey = RefreshKey;
+            await LoadData();
+        }
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            _activityOverview = await Mediator.Send(new GetActivityOverviewQuery());
+        }
+        catch (Exception ex)
+        {
+            try { await SysLogService.LogErrorAsync($"Dashboard: Error loading activity chart data: {ex.Message}", ex, "BlazorPage"); } catch { }
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_activityOverview?.Days.Count > 0)
+        {
+            var chartData = BuildChartData(_activityOverview);
+
+            if (!_chartInitialized)
+            {
+                await JSRuntime.InvokeVoidAsync("activityChart.initialize", "activityChart", chartData);
+                _chartInitialized = true;
+            }
+            else
+            {
+                await JSRuntime.InvokeVoidAsync("activityChart.update", chartData);
+            }
+        }
+    }
+
+    private static object BuildChartData(ActivityOverviewDto overview)
+    {
+        var labels = overview.Days.Select(d => d.Date.ToString("ddd M/d")).ToArray();
+
+        return new
+        {
+            labels,
+            datasets = new object[]
+            {
+                new { label = "Items Created", data = overview.Days.Select(d => d.ItemsCreated).ToArray(),
+                      borderColor = "#0d6efd", backgroundColor = "rgba(13,110,253,0.1)", tension = 0.3, fill = false, pointRadius = 4 },
+                new { label = "Uploads", data = overview.Days.Select(d => d.AttachmentsUploaded).ToArray(),
+                      borderColor = "#198754", backgroundColor = "rgba(25,135,84,0.1)", tension = 0.3, fill = false, pointRadius = 4 },
+                new { label = "Logins", data = overview.Days.Select(d => d.UserLogins).ToArray(),
+                      borderColor = "#6f42c1", backgroundColor = "rgba(111,66,193,0.1)", tension = 0.3, fill = false, pointRadius = 4 },
+                new { label = "Unique Users", data = overview.Days.Select(d => d.UniqueAuthenticatedUsers).ToArray(),
+                      borderColor = "#0dcaf0", backgroundColor = "rgba(13,202,240,0.1)", tension = 0.3, fill = false, pointRadius = 4 },
+                new { label = "Anonymous Requests", data = overview.Days.Select(d => d.AnonymousRequests).ToArray(),
+                      borderColor = "#6c757d", backgroundColor = "rgba(108,117,125,0.1)", tension = 0.3, fill = false, pointRadius = 4 },
+                new { label = "Errors", data = overview.Days.Select(d => d.Errors).ToArray(),
+                      borderColor = "#dc3545", backgroundColor = "rgba(220,53,69,0.1)", tension = 0.3, fill = false, pointRadius = 4 },
+            }
+        };
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("activityChart.dispose");
+        }
+        catch (JSDisconnectedException)
+        {
+            // Circuit may already be disconnected during disposal
+        }
+    }
+}

@@ -1,0 +1,232 @@
+@page "/setup"
+@using Collectibles.Application.Setup
+@using Collectibles.Infrastructure.Persistence
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using System.ComponentModel.DataAnnotations
+@rendermode InteractiveServer
+@attribute [AllowAnonymous]
+
+@inject ISetupTokenService SetupTokenService
+@inject UserManager<ApplicationUser> UserManager
+@inject NavigationManager Navigation
+@inject ILogger<Setup> Logger
+
+<PageTitle>Initial Setup - Collectibles</PageTitle>
+
+<div class="container">
+    <div class="row justify-content-center mt-5">
+        <div class="col-md-6">
+            @if (setupComplete)
+            {
+                <div class="alert alert-success" role="alert">
+                    <h4 class="alert-heading">Setup Complete!</h4>
+                    <p>The administrator account has been created successfully.</p>
+                    <hr>
+                    <p class="mb-0">You will be redirected to the login page in a moment...</p>
+                </div>
+            }
+            else if (!isSetupRequired)
+            {
+                <div class="alert alert-info" role="alert">
+                    <h4 class="alert-heading">Setup Not Required</h4>
+                    <p>The system has already been configured with an administrator account.</p>
+                    <hr>
+                    <p class="mb-0"><a href="/Account/Login" class="alert-link">Go to login page</a></p>
+                </div>
+            }
+            else
+            {
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h4 class="mb-0">Initial System Setup</h4>
+                    </div>
+                    <div class="card-body">
+                        @if (!string.IsNullOrEmpty(errorMessage))
+                        {
+                            <div class="alert alert-danger" role="alert">
+                                @errorMessage
+                            </div>
+                        }
+
+                        <p class="text-muted mb-4">
+                            Welcome to the Collectibles application. Please enter the setup token from the server 
+                            to create the first administrator account.
+                        </p>
+
+                        <EditForm Model="@model" OnValidSubmit="@HandleValidSubmit">
+                            <DataAnnotationsValidator />
+
+                            <div class="mb-3">
+                                <label for="setupToken" class="form-label">Setup Token</label>
+                                <InputText id="setupToken" class="form-control" @bind-Value="model.SetupToken" 
+                                           placeholder="Enter the token from setup-token.txt" />
+                                <ValidationMessage For="@(() => model.SetupToken)" />
+                                <small class="form-text text-muted">
+                                    The token can be found in the file: @tokenFilePath
+                                </small>
+                            </div>
+
+                            <hr class="my-4" />
+
+                            <h5 class="mb-3">Administrator Account Details</h5>
+
+                            <div class="mb-3">
+                                <label for="email" class="form-label">Email Address</label>
+                                <InputText id="email" class="form-control" @bind-Value="model.Email" 
+                                           placeholder="admin@example.com" />
+                                <ValidationMessage For="@(() => model.Email)" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="displayName" class="form-label">Display Name</label>
+                                <InputText id="displayName" class="form-control" @bind-Value="model.DisplayName" />
+                                <ValidationMessage For="@(() => model.DisplayName)" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="password" class="form-label">Password</label>
+                                <InputText id="password" type="password" class="form-control" @bind-Value="model.Password" />
+                                <ValidationMessage For="@(() => model.Password)" />
+
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="confirmPassword" class="form-label">Confirm Password</label>
+                                <InputText id="confirmPassword" type="password" class="form-control" @bind-Value="model.ConfirmPassword" />
+                                <ValidationMessage For="@(() => model.ConfirmPassword)" />
+                            </div>
+
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary" disabled="@isProcessing">
+                                    @if (isProcessing)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                        <span>Creating Administrator Account...</span>
+                                    }
+                                    else
+                                    {
+                                        <span>Create Administrator Account</span>
+                                    }
+                                </button>
+                            </div>
+                        </EditForm>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private SetupModel model = new();
+    private bool isSetupRequired = false;
+    private bool isProcessing = false;
+    private bool setupComplete = false;
+    private string errorMessage = string.Empty;
+    private string tokenFilePath = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isSetupRequired = await SetupTokenService.IsSetupRequiredAsync();
+            tokenFilePath = SetupTokenService.GetTokenFilePath();
+            
+            if (!isSetupRequired)
+            {
+                Logger.LogInformation("Setup page accessed but setup is not required");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error initializing setup page");
+            errorMessage = "An error occurred while checking setup status.";
+        }
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        isProcessing = true;
+        errorMessage = string.Empty;
+
+        try
+        {
+            // Validate the setup token
+            if (!await SetupTokenService.ValidateTokenAsync(model.SetupToken))
+            {
+                errorMessage = "Invalid setup token. Please check the token file on the server.";
+                return;
+            }
+
+            // Create the administrator user
+            var user = new ApplicationUser
+            {
+                UserName = model.Email,
+                Email = model.Email,
+                DisplayName = model.DisplayName,
+                EmailConfirmed = true, // Auto-confirm the first admin
+                CreatedDate = DateTime.UtcNow,
+                ModifiedDate = DateTime.UtcNow
+            };
+
+            var result = await UserManager.CreateAsync(user, model.Password);
+            
+            if (result.Succeeded)
+            {
+                // Add the Administrator role
+                await UserManager.AddToRoleAsync(user, "Administrator");
+                
+                Logger.LogInformation("Administrator account created successfully for {Email}", model.Email);
+                
+                // Delete the setup token
+                await SetupTokenService.DeleteTokenAsync();
+                
+                setupComplete = true;
+                
+                // Redirect to login page after a short delay
+                await Task.Delay(3000);
+                Navigation.NavigateTo("/Account/Login", forceLoad: true);
+            }
+            else
+            {
+                var errors = string.Join(" ", result.Errors.Select(e => e.Description));
+                errorMessage = $"Failed to create administrator account: {errors}";
+                Logger.LogError("Failed to create administrator account: {Errors}", errors);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error creating administrator account");
+            errorMessage = "An unexpected error occurred. Please check the server logs.";
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private class SetupModel
+    {
+        [Required(ErrorMessage = "Setup token is required")]
+        [StringLength(50, ErrorMessage = "Invalid token length")]
+        public string SetupToken { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Email address is required")]
+        [EmailAddress(ErrorMessage = "Invalid email address")]
+        public string Email { get; set; } = string.Empty;
+
+        [StringLength(100, ErrorMessage = "Display name must be less than 100 characters")]
+        public string? DisplayName { get; set; }
+
+        [Required(ErrorMessage = "Password is required")]
+        [StringLength(100, ErrorMessage = "Password must be at least {2} characters long", MinimumLength = 12)]
+        [DataType(DataType.Password)]
+        public string Password { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Password confirmation is required")]
+        [Compare("Password", ErrorMessage = "Passwords do not match")]
+        [DataType(DataType.Password)]
+        public string ConfirmPassword { get; set; } = string.Empty;
+    }
+}

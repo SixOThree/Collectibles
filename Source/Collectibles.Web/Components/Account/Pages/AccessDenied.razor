@@ -1,0 +1,65 @@
+﻿@page "/Account/AccessDenied"
+@using Collectibles.Application.Interfaces
+@using Collectibles.Domain.Entities
+@inject NavigationManager Navigation
+@inject IEventLogService EventLogService
+
+<PageTitle>Access Denied</PageTitle>
+
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-6 offset-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <i class="bi bi-lock-fill text-warning" style="font-size: 3rem;"></i>
+                    <h2 class="mt-3">Access Restricted</h2>
+                    <p class="text-muted mt-3">
+                        This item is in a private showcase and requires authentication to view.
+                    </p>
+                    <p class="text-muted">
+                        Please sign in to continue. If you don't have an account, you may need to request access from the showcase owner.
+                    </p>
+                    <div class="mt-4">
+                        <button class="btn btn-primary btn-lg" @onclick="NavigateToLogin">
+                            <i class="bi bi-box-arrow-in-right me-2"></i>Sign In to Continue
+                        </button>
+                    </div>
+                    <div class="mt-3">
+                        <a href="/" class="link-secondary">Return to Home</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await EventLogService.LogEventAsync(
+                EventAction.View,
+                additionalData: System.Text.Json.JsonSerializer.Serialize(new { Page = "AccessDenied" }));
+        }
+        catch { }
+    }
+
+    private void NavigateToLogin()
+    {
+        var currentUri = Navigation.Uri;
+        var returnUrl = Navigation.ToBaseRelativePath(currentUri);
+        
+        // If we're on the AccessDenied page, try to get the original URL from the query string
+        var uri = new Uri(currentUri);
+        var queryString = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        var originalReturnUrl = queryString["ReturnUrl"];
+        
+        if (!string.IsNullOrEmpty(originalReturnUrl))
+        {
+            returnUrl = originalReturnUrl;
+        }
+        
+        Navigation.NavigateTo($"/Account/Login?ReturnUrl={Uri.EscapeDataString(returnUrl)}", forceLoad: true);
+    }
+}

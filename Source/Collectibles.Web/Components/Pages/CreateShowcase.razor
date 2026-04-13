@@ -1,0 +1,166 @@
+@page "/showcase/new"
+@rendermode InteractiveServerWithoutPrerender
+@attribute [Authorize]
+@inherits LoggablePageBase
+@using Microsoft.AspNetCore.Authorization
+@using Collectibles.Application.Features.Showcases.Commands
+@using Collectibles.Application.Features.Tags.Queries
+@using Collectibles.Application.Features.Tags
+@using Collectibles.Application.Services
+@using MediatR
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.ComponentModel.DataAnnotations
+@using FluentValidation
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+@inject IHashIdsService HashIds
+
+<PageTitle>Create Showcase</PageTitle>
+
+<div class="container-lg">
+    <div class="row justify-content-center">
+        <div class="col-12 col-md-10 col-lg-8 col-xl-6">
+            <h1>Create New Showcase</h1>
+
+            <EditForm Model="@_model" OnValidSubmit="@HandleValidSubmit">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+
+                <div class="form-group mb-3">
+                    <label for="name">Name</label>
+                    <InputText id="name" @bind-Value="_model.Name" class="form-control" placeholder="Enter showcase name" />
+                    <ValidationMessage For="@(() => _model.Name)" />
+                </div>
+
+                <div class="form-group mb-3">
+                    <label for="description">Description</label>
+                    <InputTextArea id="description" @bind-Value="_model.Description" class="form-control" rows="4" placeholder="Describe your showcase (optional)" />
+                    <ValidationMessage For="@(() => _model.Description)" />
+                </div>
+
+                <div class="form-group mb-3">
+                    <label>Tags</label>
+                    <Collectibles.Web.Components.Shared.TagSelector SelectedTags="_selectedTags" SelectedTagsChanged="@((tags) => _selectedTags = tags)" MaxTags="10" />
+                    <small class="form-text text-muted">Select or create tags to categorize your showcase</small>
+                </div>
+
+                <div class="form-group mb-3">
+                    <label>
+                        <InputCheckbox @bind-Value="_model.IsPrivate" />
+                        Private showcase (only visible to you)
+                    </label>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary" disabled="@_isSubmitting">
+                        @if (_isSubmitting)
+                        {
+                            <Spinner Type="SpinnerType.Dots" Size="SpinnerSize.Small" Color="SpinnerColor.Light" Class="me-2" />
+                            <span>Creating...</span>
+                        }
+                        else
+                        {
+                            <span>Create Showcase</span>
+                        }
+                    </button>
+                    <button type="button" class="btn btn-secondary" @onclick="Cancel">Cancel</button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+</div>
+
+@code {
+    private CreateShowcaseModel _model = new();
+    private List<Collectibles.Application.Features.Tags.TagDto> _selectedTags = new();
+    private bool _isSubmitting = false;
+
+    protected override void OnInitialized()
+    {
+        _model ??= new CreateShowcaseModel();
+    }
+
+
+    private async Task HandleValidSubmit()
+    {
+        _isSubmitting = true;
+
+        try
+        {
+            // Debug logging
+            Console.WriteLine($"Model Name: '{_model.Name}', IsNullOrEmpty: {string.IsNullOrEmpty(_model.Name)}");
+            Console.WriteLine($"Selected Tags: {string.Join(", ", _selectedTags.Select(t => t.Id))}");
+            
+            // Get the current user's ID from the authentication state
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authState.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            
+            if (string.IsNullOrEmpty(userId))
+            {
+                Console.Error.WriteLine("User authentication context not available");
+                return;
+            }
+            
+            var command = new CreateShowcaseCommand
+            {
+                Name = _model.Name,
+                Description = _model.Description,
+                IsPrivate = _model.IsPrivate,
+                TagIds = _selectedTags.Select(t => t.Id).ToList(),
+                UserId = userId
+            };
+
+            var showcaseId = await Mediator.Send(command);
+            var showcaseHash = HashIds.Encode(showcaseId);
+            Console.WriteLine($"Showcase created with ID: {showcaseId}, Hash: {showcaseHash}");
+            Navigation.NavigateTo($"/showcase/{showcaseHash}");
+        }
+        catch (FluentValidation.ValidationException vex)
+        {
+            // Log validation errors
+            Console.Error.WriteLine($"Validation error: {vex.Message}");
+            foreach (var error in vex.Errors)
+            {
+                Console.Error.WriteLine($"- {error.PropertyName}: {error.ErrorMessage}");
+            }
+        }
+        catch (Exception ex)
+        {
+            // TODO: Show error message to user
+            Console.Error.WriteLine($"Error creating showcase: {ex.Message}");
+            Console.Error.WriteLine($"Stack trace: {ex.StackTrace}");
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/showcases");
+    }
+
+    private class CreateShowcaseModel
+    {
+        [Required]
+        [StringLength(200, ErrorMessage = "Name must not exceed 200 characters.")]
+        public string Name { get; set; } = string.Empty;
+
+        [StringLength(2000, ErrorMessage = "Description must not exceed 2000 characters.")]
+        public string? Description { get; set; }
+
+        public bool IsPrivate { get; set; } = true;
+
+        public List<long> TagIds { get; set; } = new();
+    }
+
+}
+
+<style>
+    .form-actions {
+        display: flex;
+        gap: 1rem;
+        margin-top: 2rem;
+    }
+</style>

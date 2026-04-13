@@ -1,0 +1,73 @@
+.edit-item-container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.form-section {
+    background: #f8f9fa;
+    padding: 1.5rem;
+    border-radius: 8px;
+    margin-bottom: 2rem;
+}
+
+.form-section h3 {
+    margin: 0 0 1rem 0;
+    font-size: 1.25rem;
+}
+
+.form-section h5 {
+    font-size: 1.1rem;
+    margin-bottom: 1rem;
+}
+
+.form-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-start;
+    margin-top: 2rem;
+}
+
+.form-actions .btn-danger {
+    margin-left: auto;
+}
+
+.current-preview img {
+    border: 2px solid var(--link-color);
+}
+
+.existing-attachments .card {
+    transition: background-color 0.2s, opacity 0.2s;
+}
+
+.existing-attachments .card:hover {
+    background-color: #f8f9fa;
+}
+
+.existing-attachments .card.attachment-removed {
+    opacity: 0.5;
+    background-color: #f8d7da;
+}
+
+.existing-attachments .card.attachment-removed h6,
+.existing-attachments .card.attachment-removed small {
+    text-decoration: line-through;
+}
+
+.upload-section {
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px solid #dee2e6;
+}
+
+@media (max-width: 768px) {
+    .edit-item-container {
+        padding: 1rem;
+    }
+
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+}

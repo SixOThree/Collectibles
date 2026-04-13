@@ -1,0 +1,155 @@
+@using Collectibles.Application.Features.Attachments
+@using Collectibles.Application.Features.Attachments.Queries
+@using Collectibles.Domain.Common.Enums
+@using MediatR
+@inject IMediator Mediator
+@implements IAsyncDisposable
+
+<div class="card attachment-thumbnail h-100 @(IsFeatured ? "featured-attachment" : "")" @onclick="HandleClick">
+    <div class="attachment-preview background-blur">
+        @if (!string.IsNullOrEmpty(_previewThumbnail))
+        {
+            <img src="data:image/png;base64,@_previewThumbnail"
+                 alt="@Attachment.Name" class="img-fluid" />
+        }
+        else if (_isLoadingPreview)
+        {
+            <div class="placeholder-icon">
+                <Spinner Type="SpinnerType.Dots" Class="me-3" Color="SpinnerColor.Primary" />
+            </div>
+        }
+        else
+        {
+            <div class="placeholder-icon">
+                @switch (Attachment.AttachmentType)
+                {
+                    case AttachmentType.Image:
+                        <i class="bi bi-image text-muted"></i>
+                        break;
+                    case AttachmentType.Document:
+                        <i class="bi bi-file-earmark-text text-muted"></i>
+                        break;
+                    case AttachmentType.Video:
+                        <i class="bi bi-camera-video text-muted"></i>
+                        break;
+                    case AttachmentType.Audio:
+                        <i class="bi bi-music-note-beamed text-muted"></i>
+                        break;
+                    default:
+                        <i class="bi bi-file-earmark text-muted"></i>
+                        break;
+                }
+            </div>
+        }
+        @if (CanToggleFeature && Attachment.AttachmentType == AttachmentType.Image)
+        {
+            <button class="btn-feature" @onclick:stopPropagation="true" @onclick="HandleFeatureToggle" title="@(IsFeatured ? "Remove from featured" : "Add to featured")">
+                <i class="bi @(IsFeatured ? "bi-star-fill" : "bi-star")"></i>
+            </button>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public AttachmentBriefDto Attachment { get; set; } = default!;
+    [Parameter] public EventCallback<long> OnImageClick { get; set; }
+    [Parameter] public EventCallback<long> OnViewDetails { get; set; }
+    [Parameter] public bool IsFeatured { get; set; }
+    [Parameter] public EventCallback OnFeatureToggle { get; set; }
+    [Parameter] public bool CanToggleFeature { get; set; }
+    [Parameter] public bool LazyLoadPreview { get; set; } = true;
+
+    private string? _previewThumbnail;
+    private bool _isLoadingPreview;
+    private bool _hasLoadedPreview;
+    private IJSObjectReference? _intersectionObserver;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // If preview is already available or lazy loading is disabled, use it directly
+        if (!string.IsNullOrEmpty(Attachment.Base64PreviewThumbnail) || !LazyLoadPreview)
+        {
+            _previewThumbnail = Attachment.Base64PreviewThumbnail;
+            _hasLoadedPreview = true;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && LazyLoadPreview && !_hasLoadedPreview && string.IsNullOrEmpty(Attachment.Base64PreviewThumbnail))
+        {
+            // Start observing for intersection (when component becomes visible)
+            await SetupIntersectionObserver();
+        }
+    }
+
+    private async Task SetupIntersectionObserver()
+    {
+        // For now, we'll load immediately when the component renders
+        // In a production scenario, you'd want to use JavaScript Intersection Observer
+        await LoadPreviewAsync();
+    }
+
+    private async Task LoadPreviewAsync()
+    {
+        if (_hasLoadedPreview || _isLoadingPreview)
+            return;
+
+        _isLoadingPreview = true;
+        StateHasChanged();
+
+        try
+        {
+            // Load preview for image and video attachments
+            if (Attachment.AttachmentType == AttachmentType.Image || Attachment.AttachmentType == AttachmentType.Video)
+            {
+                var query = new GetAttachmentForPreviewQuery(Attachment.Id);
+                var attachmentWithPreview = await Mediator.Send(query);
+                _previewThumbnail = attachmentWithPreview.Base64PreviewThumbnail;
+
+                // Update the attachment's preview so it doesn't need to be loaded again
+                Attachment.Base64PreviewThumbnail = _previewThumbnail;
+            }
+            
+            _hasLoadedPreview = true;
+        }
+        catch (Exception ex)
+        {
+            // Log error but don't crash the component
+            Console.WriteLine($"Failed to load preview for attachment {Attachment.Id}: {ex.Message}");
+        }
+        finally
+        {
+            _isLoadingPreview = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleClick()
+    {
+        if (Attachment.AttachmentType == AttachmentType.Image && OnImageClick.HasDelegate)
+        {
+            await OnImageClick.InvokeAsync(Attachment.Id);
+        }
+        else if (OnViewDetails.HasDelegate)
+        {
+            await OnViewDetails.InvokeAsync(Attachment.Id);
+        }
+    }
+
+    private async Task HandleFeatureToggle()
+    {
+        if (OnFeatureToggle.HasDelegate)
+        {
+            await OnFeatureToggle.InvokeAsync();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_intersectionObserver != null)
+        {
+            await _intersectionObserver.DisposeAsync();
+        }
+    }
+}

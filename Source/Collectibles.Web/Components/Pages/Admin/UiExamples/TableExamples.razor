@@ -1,0 +1,302 @@
+@page "/admin/ui-examples/tables"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Administrator")]
+@rendermode InteractiveServer
+
+<PageTitle>Tables — UI Examples</PageTitle>
+
+<div class="container-fluid">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="admin/ui-examples">UI Examples</a></li>
+            <li class="breadcrumb-item active">Tables</li>
+        </ol>
+    </nav>
+
+    <h1 class="mb-4"><i class="bi bi-table me-2"></i>Tables</h1>
+
+    <!-- 1. Plain Table -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Plain Table</h5>
+        </div>
+        <div class="card-body">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in _sampleData)
+                    {
+                        <tr>
+                            <td>@row.Id</td>
+                            <td>@row.Name</td>
+                            <td>@row.Email</td>
+                            <td>@row.Role</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 2. Striped Table -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Striped Table</h5>
+        </div>
+        <div class="card-body">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in _sampleData)
+                    {
+                        <tr>
+                            <td>@row.Id</td>
+                            <td>@row.Name</td>
+                            <td>@row.Email</td>
+                            <td>@row.Role</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 3. Hover Table -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Hover Table</h5>
+        </div>
+        <div class="card-body">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in _sampleData)
+                    {
+                        <tr>
+                            <td>@row.Id</td>
+                            <td>@row.Name</td>
+                            <td>@row.Email</td>
+                            <td>@row.Role</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 4. Striped + Hover Table -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Striped + Hover Table</h5>
+        </div>
+        <div class="card-body">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in _sampleData)
+                    {
+                        <tr>
+                            <td>@row.Id</td>
+                            <td>@row.Name</td>
+                            <td>@row.Email</td>
+                            <td>@row.Role</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 5. Responsive Table -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Responsive Table</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Status</th>
+                            <th>Created Date</th>
+                            <th>Last Login</th>
+                            <th>Department</th>
+                            <th>Location</th>
+                            <th>Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in _sampleData)
+                        {
+                            <tr>
+                                <td>@row.Id</td>
+                                <td class="text-nowrap">@row.Name</td>
+                                <td class="text-nowrap">@row.Email</td>
+                                <td>@row.Role</td>
+                                <td>@row.Status</td>
+                                <td class="text-nowrap">2024-01-@(row.Id.ToString("D2"))</td>
+                                <td class="text-nowrap">2024-03-@(row.Id.ToString("D2")) 14:30</td>
+                                <td>Engineering</td>
+                                <td class="text-nowrap">New York, NY</td>
+                                <td class="text-nowrap">Lorem ipsum dolor sit amet, consectetur adipiscing elit.</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 6. Table with Action Buttons -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Table with Action Buttons</h5>
+        </div>
+        <div class="card-body">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in _sampleData)
+                    {
+                        <tr>
+                            <td>@row.Id</td>
+                            <td>@row.Name</td>
+                            <td>@row.Email</td>
+                            <td>@row.Role</td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary me-1"><i class="bi bi-eye"></i></button>
+                                <button class="btn btn-sm btn-outline-warning me-1"><i class="bi bi-pencil"></i></button>
+                                <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 7. Table with Badges -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Table with Badges</h5>
+        </div>
+        <div class="card-body">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in _sampleData)
+                    {
+                        <tr>
+                            <td>@row.Id</td>
+                            <td>@row.Name</td>
+                            <td>@row.Email</td>
+                            <td>@row.Role</td>
+                            <td><span class="badge @GetStatusBadgeClass(row.Status)">@row.Status</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 8. Table with Sortable Headers -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Table with Sortable Headers</h5>
+        </div>
+        <div class="card-body">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th role="button" class="user-select-none"># <i class="bi bi-chevron-down"></i></th>
+                        <th role="button" class="user-select-none">Name <i class="bi bi-chevron-down"></i></th>
+                        <th role="button" class="user-select-none">Email <i class="bi bi-chevron-down"></i></th>
+                        <th role="button" class="user-select-none">Role <i class="bi bi-chevron-down"></i></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in _sampleData)
+                    {
+                        <tr>
+                            <td>@row.Id</td>
+                            <td>@row.Name</td>
+                            <td>@row.Email</td>
+                            <td>@row.Role</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@code {
+    private record SampleRow(int Id, string Name, string Email, string Role, string Status);
+
+    private List<SampleRow> _sampleData = new()
+    {
+        new(1, "Alice Johnson", "alice@example.com", "Administrator", "Active"),
+        new(2, "Bob Smith", "bob@example.com", "Editor", "Active"),
+        new(3, "Carol White", "carol@example.com", "Viewer", "Inactive"),
+        new(4, "David Brown", "david@example.com", "Editor", "Pending"),
+        new(5, "Eve Davis", "eve@example.com", "Administrator", "Active"),
+        new(6, "Frank Miller", "frank@example.com", "Viewer", "Suspended")
+    };
+
+    private string GetStatusBadgeClass(string status) => status switch
+    {
+        "Active" => "bg-success",
+        "Inactive" => "bg-secondary",
+        "Pending" => "bg-warning text-dark",
+        "Suspended" => "bg-danger",
+        _ => "bg-secondary"
+    };
+}

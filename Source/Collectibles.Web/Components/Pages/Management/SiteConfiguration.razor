@@ -1,0 +1,178 @@
+@page "/Management/SiteConfiguration"
+@using Collectibles.Application.Interfaces
+@using Microsoft.AspNetCore.Authorization
+
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Administrator")]
+
+@inject ISiteConfigurationService SiteConfigurationService
+@inject ILogger<SiteConfiguration> Logger
+
+<PageTitle>Site Configuration</PageTitle>
+
+<h3>Site Configuration</h3>
+
+@if (!string.IsNullOrEmpty(statusMessage))
+{
+    <div class="alert @(isError ? "alert-danger" : "alert-success") alert-dismissible fade show" role="alert">
+        @statusMessage
+        <button type="button" class="btn-close" @onclick="() => statusMessage = string.Empty"></button>
+    </div>
+}
+
+<div class="card mt-4">
+    <div class="card-header">
+        <h5>Registration Settings</h5>
+    </div>
+    <div class="card-body">
+        <EditForm Model="@configModel" OnValidSubmit="SaveConfiguration">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+            
+            <div class="mb-3">
+                <label for="registrationMessage" class="form-label">Registration Pending Message</label>
+                <InputTextArea id="registrationMessage" @bind-Value="configModel.RegistrationPendingMessage" 
+                    class="form-control" rows="4" />
+                <div class="form-text">
+                    This message is displayed to users when they register but email confirmation is disabled.
+                    Default: "Please contact the site administrator to complete your registration."
+                </div>
+            </div>
+            
+            <button type="submit" class="btn btn-primary" disabled="@isSaving">
+                @if (isSaving)
+                {
+                    <Spinner Type="SpinnerType.Dots" Size="SpinnerSize.Small" Color="SpinnerColor.Light" Class="me-2" />
+                }
+                Save Changes
+            </button>
+        </EditForm>
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header">
+        <h5>Card Display Settings</h5>
+    </div>
+    <div class="card-body">
+        <EditForm Model="@configModel" OnValidSubmit="SaveConfiguration">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+
+            <div class="mb-3">
+                <label for="cardImageHeight" class="form-label">Card Image Height (px)</label>
+                <InputNumber id="cardImageHeight" @bind-Value="configModel.CardImageHeight" class="form-control" style="max-width: 200px;" />
+                <div class="form-text">
+                    Height of item card images. Valid range: 100-500px. Default: 200px.
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label for="cardMinWidth" class="form-label">Card Min Width (px)</label>
+                <InputNumber id="cardMinWidth" @bind-Value="configModel.CardMinWidth" class="form-control" style="max-width: 200px;" />
+                <div class="form-text">
+                    Minimum width of item cards in the grid. Valid range: 200-600px. Default: 280px.
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary" disabled="@isSaving">
+                @if (isSaving)
+                {
+                    <Spinner Type="SpinnerType.Dots" Size="SpinnerSize.Small" Color="SpinnerColor.Light" Class="me-2" />
+                }
+                Save Changes
+            </button>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    private ConfigurationModel configModel = new();
+    private string statusMessage = string.Empty;
+    private bool isError = false;
+    private bool isSaving = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadConfiguration();
+    }
+
+    private async Task LoadConfiguration()
+    {
+        try
+        {
+            var message = await SiteConfigurationService.GetConfigurationValueAsync(
+                "RegistrationPendingMessage", 
+                "Please contact the site administrator to complete your registration.");
+            configModel.RegistrationPendingMessage = message;
+
+            var imageHeight = await SiteConfigurationService.GetConfigurationValueAsync("CardImageHeight", "200");
+            if (int.TryParse(imageHeight, out var ih)) configModel.CardImageHeight = ih;
+
+            var minWidth = await SiteConfigurationService.GetConfigurationValueAsync("CardMinWidth", "280");
+            if (int.TryParse(minWidth, out var mw)) configModel.CardMinWidth = mw;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading site configuration");
+            statusMessage = "Error loading configuration.";
+            isError = true;
+        }
+    }
+
+    private async Task SaveConfiguration()
+    {
+        if (configModel.CardImageHeight < 100 || configModel.CardImageHeight > 500)
+        {
+            statusMessage = "Card Image Height must be between 100 and 500 pixels.";
+            isError = true;
+            return;
+        }
+
+        if (configModel.CardMinWidth < 200 || configModel.CardMinWidth > 600)
+        {
+            statusMessage = "Card Min Width must be between 200 and 600 pixels.";
+            isError = true;
+            return;
+        }
+
+        isSaving = true;
+        try
+        {
+            await SiteConfigurationService.SetConfigurationValueAsync(
+                "RegistrationPendingMessage",
+                configModel.RegistrationPendingMessage,
+                "Message displayed to users when they register but email confirmation is disabled");
+
+            await SiteConfigurationService.SetConfigurationValueAsync(
+                "CardImageHeight",
+                configModel.CardImageHeight.ToString(),
+                "Height in pixels for item card images (100-500)");
+
+            await SiteConfigurationService.SetConfigurationValueAsync(
+                "CardMinWidth",
+                configModel.CardMinWidth.ToString(),
+                "Minimum width in pixels for item cards in the grid (200-600)");
+
+            statusMessage = "Configuration saved successfully.";
+            isError = false;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error saving site configuration");
+            statusMessage = "Error saving configuration.";
+            isError = true;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private class ConfigurationModel
+    {
+        public string RegistrationPendingMessage { get; set; } = "Please contact the site administrator to complete your registration.";
+        public int CardImageHeight { get; set; } = 200;
+        public int CardMinWidth { get; set; } = 280;
+    }
+}

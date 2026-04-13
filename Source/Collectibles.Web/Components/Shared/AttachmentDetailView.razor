@@ -1,0 +1,64 @@
+@using Collectibles.Application.Features.Attachments
+@using Collectibles.Domain.Common.Enums
+
+<div class="list-group-item list-group-item-action attachment-detail-item">
+    <div class="d-flex align-items-center">
+        <div class="attachment-preview-small background-blur me-3">
+            @if (!string.IsNullOrEmpty(Attachment.Base64PreviewThumbnail))
+            {
+                <img src="data:image/png;base64,@Attachment.Base64PreviewThumbnail"
+                     alt="@Attachment.Name" class="img-thumbnail" />
+            }
+            else
+            {
+                <div class="placeholder-icon-small">
+                    @switch (Attachment.AttachmentType)
+                    {
+                        case AttachmentType.Image:
+                            <i class="bi bi-image text-muted"></i>
+                            break;
+                        case AttachmentType.Document:
+                            <i class="bi bi-file-earmark-text text-muted"></i>
+                            break;
+                        case AttachmentType.Video:
+                            <i class="bi bi-camera-video text-muted"></i>
+                            break;
+                        case AttachmentType.Audio:
+                            <i class="bi bi-music-note-beamed text-muted"></i>
+                            break;
+                        default:
+                            <i class="bi bi-file-earmark text-muted"></i>
+                            break;
+                    }
+                </div>
+            }
+        </div>
+        <div class="flex-grow-1">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <div class="d-flex gap-3 text-muted small">
+                        <span><i class="bi bi-tag"></i> @Attachment.AttachmentType</span>
+                        @if (!string.IsNullOrEmpty(Attachment.FileType))
+                        {
+                            <span><i class="bi bi-file-code"></i> @Attachment.FileType</span>
+                        }
+                    </div>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-primary" @onclick="() => OnViewDetails.InvokeAsync(Attachment.Id)" title="View Details">
+                        <i class="bi bi-eye"></i> View
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => OnEditAttachment.InvokeAsync(Attachment.Id)" title="Edit">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public AttachmentBriefDto Attachment { get; set; } = default!;
+    [Parameter] public EventCallback<long> OnViewDetails { get; set; }
+    [Parameter] public EventCallback<long> OnEditAttachment { get; set; }
+}

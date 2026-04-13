@@ -1,0 +1,80 @@
+@using Collectibles.Application.Interfaces
+@using Collectibles.Domain.Interfaces
+@inject IAttachmentDuplicateDetectionService AttachmentDuplicateDetectionService
+@inject ISysLogService SysLogService
+
+@if (_isLoading)
+{
+    <div class="col-md-4 d-flex">
+        <div class="card w-100">
+            <div class="card-body placeholder-glow">
+                <h5 class="card-title"><span class="placeholder col-7"></span></h5>
+                <p class="placeholder col-3" style="height: 3rem;"></p>
+                <small><span class="placeholder col-9"></span></small>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="col-md-4 d-flex">
+        <div class="card border-info w-100">
+            <div class="card-body">
+                <h5 class="card-title text-info">
+                    <i class="bi bi-fingerprint"></i> Attachment Indexing
+                </h5>
+                <p class="card-text display-6">@_indexingStats.PercentComplete%</p>
+                <small class="text-muted">
+                    @_indexingStats.IndexedAttachments of @_indexingStats.TotalAttachments indexed
+                </small>
+                @if (_indexingStats.PendingAttachments > 0)
+                {
+                    <div class="progress mt-2" style="height: 5px;">
+                        <div class="progress-bar bg-info" role="progressbar"
+                             style="width: @_indexingStats.PercentComplete%"
+                             aria-valuenow="@_indexingStats.PercentComplete" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int RefreshKey { get; set; }
+
+    private bool _isLoading = true;
+    private AttachmentIndexingStats _indexingStats = new();
+    private int _previousRefreshKey;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _previousRefreshKey = RefreshKey;
+        await LoadData();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (RefreshKey != _previousRefreshKey)
+        {
+            _previousRefreshKey = RefreshKey;
+            await LoadData();
+        }
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            _indexingStats = await AttachmentDuplicateDetectionService.GetIndexingStatsAsync();
+        }
+        catch (Exception ex)
+        {
+            try { await SysLogService.LogErrorAsync($"Dashboard: Error loading indexing status data: {ex.Message}", ex, "BlazorPage"); } catch { }
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}

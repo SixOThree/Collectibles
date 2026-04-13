@@ -1,0 +1,528 @@
+@page "/showcase/{Hash}"
+@rendermode InteractiveServerWithoutPrerender
+@inherits LoggablePageBase
+@using Collectibles.Application.Features.Showcases
+@using Collectibles.Application.Features.Showcases.Queries
+@using Collectibles.Application.Features.Showcases.Commands
+@using Collectibles.Application.Features.CollectibleItems
+@using Collectibles.Application.Services
+@using Collectibles.Application.Interfaces
+@using Collectibles.Domain.Entities
+@using Collectibles.Web.Components.Shared
+@using MediatR
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.WebUtilities
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+@inject IHashIdsService HashIds
+@inject IAuthorizationService AuthorizationService
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider
+@inject ICollectibleItemPreviewService PreviewService
+@inject ISiteConfigurationService SiteConfigurationService
+
+<PageTitle>@(_showcase?.Name ?? "Showcase")</PageTitle>
+
+@if (_showcase == null)
+{
+    @if (_loading)
+    {
+        <p><em>Loading showcase…</em></p>
+    }
+    else if (_accessDenied)
+    {
+        <div class="alert alert-danger">
+            <h4>Access Denied</h4>
+            <p>This showcase is private and you don't have permission to view it.</p>
+            <button class="btn btn-primary" @onclick="NavigateToShowcases">Back to Showcases</button>
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-warning">
+            <h4>Showcase not found</h4>
+            <p>The showcase you're looking for doesn't exist or has been removed.</p>
+            <button class="btn btn-primary" @onclick="NavigateToShowcases">Back to Showcases</button>
+        </div>
+    }
+}
+else
+{
+    <div class="showcase-detail pt-0">
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="header-content">
+                    <div class="header-title-section">
+                        <h1 class="card-title mb-3">@_showcase.Name</h1>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_showcase.Description))
+                    {
+                        <p class="showcase-description text-muted">@_showcase.Description</p>
+                    }
+                    
+                    <div class="showcase-meta d-flex gap-3 flex-wrap">
+                        @if (_canEdit)
+                        {
+                            <button class="btn btn-primary btn-sm" @onclick="NavigateToAddItem">
+                                <i class="bi bi-plus-circle"></i> Add New Item
+                            </button>
+                            <button class="btn btn-outline-primary btn-sm" @onclick="NavigateToEditShowcase">
+                                <i class="bi bi-pencil"></i> Edit
+                            </button>
+                        }
+                        <button class="btn btn-sm btn-outline-secondary info-button" @onclick="() => _showInfoModal = true">
+                            <i class="bi bi-info-circle"></i> Info
+                        </button>
+                        @if (_canEdit)
+                        {
+                            <button class="btn btn-sm btn-outline-success" @onclick="() => _showShareModal = true">
+                                <i class="bi bi-share"></i> Share
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="NavigateToZipUpload">
+                                <i class="bi bi-file-earmark-zip"></i> Zip Upload
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="NavigateToTemplateItems">
+                                <i class="bi bi-table"></i> Template Items
+                            </button>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @if (_showcase.Tags.Any())
+        {
+            <div class="showcase-tags">
+                <h2>Tags</h2>
+                <div class="tag-list d-flex flex-wrap gap-2">
+                    @foreach (var tag in _showcase.Tags)
+                    {
+                        <button class="tag-button @(IsTagSelected(tag.Id) ? "selected" : "")" 
+                                @onclick="() => ToggleTag(tag.Id)">
+                            @tag.Name
+                        </button>
+                    }
+                </div>
+            </div>
+        }
+
+        <div class="showcase-controls">
+            <div class="search-box">
+                <input type="text" class="form-control" placeholder="Search items…" aria-label="Search items"
+                       @bind="_searchTerm" @bind:event="oninput" @bind:after="UpdateQueryParameters" />
+                <i class="bi bi-search"></i>
+            </div>
+            
+            @if (_selectedTagIds.Any())
+            {
+                <button class="btn btn-sm btn-outline-secondary" @onclick="ClearFilters">
+                    Clear filters
+                </button>
+            }
+        </div>
+
+        <div class="items-section">
+            @if (!FilteredItems.Any())
+            {
+                <div class="empty-items text-center text-muted">
+                    @if (_showcase.Items.Any())
+                    {
+                        <p>No items match your current filters.</p>
+                    }
+                    else
+                    {
+                        <p>This showcase doesn't have any items yet.</p>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="items-grid" style="grid-template-columns: repeat(auto-fill, minmax(@(_cardMinWidth)px, 1fr))">
+                    @foreach (var item in FilteredItems)
+                    {
+                        <CollectibleItemCard Item="item" OnItemClick="HandleItemClick" ImageHeight="_cardImageHeight" />
+                    }
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@if (_isNavigating)
+{
+    <div class="navigation-loading-overlay">
+        <div class="navigation-loading-content">
+            <Spinner Type="SpinnerType.Dots" Class="me-3" Color="SpinnerColor.Primary" />
+            <p class="text-light mt-2">Loading item details...</p>
+        </div>
+    </div>
+}
+
+@if (_showInfoModal && _showcase != null)
+{
+    <div class="modal fade show" style="display: block;" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Showcase Information</h5>
+                    <button type="button" class="btn-close" @onclick="() => _showInfoModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="info-section">
+                        <h6 class="text-muted mb-3">General Information</h6>
+                        <div class="info-item">
+                            <span class="info-label">Name:</span>
+                            <span class="info-value">@_showcase.Name</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Visibility:</span>
+                            <span class="info-value">
+                                @if (_showcase.IsPrivate)
+                                {
+                                    <i class="bi bi-lock"></i> <text>Private</text>
+                                }
+                                else
+                                {
+                                    <i class="bi bi-globe"></i> <text>Public</text>
+                                }
+                            </span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Created:</span>
+                            <span class="info-value">@_showcase.CreatedDate.ToString("MMMM d, yyyy h:mm tt")</span>
+                        </div>
+                        @if (_showcase.LastModifiedDate.HasValue)
+                        {
+                            <div class="info-item">
+                                <span class="info-label">Last Modified:</span>
+                                <span class="info-value">@_showcase.LastModifiedDate.Value.ToString("MMMM d, yyyy h:mm tt")</span>
+                            </div>
+                        }
+                    </div>
+                    
+                    <div class="info-section mt-4">
+                        <h6 class="text-muted mb-3">Statistics</h6>
+                        <div class="info-item">
+                            <span class="info-label">Total Items:</span>
+                            <span class="info-value">@_showcase.TotalItemCount</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Total Tags:</span>
+                            <span class="info-value">@_showcase.Tags.Count</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Items with Images:</span>
+                            <span class="info-value">@_showcase.ItemsWithPreviewCount</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Total Attachments:</span>
+                            <span class="info-value">@_showcase.TotalAttachmentCount</span>
+                        </div>
+                    </div>
+                    
+                    @if (_showcase.Tags.Any())
+                    {
+                        <div class="info-section mt-4">
+                            <h6 class="text-muted mb-3">Tag Usage</h6>
+                            @foreach (var tag in _showcase.Tags.OrderByDescending(t => _showcase.Items.Count(i => i.Tags.Any(it => it.Id == t.Id))))
+                            {
+                                var itemCount = _showcase.Items.Count(i => i.Tags.Any(it => it.Id == tag.Id));
+                                <div class="info-item">
+                                    <span class="info-label">@tag.Name:</span>
+                                    <span class="info-value">@itemCount @(itemCount == 1 ? "item" : "items")</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => _showInfoModal = false">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+}
+
+
+@if (_showShareModal && _showcase != null)
+{
+    <ShareShowcaseModal 
+        ShowcaseId="_showcase.Id"
+        ShowcaseName="@_showcase.Name"
+        OnClose="() => _showShareModal = false" />
+}
+
+@code {
+    [Parameter] public string Hash { get; set; } = string.Empty;
+    
+    private ShowcaseDetailDto? _showcase;
+    private bool _loading = true;
+    private bool _isNavigating = false;
+    private string _searchTerm = string.Empty;
+    private HashSet<long> _selectedTagIds = new();
+    private bool _canEdit = false;
+    private bool _accessDenied = false;
+    private bool _showInfoModal = false;
+    private bool _showShareModal = false;
+    private int _cardImageHeight = 200;
+    private int _cardMinWidth = 280;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadShowcase();
+        var imageHeightStr = await SiteConfigurationService.GetConfigurationValueAsync("CardImageHeight", "200");
+        var minWidthStr = await SiteConfigurationService.GetConfigurationValueAsync("CardMinWidth", "280");
+        if (int.TryParse(imageHeightStr, out var ih)) _cardImageHeight = ih;
+        if (int.TryParse(minWidthStr, out var mw)) _cardMinWidth = mw;
+        ReadQueryParameters();
+        
+        // Trigger collage preview generation in background
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                if (_showcase != null)
+                {
+                    await PreviewService.GenerateCollagePreviewsForShowcaseAsync(_showcase.Id);
+                }
+            }
+            catch (Exception ex)
+            {
+                _ = LogErrorToSysLog(ex, "generating collage previews for showcase in background");
+            }
+        });
+    }
+
+    private async Task LoadShowcase()
+    {
+        _loading = true;
+        try
+        {
+            var id = HashIds.Decode(Hash);
+            _showcase = await Mediator.Send(new GetShowcaseByIdQuery(id));
+            
+            if (_showcase != null)
+            {
+                // Check if user can view this showcase
+                var authState = await base.AuthenticationStateProvider.GetAuthenticationStateAsync();
+                var user = authState.User;
+                
+                // Get user ID from authentication state (more reliable in Blazor Server)
+                var userId = user?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                
+                if (_showcase.IsPrivate && (_showcase.UserId != userId))
+                {
+                    // Private showcase and user is not the owner
+                    _accessDenied = true;
+                    _showcase = null;
+                }
+                else
+                {
+                    _canEdit = _showcase.UserId == userId;
+                }
+            }
+        }
+        catch (ArgumentException ex)
+        {
+            await LogErrorToSysLog(ex, "decoding showcase hash");
+            _showcase = null;
+        }
+        _loading = false;
+    }
+
+    private void ReadQueryParameters()
+    {
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        var query = QueryHelpers.ParseQuery(uri.Query);
+
+        // Read search term
+        if (query.TryGetValue("search", out var searchValues))
+        {
+            _searchTerm = searchValues.FirstOrDefault() ?? string.Empty;
+        }
+
+        // Read selected tags
+        if (query.TryGetValue("tags", out var tagValues))
+        {
+            var tagIdString = tagValues.FirstOrDefault();
+            if (!string.IsNullOrEmpty(tagIdString))
+            {
+                var tagIds = tagIdString.Split(',')
+                    .Select(id => long.TryParse(id, out var parsedId) ? parsedId : (long?)null)
+                    .Where(id => id.HasValue)
+                    .Select(id => id!.Value);
+                _selectedTagIds = new HashSet<long>(tagIds);
+            }
+        }
+    }
+
+    private async void UpdateQueryParameters()
+    {
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        var baseUri = uri.GetLeftPart(UriPartial.Path);
+        var queryParams = new Dictionary<string, string?>();
+
+        // Add search term if present
+        if (!string.IsNullOrWhiteSpace(_searchTerm))
+        {
+            queryParams["search"] = _searchTerm;
+        }
+
+        // Add selected tags if any
+        if (_selectedTagIds.Any())
+        {
+            queryParams["tags"] = string.Join(",", _selectedTagIds);
+        }
+
+        var newUri = QueryHelpers.AddQueryString(baseUri, queryParams);
+        Navigation.NavigateTo(newUri, replace: true);
+        
+        // Log search action
+        await LogAction(EventAction.Search, new 
+        { 
+            ShowcaseId = _showcase?.Id,
+            ShowcaseName = _showcase?.Name,
+            SearchTerm = _searchTerm,
+            SelectedTags = _selectedTagIds.Count,
+            ResultCount = FilteredItems.Count()
+        });
+    }
+
+    private IEnumerable<CollectibleItemCardDto> FilteredItems
+    {
+        get
+        {
+            if (_showcase == null) return Enumerable.Empty<CollectibleItemCardDto>();
+            
+            // Use ItemCards if available, otherwise fall back to Items for compatibility
+            var items = _showcase.ItemCards?.Any() == true 
+                ? _showcase.ItemCards.AsEnumerable()
+                : _showcase.Items.Select(i => new CollectibleItemCardDto
+                {
+                    Id = i.Id,
+                    Name = i.Name,
+                    Description = i.Description,
+                    CreatedDate = i.CreatedDate,
+                    ChildItemCount = i.ChildItemCount,
+                    AttachmentCount = i.Attachments?.Count ?? 0,
+                    Tags = i.Tags.Select(t => new TagSummaryDto 
+                    { 
+                        Id = t.Id, 
+                        Name = t.Name,
+                        Color = null
+                    }).ToList()
+                }).AsEnumerable();
+            
+            // Apply search filter
+            if (!string.IsNullOrWhiteSpace(_searchTerm))
+            {
+                items = items.Where(i => 
+                    i.Name.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                    (i.Description?.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ?? false));
+            }
+            
+            // Apply tag filter
+            if (_selectedTagIds.Any())
+            {
+                items = items.Where(i => 
+                    i.Tags.Any(t => _selectedTagIds.Contains(t.Id)));
+            }
+            
+            // Apply sort order from showcase settings
+            items = _showcase.SortOrder switch
+            {
+                Domain.Enums.ShowcaseSortOrder.NewestFirst => items
+                    .OrderByDescending(i => i.CreatedDate),
+                Domain.Enums.ShowcaseSortOrder.TemplateSort => items
+                    .OrderBy(i => i.ContentDefinitionId.HasValue ? 0 : 1)
+                    .ThenBy(i => i.TemplateName ?? string.Empty)
+                    .ThenBy(i => i.Name),
+                _ => items // Alphabetical (default)
+                    .OrderBy(i => i.Name),
+            };
+
+            return items;
+        }
+    }
+
+    private bool IsTagSelected(long tagId) => _selectedTagIds.Contains(tagId);
+
+    private void ToggleTag(long tagId)
+    {
+        if (_selectedTagIds.Contains(tagId))
+            _selectedTagIds.Remove(tagId);
+        else
+            _selectedTagIds.Add(tagId);
+        
+        UpdateQueryParameters();
+    }
+
+    private async void ClearFilters()
+    {
+        _selectedTagIds.Clear();
+        _searchTerm = string.Empty;
+        UpdateQueryParameters();
+        
+        // Log clear filters action
+        await LogAction(EventAction.Other, new 
+        { 
+            Action = "ClearFilters",
+            ShowcaseId = _showcase?.Id,
+            ShowcaseName = _showcase?.Name,
+            ResultCount = FilteredItems.Count()
+        });
+    }
+
+    private void NavigateToShowcases()
+    {
+        Navigation.NavigateTo("/showcases");
+    }
+
+    private void NavigateToItem(long itemId)
+    {
+        _isNavigating = true;
+        StateHasChanged();
+        var itemHash = HashIds.Encode(itemId);
+        Navigation.NavigateTo($"/item/{itemHash}?showcase={Hash}");
+    }
+
+    private void HandleItemClick(CollectibleItemCardDto item)
+    {
+        NavigateToItem(item.Id);
+    }
+
+    private void NavigateToAddItem()
+    {
+        _isNavigating = true;
+        StateHasChanged();
+        Navigation.NavigateTo($"/showcase/{Hash}/item/new");
+    }
+
+    private void NavigateToEditShowcase()
+    {
+        _isNavigating = true;
+        StateHasChanged();
+        Navigation.NavigateTo($"/showcase/{Hash}/edit");
+    }
+
+    private void NavigateToZipUpload()
+    {
+        if (_showcase == null)
+        {
+            return;
+        }
+
+        _isNavigating = true;
+        StateHasChanged();
+        Navigation.NavigateTo($"/zip-upload-bg-simple?showcaseId={_showcase.Id}");
+    }
+
+    private void NavigateToTemplateItems()
+    {
+        _isNavigating = true;
+        StateHasChanged();
+        Navigation.NavigateTo($"/showcase/{Hash}/templates/items");
+    }
+}
+
