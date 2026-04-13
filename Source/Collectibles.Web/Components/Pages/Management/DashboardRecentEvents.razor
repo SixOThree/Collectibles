@@ -1,0 +1,137 @@
+@using Collectibles.Application.Interfaces
+@using Collectibles.Domain.Entities
+@inject IEventLogService EventLogService
+@inject ISysLogService SysLogService
+
+@if (_isLoading)
+{
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-journal-text"></i> Recent Events</h5>
+                <a href="/management/event-logs" class="btn btn-sm btn-outline-primary">View All</a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>User</th>
+                                <th>Action</th>
+                                <th>Entity</th>
+                            </tr>
+                        </thead>
+                        <tbody class="placeholder-glow">
+                            @for (var i = 0; i < 5; i++)
+                            {
+                                <tr>
+                                    <td><span class="placeholder col-8"></span></td>
+                                    <td><span class="placeholder col-10"></span></td>
+                                    <td><span class="placeholder col-6"></span></td>
+                                    <td><span class="placeholder col-7"></span></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-journal-text"></i> Recent Events</h5>
+                <a href="/management/event-logs" class="btn btn-sm btn-outline-primary">View All</a>
+            </div>
+            <div class="card-body p-0">
+                @if (_recentEvents.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>User</th>
+                                    <th>Action</th>
+                                    <th>Entity</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var evt in _recentEvents.Take(10))
+                                {
+                                    <tr>
+                                        <td><small>@FormatTimestamp(evt.Timestamp, "HH:mm:ss")</small></td>
+                                        <td><small>@(evt.UserEmail ?? "System")</small></td>
+                                        <td>
+                                            <span class="badge bg-secondary">@evt.Action</span>
+                                        </td>
+                                        <td><small>@evt.EntityType</small></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted text-center py-3">No recent events</p>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int RefreshKey { get; set; }
+    [Parameter] public TimeZoneInfo? BrowserTimeZone { get; set; }
+
+    private bool _isLoading = true;
+    private List<EventLog> _recentEvents = new();
+    private int _previousRefreshKey;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _previousRefreshKey = RefreshKey;
+        await LoadData();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (RefreshKey != _previousRefreshKey)
+        {
+            _previousRefreshKey = RefreshKey;
+            await LoadData();
+        }
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            _recentEvents = (await EventLogService.GetEventLogsAsync(pageSize: 20)).ToList();
+        }
+        catch (Exception ex)
+        {
+            try { await SysLogService.LogErrorAsync($"Dashboard: Error loading recent events data: {ex.Message}", ex, "BlazorPage"); } catch { }
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private string FormatTimestamp(DateTime utcTime, string format = "yyyy-MM-dd HH:mm:ss")
+    {
+        if (BrowserTimeZone != null)
+        {
+            var utc = DateTime.SpecifyKind(utcTime, DateTimeKind.Utc);
+            var localTime = TimeZoneInfo.ConvertTimeFromUtc(utc, BrowserTimeZone);
+            return localTime.ToString(format);
+        }
+        return utcTime.ToString(format);
+    }
+}

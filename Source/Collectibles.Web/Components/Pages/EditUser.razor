@@ -1,0 +1,305 @@
+@page "/users/{UserId}/edit"
+@rendermode InteractiveServerWithoutPrerender
+@attribute [Authorize(Policy = "UserManager")]
+@inherits LoggablePageBase
+@using Collectibles.Application.Features.Users.Commands
+@using Collectibles.Application.Features.Users.Dtos
+@using Collectibles.Application.Features.Users.Queries
+@using Microsoft.AspNetCore.Authorization
+@using MediatR
+@using Collectibles.Domain.Configuration
+@using Microsoft.Extensions.Options
+@attribute [Authorize(Policy = "UserManager")]
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+@inject IOptions<SyncToolSettings> SyncToolSettingsOptions
+
+<PageTitle>Edit User</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="text-center">
+        <Spinner Type="SpinnerType.Dots" Class="me-3" Color="SpinnerColor.Primary" />
+    </div>
+}
+else if (_model != null)
+{
+    <div class="page-header">
+        <h1>Edit User</h1>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <EditForm Model="@_model" OnValidSubmit="HandleSubmit">
+                <DataAnnotationsValidator />
+                <ValidationSummary class="text-danger" />
+
+                <div class="mb-3">
+                    <label for="email" class="form-label">Email</label>
+                    <InputText id="email" type="email" class="form-control" @bind-Value="_model.Email" />
+                    <ValidationMessage For="@(() => _model.Email)" />
+                </div>
+
+                <hr />
+
+                <div class="mb-3">
+                    <label for="displayName" class="form-label">Display Name</label>
+                    <InputText id="displayName" class="form-control" @bind-Value="_model.DisplayName" />
+                    <ValidationMessage For="@(() => _model.DisplayName)" />
+                </div>
+
+                <div class="mb-3">
+                    <label for="profilePictureUrl" class="form-label">Profile Picture URL</label>
+                    <InputText id="profilePictureUrl" class="form-control" @bind-Value="_model.ProfilePictureUrl" />
+                    <ValidationMessage For="@(() => _model.ProfilePictureUrl)" />
+                    @if (!string.IsNullOrEmpty(_model.ProfilePictureUrl))
+                    {
+                        <div class="mt-2">
+                            <img src="@_model.ProfilePictureUrl" alt="Profile preview" class="rounded-circle" 
+                                 style="width: 100px; height: 100px; object-fit: cover;" 
+                                 @onerror="@(() => _model.ProfilePictureUrl = null)" />
+                        </div>
+                    }
+                </div>
+
+                <div class="mb-3">
+                    <div class="form-check">
+                        <InputCheckbox id="isActive" class="form-check-input" @bind-Value="_model.IsActive" />
+                        <label class="form-check-label" for="isActive">
+                            Active
+                        </label>
+                    </div>
+                </div>
+
+                @if (SyncToolSettingsOptions.Value.Enabled)
+                {
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <InputCheckbox id="syncToolEnabled" class="form-check-input" @bind-Value="_model.SyncToolEnabled" />
+                            <label class="form-check-label" for="syncToolEnabled">
+                                Sync Tool Access
+                            </label>
+                        </div>
+                    </div>
+                }
+
+                <div class="mb-3">
+                    <label class="form-label">Roles</label>
+                    @if (_availableRoles != null)
+                    {
+                        @foreach (var role in _availableRoles)
+                        {
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" id="@($"role-{role.Id}")"
+                                       checked="@(_model.Roles.Contains(role.Name))"
+                                       @onchange="@((ChangeEventArgs e) => ToggleRole(role.Name, e.Value))" />
+                                <label class="form-check-label" for="@($"role-{role.Id}")">
+                                    @role.Name
+                                    @if (role.UserCount > 0)
+                                    {
+                                        <span class="text-muted">(@role.UserCount users)</span>
+                                    }
+                                </label>
+                            </div>
+                        }
+                    }
+                </div>
+
+                <div class="mb-3">
+                    <button type="submit" class="btn btn-primary" disabled="@(_isSubmitting || !IsValid())">
+                        @if (_isSubmitting)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        }
+                        Save Changes
+                    </button>
+                    <button type="button" class="btn btn-secondary ms-2" @onclick="Cancel">Cancel</button>
+                </div>
+
+                @if (!string.IsNullOrEmpty(_errorMessage))
+                {
+                    <div class="alert alert-danger" role="alert">
+                        @_errorMessage
+                    </div>
+                }
+
+                @if (_successMessage)
+                {
+                    <div class="alert alert-success" role="alert">
+                        User updated successfully!
+                    </div>
+                }
+            </EditForm>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">User Information</h5>
+                </div>
+                <div class="card-body">
+                    @if (_originalUser != null)
+                    {
+                        <dl class="row">
+                            <dt class="col-sm-4">User ID</dt>
+                            <dd class="col-sm-8"><code>@_originalUser.Id</code></dd>
+
+                            <dt class="col-sm-4">Email Confirmed</dt>
+                            <dd class="col-sm-8">
+                                @if (_originalUser.EmailConfirmed)
+                                {
+                                    <span class="badge bg-success">Yes</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-warning">No</span>
+                                }
+                            </dd>
+
+                            <dt class="col-sm-4">Two-Factor Auth</dt>
+                            <dd class="col-sm-8">
+                                @if (_originalUser.TwoFactorEnabled)
+                                {
+                                    <span class="badge bg-success">Enabled</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">Disabled</span>
+                                }
+                            </dd>
+
+                            <dt class="col-sm-4">Last Login</dt>
+                            <dd class="col-sm-8">
+                                @if (_originalUser.LastLoginDate.HasValue)
+                                {
+                                    @_originalUser.LastLoginDate.Value.ToString("g")
+                                }
+                                else
+                                {
+                                    <span class="text-muted">Never</span>
+                                }
+                            </dd>
+
+                            <dt class="col-sm-4">Created</dt>
+                            <dd class="col-sm-8">@_originalUser.CreatedDate.ToString("g")</dd>
+
+                            @if (_originalUser.ModifiedDate.HasValue)
+                            {
+                                <dt class="col-sm-4">Last Modified</dt>
+                                <dd class="col-sm-8">@_originalUser.ModifiedDate.Value.ToString("g")</dd>
+                            }
+                        </dl>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string UserId { get; set; } = string.Empty;
+
+    private UpdateUserCommand? _model;
+    private UserDto? _originalUser;
+    private List<RoleDto>? _availableRoles;
+    private bool _isLoading = true;
+    private bool _isSubmitting = false;
+    private string? _errorMessage;
+    private bool _successMessage = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _isLoading = true;
+        try
+        {
+            // Load user data
+            _originalUser = await Mediator.Send(new GetUserByIdQuery(UserId));
+            
+            // Initialize model from user data
+            _model = new UpdateUserCommand
+            {
+                Id = _originalUser.Id,
+                Email = _originalUser.Email,
+                DisplayName = _originalUser.DisplayName,
+                ProfilePictureUrl = _originalUser.ProfilePictureUrl,
+                IsActive = _originalUser.IsActive,
+                Roles = _originalUser.Roles.ToList(),
+                SyncToolEnabled = _originalUser.SyncToolEnabled
+            };
+
+            // Load available roles
+            _availableRoles = await Mediator.Send(new GetRolesListQuery());
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = "Failed to load user data: " + ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void ToggleRole(string roleName, object? isChecked)
+    {
+        if (_model == null) return;
+
+        if (isChecked is bool checkedValue)
+        {
+            if (checkedValue && !_model.Roles.Contains(roleName))
+            {
+                _model.Roles.Add(roleName);
+            }
+            else if (!checkedValue)
+            {
+                _model.Roles.Remove(roleName);
+            }
+        }
+    }
+
+    private bool IsValid()
+    {
+        return _model != null &&
+               !string.IsNullOrWhiteSpace(_model.Email);
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (_model == null || !IsValid())
+        {
+            return;
+        }
+
+
+        _isSubmitting = true;
+        _errorMessage = null;
+        _successMessage = false;
+
+        try
+        {
+            await Mediator.Send(_model);
+            _successMessage = true;
+            
+            // Reload user data to show updated information
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo($"/users/{UserId}");
+    }
+}

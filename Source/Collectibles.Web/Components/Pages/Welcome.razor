@@ -1,0 +1,127 @@
+@page "/welcome"
+@page "/"
+@rendermode InteractiveServerWithoutPrerender
+@inherits LoggablePageBase
+@using Collectibles.Domain.Configuration
+@using Collectibles.Application.Features.Showcases
+@using Collectibles.Application.Features.Showcases.Queries
+@using Collectibles.Application.Services
+@using MediatR
+@using Microsoft.Extensions.Options
+@inject IOptions<SiteSettings> SiteSettings
+@inject IMediator Mediator
+@inject IHashIdsService HashIds
+
+<PageTitle>@SiteSettings.Value.SiteTitle</PageTitle>
+
+<div class="welcome-container text-center">
+    @* Personalized showcase card for logged-in users with showcases *@
+    @if (!_isLoading && _isAuthenticated && _myShowcases != null && _myShowcases.Any())
+    {
+        <div class="user-showcase-card">
+            @if (_myShowcases.Count == 1)
+            {
+                var sc = _myShowcases[0];
+                var hash = HashIds.Encode(sc.Id);
+                <a class="single-showcase-link" href="/showcase/@hash">
+                    @if (!string.IsNullOrEmpty(sc.ImageUrl))
+                    {
+                        <img class="single-showcase-image" src="@sc.ImageUrl" alt="@sc.Name" />
+                    }
+                    else
+                    {
+                        <div class="single-showcase-placeholder">
+                            <i class="bi bi-collection"></i>
+                        </div>
+                    }
+                    <div class="single-showcase-content">
+                        <div class="single-showcase-label">Your Showcase</div>
+                        <h3 class="single-showcase-title">@sc.Name</h3>
+                        @if (!string.IsNullOrEmpty(sc.Description))
+                        {
+                            <p class="single-showcase-desc">@sc.Description</p>
+                        }
+                        <div class="single-showcase-meta">
+                            <span><i class="bi bi-box-seam"></i> @sc.ItemCount items</span>
+                        </div>
+                    </div>
+                </a>
+            }
+            else
+            {
+                <div class="multi-showcase">
+                    <div class="multi-showcase-text">
+                        <div class="single-showcase-label">Welcome back</div>
+                        <h3 class="multi-showcase-title">You have @_myShowcases.Count showcases</h3>
+                        <p class="multi-showcase-sub">Jump in to view and manage your showcases.</p>
+                    </div>
+                    <a class="btn btn-primary btn-lg" href="/showcases">View Your Showcases</a>
+                </div>
+            }
+        </div>
+    }
+
+    <div class="welcome-header">
+        <h1>Welcome to @SiteSettings.Value.SiteTitle!</h1>
+        <p class="lead">@SiteSettings.Value.SiteDescription</p>
+    </div>
+
+    <div class="welcome-features">
+        <div class="feature-card">
+            <h2>Organize Your Collection</h2>
+            <p>Effortlessly catalog all your collectible items. Add detailed descriptions, custom tags, and categorize them with flexible taxonomies.</p>
+        </div>
+        <div class="feature-card">
+            <h2>Showcase Your Treasures</h2>
+            <p>Create stunning digital showcases to display your collections. Share them with friends, family, or the entire community.</p>
+        </div>
+        <div class="feature-card">
+            <h2>Rich Media Support</h2>
+            <p>Attach images, documents, and other files to your collectibles. Keep all relevant information in one place.</p>
+        </div>
+        <div class="feature-card">
+            <h2>Discover & Connect</h2>
+            <p>Explore collections from other enthusiasts (coming soon!) and connect with a vibrant community of collectors.</p>
+        </div>
+    </div>
+
+    <div class="welcome-call-to-action">
+        <p>Ready to start building your digital collection?</p>
+        <a href="/showcases" class="btn btn-primary btn-lg">Your Showcases</a>
+        <a href="/showcases/public" class="btn btn-secondary btn-lg">Browse All Showcases</a>
+    </div>
+</div>
+
+@code {
+    private bool _isLoading = true;
+    private bool _isAuthenticated;
+    private string? _userId;
+    private List<ShowcaseCardDto>? _myShowcases;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Determine auth state
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        _isAuthenticated = user?.Identity?.IsAuthenticated == true;
+        _userId = user?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        if (_isAuthenticated && !string.IsNullOrEmpty(_userId))
+        {
+            try
+            {
+                var showcases = await Mediator.Send(new GetShowcasesListQuery { UserId = _userId });
+                // Only keep showcases owned by the current user
+                _myShowcases = showcases?.Where(s => string.Equals(s.UserId, _userId, StringComparison.Ordinal)).ToList();
+            }
+            catch
+            {
+                // Swallow errors to avoid breaking the welcome page
+                _myShowcases = new List<ShowcaseCardDto>();
+            }
+        }
+
+        _isLoading = false;
+    }
+}
+

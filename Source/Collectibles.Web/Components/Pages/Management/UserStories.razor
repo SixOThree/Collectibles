@@ -1,0 +1,832 @@
+@page "/management/user-stories"
+@rendermode InteractiveServerWithoutPrerender
+@attribute [Authorize(Roles = "Administrator")]
+@inherits LoggablePageBase
+@using Collectibles.Domain.Entities
+@using Collectibles.Application.Interfaces
+@implements IDisposable
+
+<PageTitle>User Stories - Management</PageTitle>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>
+            <i class="bi bi-book"></i> User Stories
+        </h1>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-primary" @onclick="ExportStories" disabled="@_isExporting">
+                @if (_isExporting)
+                {
+                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                }
+                <i class="bi bi-download"></i> Export
+            </button>
+            <button class="btn btn-primary" @onclick="RefreshSessions">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Filters Section -->
+    <div class="card mb-4">
+        <div class="card-header" @onclick="ToggleFilters" style="cursor: pointer;">
+            <h5 class="mb-0 d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-funnel"></i> Filters</span>
+                <i class="bi @(_showFilters ? "bi-chevron-up" : "bi-chevron-down")"></i>
+            </h5>
+        </div>
+        <div class="collapse @(_showFilters ? "show" : "")">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Date Range</label>
+                        <div class="input-group">
+                            <input type="datetime-local" class="form-control" @bind="_startDate" />
+                            <span class="input-group-text">to</span>
+                            <input type="datetime-local" class="form-control" @bind="_endDate" />
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">User</label>
+                        <input type="text" class="form-control" placeholder="Email or ID" @bind="_userFilter" />
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <div class="btn-group w-100" role="group">
+                            <button class="btn btn-primary" @onclick="ApplyFilters">
+                                <i class="bi bi-check-lg"></i> Apply
+                            </button>
+                            <button class="btn btn-outline-secondary" @onclick="ClearFilters">
+                                <i class="bi bi-x-lg"></i> Clear
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Bar -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="alert alert-info py-2 mb-0">
+                <i class="bi bi-info-circle"></i> 
+                Showing @_sessions.Count user sessions
+                @if (_isLoading)
+                {
+                    <span class="ms-3">
+                        <span class="spinner-border spinner-border-sm" role="status"></span>
+                        Loading sessions...
+                    </span>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Timezone Indicator -->
+    <div class="small text-muted mb-2">
+        <i class="bi bi-clock"></i>
+        @if (_timeZoneDetected)
+        {
+            @:Times are displayed in your local time (@_browserTimeZoneId)
+        }
+        else
+        {
+            @:Times are displayed in UTC
+        }
+    </div>
+
+    <!-- User Sessions -->
+    @if (_sessions.Any())
+    {
+        @foreach (var session in _sessions)
+        {
+            <div class="card mb-3" @key="session.SessionId">
+                <div class="card-header" @onclick="() => ToggleSession(session.SessionId)" style="cursor: pointer;">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">
+                                <i class="bi bi-person-circle"></i>
+                                @(session.UserEmail ?? "Anonymous User")
+                                @{
+                                    var themePreference = GetUserThemePreference(session.SessionId);
+                                    if (!string.IsNullOrEmpty(themePreference))
+                                    {
+                                        var iconClass = themePreference == "dark" ? "bi-moon-fill" : "bi-sun-fill";
+                                        var tooltipText = themePreference == "dark" ? "Prefers dark mode" : "Prefers light mode";
+                                        <span class="ms-2" title="@tooltipText">
+                                            <i class="bi @iconClass text-warning"></i>
+                                        </span>
+                                    }
+                                }
+                                <small class="text-muted ms-2">
+                                    @FormatTimestamp(session.StartTime, "MMM dd, yyyy h:mm tt")
+                                </small>
+                            </h6>
+                            <small class="text-muted">
+                                Duration: @FormatDuration(session.Duration) | 
+                                @session.EventCount events | 
+                                Actions: @string.Join(", ", session.UniqueActions.Select(a => a.ToString()))
+                            </small>
+                        </div>
+                        <i class="bi @(_expandedSessions.Contains(session.SessionId) ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                    </div>
+                </div>
+                
+                @if (_expandedSessions.Contains(session.SessionId))
+                {
+                    <div class="card-body">
+                        @if (_sessionEvents.ContainsKey(session.SessionId))
+                        {
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 class="mb-0">User Story</h6>
+                                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => ToggleView(session.SessionId)">
+                                        <i class="bi @(_showRawEvents.Contains(session.SessionId) ? "bi-book" : "bi-list-ul")"></i>
+                                        @(_showRawEvents.Contains(session.SessionId) ? "Story View" : "Raw Events")
+                                    </button>
+                                </div>
+                                
+                                @if (_showRawEvents.Contains(session.SessionId))
+                                {
+                                    <!-- Raw Events View -->
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-hover">
+                                            <thead>
+                                                <tr>
+                                                    <th style="width: 150px;">Time</th>
+                                                    <th style="width: 120px;">Action</th>
+                                                    <th>Entity</th>
+                                                    <th>Details</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var evt in _sessionEvents[session.SessionId])
+                                                {
+                                                    <tr>
+                                                        <td>
+                                                            <small>@FormatTimestamp(evt.Timestamp, "h:mm:ss tt")</small>
+                                                        </td>
+                                                        <td>
+                                                            <span class="badge bg-@GetActionClass(evt.Action)">@evt.Action</span>
+                                                        </td>
+                                                        <td>
+                                                            <small>
+                                                                @if (!string.IsNullOrEmpty(evt.EntityType))
+                                                                {
+                                                                    @evt.EntityType
+                                                                    @if (!string.IsNullOrEmpty(evt.EntityName))
+                                                                    {
+                                                                        <text>: @evt.EntityName</text>
+                                                                    }
+                                                                }
+                                                            </small>
+                                                        </td>
+                                                        <td>
+                                                            @if (!string.IsNullOrEmpty(evt.AdditionalData))
+                                                            {
+                                                                <button class="btn btn-sm btn-link p-0" @onclick="() => ShowEventDetails(evt)">
+                                                                    <i class="bi bi-eye"></i> View
+                                                                </button>
+                                                            }
+                                                        </td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <!-- Story View -->
+                                    <div class="story-content">
+                                        @{
+                                            var story = GenerateUserStory(_sessionEvents[session.SessionId]);
+                                        }
+                                        <p class="mb-0">@((MarkupString)story)</p>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="text-center py-3">
+                                <span class="spinner-border spinner-border-sm" role="status"></span>
+                                Loading session details...
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+        
+        @if (_hasMore && !_isLoading)
+        {
+            <div class="text-center mb-4">
+                <button class="btn btn-primary" @onclick="LoadMore">
+                    Load More Sessions
+                </button>
+            </div>
+        }
+    }
+    else if (!_isLoading)
+    {
+        <div class="card">
+            <div class="card-body text-center py-5">
+                <i class="bi bi-inbox display-4 d-block mb-2"></i>
+                <p class="text-muted">No user sessions found matching your criteria</p>
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Event Details Modal -->
+@if (_selectedEvent != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-info-circle"></i> Event Details
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CloseEventDetails"></button>
+                </div>
+                <div class="modal-body">
+                    <dl class="row">
+                        <dt class="col-sm-3">Timestamp</dt>
+                        <dd class="col-sm-9">@FormatTimestamp(_selectedEvent.Timestamp)</dd>
+
+                        <dt class="col-sm-3">Action</dt>
+                        <dd class="col-sm-9"><span class="badge bg-secondary">@_selectedEvent.Action</span></dd>
+
+                        @if (!string.IsNullOrEmpty(_selectedEvent.EntityType))
+                        {
+                            <dt class="col-sm-3">Entity</dt>
+                            <dd class="col-sm-9">
+                                @_selectedEvent.EntityType
+                                @if (_selectedEvent.EntityId.HasValue)
+                                {
+                                    <span> #@_selectedEvent.EntityId</span>
+                                }
+                                @if (!string.IsNullOrEmpty(_selectedEvent.EntityName))
+                                {
+                                    <span> - @_selectedEvent.EntityName</span>
+                                }
+                            </dd>
+                        }
+
+                        @if (!string.IsNullOrEmpty(_selectedEvent.AdditionalData))
+                        {
+                            <dt class="col-sm-3">Additional Data</dt>
+                            <dd class="col-sm-9">
+                                <pre class="bg-light p-2 rounded">@FormatJson(_selectedEvent.AdditionalData)</pre>
+                            </dd>
+                        }
+
+                        @if (!string.IsNullOrEmpty(_selectedEvent.OldValues))
+                        {
+                            <dt class="col-sm-3">Old Values</dt>
+                            <dd class="col-sm-9">
+                                <pre class="bg-light p-2 rounded" style="max-height: 200px; overflow-y: auto;">@FormatJson(_selectedEvent.OldValues)</pre>
+                            </dd>
+                        }
+
+                        @if (!string.IsNullOrEmpty(_selectedEvent.NewValues))
+                        {
+                            <dt class="col-sm-3">New Values</dt>
+                            <dd class="col-sm-9">
+                                <pre class="bg-light p-2 rounded" style="max-height: 200px; overflow-y: auto;">@FormatJson(_selectedEvent.NewValues)</pre>
+                            </dd>
+                        }
+                    </dl>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseEventDetails">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+
+@code {
+    private bool _isLoading = false;
+    private bool _isExporting = false;
+    private bool _showFilters = false;
+    private bool _hasMore = true;
+    
+    private List<UserSession> _sessions = new();
+    private Dictionary<string, List<EventLog>> _sessionEvents = new();
+    private HashSet<string> _expandedSessions = new();
+    private HashSet<string> _showRawEvents = new();
+    private EventLog? _selectedEvent;
+    
+    private int _currentPage = 1;
+    private int _pageSize = 20;
+
+    // Filter fields
+    private DateTime? _startDate;
+    private DateTime? _endDate;
+    private string _userFilter = string.Empty;
+    
+    // Action display configuration - easily maintainable for new actions
+    private static readonly Dictionary<EventAction, (string verb, string noun, bool useCount)> ActionDisplayConfig = new()
+    {
+        { EventAction.Create, ("created", "item", true) },
+        { EventAction.Update, ("updated", "item", true) },
+        { EventAction.Delete, ("deleted", "item", true) },
+        { EventAction.View, ("viewed", "item", true) },
+        { EventAction.Login, ("logged in", "", false) },
+        { EventAction.Logout, ("logged out", "", false) },
+        { EventAction.Upload, ("uploaded", "file", true) },
+        { EventAction.Download, ("downloaded", "file", true) },
+        { EventAction.Export, ("exported", "item", true) },
+        { EventAction.Import, ("imported", "item", true) },
+        { EventAction.Search, ("searched", "time", true) },
+        { EventAction.Share, ("shared", "item", true) },
+        { EventAction.BulkOperation, ("performed bulk operations on", "item", true) },
+        { EventAction.PermissionChange, ("changed permissions", "time", true) },
+        { EventAction.ConfigurationChange, ("changed configuration", "time", true) },
+        { EventAction.Other, ("performed other actions", "time", true) }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSessions();
+    }
+
+    private async Task LoadSessions(bool append = false)
+    {
+        _isLoading = true;
+        
+        try
+        {
+            var sessions = await EventLogService.GetUserSessionsAsync(
+                userId: _userFilter,
+                startDate: _startDate,
+                endDate: _endDate,
+                pageNumber: _currentPage,
+                pageSize: _pageSize);
+
+            var sessionsList = sessions.ToList();
+            
+            if (append)
+            {
+                _sessions.AddRange(sessionsList);
+            }
+            else
+            {
+                _sessions = sessionsList;
+                _sessionEvents.Clear();
+                _expandedSessions.Clear();
+                _showRawEvents.Clear();
+            }
+
+            _hasMore = sessionsList.Count == _pageSize;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading sessions: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadMore()
+    {
+        if (_isLoading || !_hasMore) return;
+        
+        _currentPage++;
+        await LoadSessions(append: true);
+    }
+
+    private async Task ApplyFilters()
+    {
+        _currentPage = 1;
+        _sessions.Clear();
+        await LoadSessions();
+        
+        // Log search action
+        await EventLogService.LogEventAsync(
+            EventAction.Search, 
+            "UserStory", 
+            null, 
+            "User stories search",
+            additionalData: System.Text.Json.JsonSerializer.Serialize(new 
+            { 
+                UserFilter = _userFilter,
+                StartDate = _startDate,
+                EndDate = _endDate,
+                ResultCount = _sessions.Count
+            }));
+    }
+
+    private async Task ClearFilters()
+    {
+        _startDate = null;
+        _endDate = null;
+        _userFilter = string.Empty;
+        
+        await ApplyFilters();
+    }
+
+    private async Task RefreshSessions()
+    {
+        _currentPage = 1;
+        await LoadSessions();
+    }
+
+    private void ToggleFilters()
+    {
+        _showFilters = !_showFilters;
+    }
+
+    private async Task ToggleSession(string sessionId)
+    {
+        if (_expandedSessions.Contains(sessionId))
+        {
+            _expandedSessions.Remove(sessionId);
+        }
+        else
+        {
+            _expandedSessions.Add(sessionId);
+            
+            // Load session events if not already loaded
+            if (!_sessionEvents.ContainsKey(sessionId))
+            {
+                try
+                {
+                    var events = await EventLogService.GetEventLogsBySessionAsync(sessionId);
+                    var eventsList = events.ToList();
+                    _sessionEvents[sessionId] = eventsList;
+                    
+                    Console.WriteLine($"Loaded {eventsList.Count} events for session {sessionId}");
+                    
+                    StateHasChanged();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error loading events for session {sessionId}: {ex.Message}");
+                    _sessionEvents[sessionId] = new List<EventLog>();
+                }
+            }
+        }
+    }
+
+    private void ToggleView(string sessionId)
+    {
+        if (_showRawEvents.Contains(sessionId))
+        {
+            _showRawEvents.Remove(sessionId);
+        }
+        else
+        {
+            _showRawEvents.Add(sessionId);
+        }
+    }
+
+    private string FormatDuration(TimeSpan duration)
+    {
+        if (duration.TotalDays >= 1)
+            return $"{(int)duration.TotalDays}d {duration.Hours}h {duration.Minutes}m";
+        else if (duration.TotalHours >= 1)
+            return $"{(int)duration.TotalHours}h {duration.Minutes}m";
+        else if (duration.TotalMinutes >= 1)
+            return $"{(int)duration.TotalMinutes}m {duration.Seconds}s";
+        else
+            return $"{duration.Seconds}s";
+    }
+
+    private string GetActionClass(EventAction action)
+    {
+        return action switch
+        {
+            EventAction.Create => "success",
+            EventAction.Update => "info",
+            EventAction.Delete => "danger",
+            EventAction.Login => "primary",
+            EventAction.Logout => "secondary",
+            EventAction.View => "warning",
+            EventAction.Download => "info",
+            EventAction.Upload => "success",
+            EventAction.ThemeChange => "info",
+            _ => "secondary"
+        };
+    }
+
+    private string? GetUserThemePreference(string sessionId)
+    {
+        if (!_sessionEvents.ContainsKey(sessionId))
+            return null;
+
+        var themeChangeEvent = _sessionEvents[sessionId]
+            .Where(e => e.Action == EventAction.ThemeChange)
+            .OrderByDescending(e => e.Timestamp)
+            .FirstOrDefault();
+
+        if (themeChangeEvent == null || string.IsNullOrEmpty(themeChangeEvent.AdditionalData))
+            return null;
+
+        try
+        {
+            var additionalData = System.Text.Json.JsonDocument.Parse(themeChangeEvent.AdditionalData);
+            if (additionalData.RootElement.TryGetProperty("Theme", out var themeElement))
+            {
+                return themeElement.GetString()?.ToLower();
+            }
+        }
+        catch
+        {
+            // Silently fail if JSON parsing fails
+        }
+
+        return null;
+    }
+
+    private string GenerateUserStory(List<EventLog> events)
+    {
+        if (!events.Any()) return "No activities recorded.";
+
+        var story = new System.Text.StringBuilder();
+        var firstEvent = events.First();
+        var lastEvent = events.Last();
+
+        // Start the story
+        story.Append($"<span class='story-time'>{FormatTimestamp(firstEvent.Timestamp, "h:mm tt")}</span> - ");
+        story.Append($"The user ");
+
+        // Group consecutive similar actions
+        var actionGroups = new List<(EventAction action, List<EventLog> events)>();
+        EventAction? currentAction = null;
+        List<EventLog>? currentGroup = null;
+
+        foreach (var evt in events)
+        {
+            if (currentAction != evt.Action)
+            {
+                if (currentGroup != null && currentGroup.Any())
+                {
+                    actionGroups.Add((currentAction!.Value, currentGroup));
+                }
+                currentAction = evt.Action;
+                currentGroup = new List<EventLog> { evt };
+            }
+            else
+            {
+                currentGroup?.Add(evt);
+            }
+        }
+        
+        if (currentGroup != null && currentGroup.Any())
+        {
+            actionGroups.Add((currentAction!.Value, currentGroup));
+        }
+
+        // Generate story from action groups
+        for (int i = 0; i < actionGroups.Count; i++)
+        {
+            var (action, groupEvents) = actionGroups[i];
+            
+            if (i > 0)
+            {
+                story.Append(i == actionGroups.Count - 1 ? " and finally " : ", then ");
+            }
+
+            story.Append(GenerateActionPhrase(action, groupEvents));
+        }
+
+        // Add session duration
+        var duration = lastEvent.Timestamp - firstEvent.Timestamp;
+        if (duration.TotalMinutes > 1)
+        {
+            story.Append($". The session lasted <strong>{FormatDuration(duration)}</strong>");
+        }
+
+        story.Append(".");
+
+        return story.ToString();
+    }
+
+    private string GenerateActionPhrase(EventAction action, List<EventLog> events)
+    {
+        var count = events.Count;
+        var phrase = new System.Text.StringBuilder();
+
+        switch (action)
+        {
+            case EventAction.Login:
+                phrase.Append("<span class='story-action'>logged in</span>");
+                break;
+                
+            case EventAction.Logout:
+                phrase.Append("<span class='story-action'>logged out</span>");
+                break;
+                
+            case EventAction.View:
+                var viewedEntities = events.Where(e => !string.IsNullOrEmpty(e.EntityType))
+                    .GroupBy(e => e.EntityType)
+                    .ToDictionary(g => g.Key!, g => g.Count());
+                    
+                if (viewedEntities.Any())
+                {
+                    phrase.Append("<span class='story-action'>viewed</span> ");
+                    var entityPhrases = viewedEntities.Select(kvp => 
+                        $"{kvp.Value} <span class='story-entity'>{kvp.Key}{(kvp.Value > 1 ? "s" : "")}</span>");
+                    phrase.Append(string.Join(", ", entityPhrases));
+                }
+                else
+                {
+                    phrase.Append($"<span class='story-action'>viewed</span> {count} item{(count > 1 ? "s" : "")}");
+                }
+                break;
+                
+            case EventAction.Create:
+                if (count == 1 && !string.IsNullOrEmpty(events[0].EntityName))
+                {
+                    phrase.Append($"<span class='story-action'>created</span> <span class='story-entity'>{events[0].EntityType}</span> \"{events[0].EntityName}\"");
+                }
+                else
+                {
+                    phrase.Append($"<span class='story-action'>created</span> {count} item{(count > 1 ? "s" : "")}");
+                }
+                break;
+                
+            case EventAction.Update:
+                if (count == 1 && !string.IsNullOrEmpty(events[0].EntityName))
+                {
+                    phrase.Append($"<span class='story-action'>updated</span> <span class='story-entity'>{events[0].EntityType}</span> \"{events[0].EntityName}\"");
+                }
+                else
+                {
+                    phrase.Append($"<span class='story-action'>updated</span> {count} item{(count > 1 ? "s" : "")}");
+                }
+                break;
+                
+            case EventAction.Delete:
+                phrase.Append($"<span class='story-action'>deleted</span> {count} item{(count > 1 ? "s" : "")}");
+                break;
+                
+            case EventAction.Upload:
+                phrase.Append($"<span class='story-action'>uploaded</span> {count} file{(count > 1 ? "s" : "")}");
+                break;
+                
+            case EventAction.Download:
+                phrase.Append($"<span class='story-action'>downloaded</span> {count} file{(count > 1 ? "s" : "")}");
+                break;
+                
+            case EventAction.Search:
+                phrase.Append($"<span class='story-action'>searched</span> {count} time{(count > 1 ? "s" : "")}");
+                break;
+                
+            case EventAction.Share:
+                phrase.Append($"<span class='story-action'>shared</span> {count} item{(count > 1 ? "s" : "")}");
+                break;
+                
+            case EventAction.Export:
+                phrase.Append($"<span class='story-action'>exported</span> {count} item{(count > 1 ? "s" : "")}");
+                break;
+                
+            case EventAction.Import:
+                phrase.Append($"<span class='story-action'>imported</span> {count} item{(count > 1 ? "s" : "")}");
+                break;
+                
+            case EventAction.BulkOperation:
+                phrase.Append($"performed <span class='story-action'>bulk operations</span> on {count} item{(count > 1 ? "s" : "")}");
+                break;
+                
+            case EventAction.PermissionChange:
+                phrase.Append($"<span class='story-action'>changed permissions</span> {count} time{(count > 1 ? "s" : "")}");
+                break;
+                
+            case EventAction.ConfigurationChange:
+                phrase.Append($"<span class='story-action'>changed configuration</span> {count} time{(count > 1 ? "s" : "")}");
+                break;
+                
+            case EventAction.ThemeChange:
+                if (count == 1 && !string.IsNullOrEmpty(events[0].AdditionalData))
+                {
+                    try
+                    {
+                        var additionalData = System.Text.Json.JsonDocument.Parse(events[0].AdditionalData!);
+                        if (additionalData.RootElement.TryGetProperty("Theme", out var themeElement))
+                        {
+                            var theme = themeElement.GetString()?.ToLower() ?? "unknown";
+                            phrase.Append($"<span class='story-action'>switched to {theme} mode</span>");
+                        }
+                        else
+                        {
+                            phrase.Append($"<span class='story-action'>changed theme</span>");
+                        }
+                    }
+                    catch
+                    {
+                        phrase.Append($"<span class='story-action'>changed theme</span>");
+                    }
+                }
+                else
+                {
+                    phrase.Append($"<span class='story-action'>changed theme</span> {count} time{(count > 1 ? "s" : "")}");
+                }
+                break;
+                
+            case EventAction.Other:
+                // For "Other" actions, try to get more specific information from the events
+                if (count == 1 && !string.IsNullOrEmpty(events[0].AdditionalData))
+                {
+                    phrase.Append($"performed <span class='story-action'>other action</span>");
+                }
+                else
+                {
+                    phrase.Append($"performed <span class='story-action'>other actions</span> {count} time{(count > 1 ? "s" : "")}");
+                }
+                break;
+                
+            default:
+                // Handle any new actions not explicitly defined above
+                var actionName = FormatActionName(action.ToString());
+                phrase.Append($"<span class='story-action'>{actionName}</span> {count} time{(count > 1 ? "s" : "")}");
+                break;
+        }
+
+        return phrase.ToString();
+    }
+
+    private string FormatActionName(string actionName)
+    {
+        // Convert PascalCase to space-separated words and make lowercase
+        // e.g., "BulkOperation" -> "bulk operation"
+        // e.g., "PasswordReset" -> "password reset"
+        var formatted = System.Text.RegularExpressions.Regex.Replace(actionName, "([A-Z])", " $1").Trim().ToLower();
+        return formatted;
+    }
+
+    private void ShowEventDetails(EventLog evt)
+    {
+        _selectedEvent = evt;
+    }
+
+    private void CloseEventDetails()
+    {
+        _selectedEvent = null;
+    }
+
+    private string FormatJson(string? json)
+    {
+        if (string.IsNullOrEmpty(json)) return string.Empty;
+        
+        try
+        {
+            var parsed = System.Text.Json.JsonDocument.Parse(json);
+            return System.Text.Json.JsonSerializer.Serialize(parsed, new System.Text.Json.JsonSerializerOptions 
+            { 
+                WriteIndented = true 
+            });
+        }
+        catch
+        {
+            return json;
+        }
+    }
+
+    private async Task ExportStories()
+    {
+        _isExporting = true;
+        
+        try
+        {
+            // In a real implementation, this would generate a report
+            await Task.Delay(1000); // Simulate export
+            
+            // Log the export action
+            await EventLogService.LogEventAsync(
+                EventAction.Export,
+                "UserStory",
+                null,
+                "Export user stories",
+                additionalData: System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    SessionCount = _sessions.Count,
+                    Filters = new
+                    {
+                        StartDate = _startDate,
+                        EndDate = _endDate,
+                        UserFilter = _userFilter
+                    }
+                }));
+            
+            await JSRuntime.InvokeVoidAsync("alert", "Export functionality will be implemented");
+        }
+        finally
+        {
+            _isExporting = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        // Cleanup if needed
+    }
+}

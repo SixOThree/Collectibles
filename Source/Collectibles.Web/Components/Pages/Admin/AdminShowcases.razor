@@ -1,0 +1,249 @@
+@page "/admin/showcases"
+@rendermode InteractiveServerWithoutPrerender
+@inherits LoggablePageBase
+@using Microsoft.AspNetCore.Authorization
+@using Collectibles.Application.Features.Showcases
+@using Collectibles.Application.Features.Showcases.Queries
+@using Collectibles.Application.Services
+@using Collectibles.Application.Features.Tags
+@using Collectibles.Domain.Entities
+@using MediatR
+@attribute [Authorize(Roles = "Administrator")]
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+@inject IHashIdsService HashIds
+
+<PageTitle>Admin - All Showcases</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+    <h1>All Showcases</h1>
+    <div class="header-actions">
+        <a href="/showcases/public" class="btn btn-outline-primary">
+            <i class="bi bi-globe2"></i> Public View
+        </a>
+    </div>
+</div>
+
+@if (_isLoading)
+{
+    <div class="text-center p-5">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading…</span>
+        </div>
+        <p class="mt-2">Loading showcases…</p>
+    </div>
+}
+else if (_filteredShowcases == null || !_filteredShowcases.Any())
+{
+    <div class="empty-state">
+        <div class="empty-state-icon text-muted">
+            <i class="bi bi-collection"></i>
+        </div>
+        <h3>No Showcases Found</h3>
+        <p class="text-muted">
+            There are no showcases in the system.
+        </p>
+    </div>
+}
+else
+{
+    <div class="showcase-filters mb-4">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="input-group">
+                    <span class="input-group-text">
+                        <i class="bi bi-search"></i>
+                    </span>
+                    <input type="text" class="form-control" placeholder="Search showcases…" aria-label="Search showcases"
+                           @bind="_searchTerm" @bind:event="oninput" @onkeyup="@((e) => { if (e.Key == "Enter") SearchShowcases(); })">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" aria-label="Sort showcases" @bind="_sortBy" @bind:event="onchange" @bind:after="OnSortChanged">
+                    <option value="name">Name (A-Z)</option>
+                    <option value="items">Most Items</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <button class="btn btn-outline-secondary w-100" @onclick="ResetFilters">
+                    <i class="bi bi-arrow-clockwise"></i> Reset Filters
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="showcase-grid">
+        @foreach (var showcase in _filteredShowcases)
+        {
+            <div class="showcase-card">
+                @if (!string.IsNullOrEmpty(showcase.ImageUrl))
+                {
+                    <a href="/showcase/@HashIds.Encode(showcase.Id)" class="showcase-card-image-link">
+                        <div class="showcase-card-image">
+                            <img src="@showcase.ImageUrl" alt="@showcase.Name" width="450" height="250" loading="lazy" />
+                        </div>
+                    </a>
+                }
+                else
+                {
+                    <a href="/showcase/@HashIds.Encode(showcase.Id)" class="showcase-card-image-link">
+                        <div class="showcase-card-placeholder">
+                            <i class="bi bi-collection"></i>
+                        </div>
+                    </a>
+                }
+
+                <div class="showcase-card-header">
+                    <small class="text-muted">
+                        <i class="bi bi-collection"></i> Showcase
+                        @if (!string.IsNullOrEmpty(showcase.OwnerDisplayName))
+                        {
+                            <span class="ms-2">by <strong>@showcase.OwnerDisplayName</strong></span>
+                        }
+                    </small>
+                    @if (showcase.IsPrivate)
+                    {
+                        <span class="badge bg-warning text-dark ms-2">
+                            <i class="bi bi-lock-fill"></i> Private Showcase
+                        </span>
+                    }
+                </div>
+
+                <div class="showcase-card-body">
+                    <h3 class="showcase-title">
+                        <a href="/showcase/@HashIds.Encode(showcase.Id)">@showcase.Name</a>
+                    </h3>
+
+                    @if (!string.IsNullOrEmpty(showcase.Description))
+                    {
+                        <p class="showcase-description">@showcase.Description</p>
+                    }
+
+                    <div class="showcase-stats">
+                        <span class="stat-item">
+                            <i class="bi bi-box-seam"></i> @showcase.ItemCount items
+                        </span>
+                        @if (showcase.TopTags != null && showcase.TopTags.Any())
+                        {
+                            <span class="stat-item">
+                                <i class="bi bi-tags"></i> @showcase.TopTags.Count tags
+                            </span>
+                        }
+                    </div>
+
+                    @if (showcase.TopTags != null && showcase.TopTags.Any())
+                    {
+                        <div class="showcase-tags">
+                            @foreach (var tag in showcase.TopTags.Take(5))
+                            {
+                                <span class="badge bg-secondary">@tag</span>
+                            }
+                            @if (showcase.TopTags.Count > 5)
+                            {
+                                <span class="badge bg-light text-dark">+@(showcase.TopTags.Count - 5) more</span>
+                            }
+                        </div>
+                    }
+                </div>
+
+                <div class="showcase-card-footer">
+                    <a href="/showcase/@HashIds.Encode(showcase.Id)" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-eye"></i> View Showcase
+                    </a>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<ShowcaseCardDto>? _showcases;
+    private List<ShowcaseCardDto>? _filteredShowcases;
+    private bool _isLoading = true;
+    private string _searchTerm = string.Empty;
+    private string _sortBy = "name";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadShowcases();
+    }
+
+    private async Task LoadShowcases()
+    {
+        _isLoading = true;
+        try
+        {
+            var query = new GetAllShowcasesQuery();
+            _showcases = await Mediator.Send(query);
+            ApplyFiltersAndSort();
+        }
+        catch (Exception ex)
+        {
+            await LogErrorToSysLog(ex, "AdminShowcases: Error loading all showcases");
+            _showcases = new List<ShowcaseCardDto>();
+            _filteredShowcases = new List<ShowcaseCardDto>();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void ApplyFiltersAndSort()
+    {
+        if (_showcases == null)
+        {
+            _filteredShowcases = new List<ShowcaseCardDto>();
+            return;
+        }
+
+        var filtered = _showcases.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(_searchTerm))
+        {
+            filtered = filtered.Where(s =>
+                s.Name.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                (s.Description != null && s.Description.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase)));
+        }
+
+        _filteredShowcases = _sortBy switch
+        {
+            "name" => filtered.OrderBy(s => s.Name).ToList(),
+            "items" => filtered.OrderByDescending(s => s.ItemCount).ToList(),
+            _ => filtered.ToList()
+        };
+    }
+
+    private async void SearchShowcases()
+    {
+        ApplyFiltersAndSort();
+        await LogAction(EventAction.Search, new
+        {
+            SearchTerm = _searchTerm,
+            SortBy = _sortBy,
+            ResultCount = _filteredShowcases?.Count ?? 0
+        });
+    }
+
+    private async void ResetFilters()
+    {
+        _searchTerm = string.Empty;
+        _sortBy = "name";
+        ApplyFiltersAndSort();
+        await LogAction(EventAction.Other, new
+        {
+            Action = "ClearFilters",
+            ResultCount = _filteredShowcases?.Count ?? 0
+        });
+    }
+
+    private async void OnSortChanged()
+    {
+        ApplyFiltersAndSort();
+        await LogAction(EventAction.Search, new
+        {
+            SearchTerm = _searchTerm,
+            SortBy = _sortBy,
+            ResultCount = _filteredShowcases?.Count ?? 0
+        });
+    }
+}

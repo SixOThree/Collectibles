@@ -1,0 +1,137 @@
+@page "/error/{statusCode:int}"
+@inherits LoggablePageBase
+@using Collectibles.Domain.Configuration
+@using Microsoft.Extensions.Options
+@inject NavigationManager Navigation
+@inject IOptions<SiteSettings> SiteSettings
+
+<PageTitle>Error @StatusCode - @SiteSettings.Value.SiteTitle</PageTitle>
+
+<div class="d-flex align-items-center justify-content-center min-vh-100 p-4">
+    <div class="error-content text-center">
+        <div class="error-icon-wrapper">
+            <i class="@GetIconClass() error-icon"></i>
+        </div>
+        
+        <h1 class="error-title">@GetErrorTitle()</h1>
+        <h2 class="error-subtitle">@GetErrorSubtitle()</h2>
+        
+        <p class="error-message text-muted">
+            @GetErrorMessage()
+        </p>
+
+        <div class="error-actions">
+            <button class="btn btn-primary btn-lg" @onclick="NavigateHome">
+                <i class="bi bi-house-door"></i> Back to Collection
+            </button>
+            @if (StatusCode == 401)
+            {
+                <a href="/Account/Login" class="btn btn-outline-primary btn-lg">
+                    <i class="bi bi-box-arrow-in-right"></i> Log In
+                </a>
+            }
+        </div>
+
+        @if (GetSuggestions() != null)
+        {
+            <div class="error-suggestions">
+                <p class="text-muted">@GetSuggestions()</p>
+                @if (StatusCode == 404)
+                {
+                    <div class="quick-links">
+                        <a href="/showcases" class="quick-link">
+                            <i class="bi bi-collection"></i> Showcases
+                        </a>
+                        <a href="/attachments" class="quick-link">
+                            <i class="bi bi-paperclip"></i> Attachments
+                        </a>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public int StatusCode { get; set; } = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Log server errors to SysLogs database
+        if (StatusCode >= 500)
+        {
+            try
+            {
+                await SysLogService.LogErrorAsync(
+                    $"HTTP {StatusCode} error page displayed: {GetErrorTitle()}",
+                    category: "ErrorPage");
+            }
+            catch
+            {
+                // Silently fail
+            }
+        }
+    }
+
+    private void NavigateHome()
+    {
+        Navigation.NavigateTo("/");
+    }
+
+    private string GetIconClass()
+    {
+        return StatusCode switch
+        {
+            401 => "bi bi-lock",
+            403 => "bi bi-shield-exclamation",
+            404 => "bi bi-search",
+            _ => "bi bi-exclamation-triangle"
+        };
+    }
+
+    private string GetErrorTitle()
+    {
+        return StatusCode switch
+        {
+            401 => "Access Denied",
+            403 => "Forbidden",
+            404 => "Page Not Found",
+            500 => "Server Error",
+            _ => "Error"
+        };
+    }
+
+    private string GetErrorSubtitle()
+    {
+        return StatusCode switch
+        {
+            401 => "You need to log in to access this page",
+            403 => "You don't have permission to view this resource",
+            404 => "This collectible seems to be missing!",
+            500 => "Something went wrong on our end",
+            _ => $"Error {StatusCode} occurred"
+        };
+    }
+
+    private string GetErrorMessage()
+    {
+        return StatusCode switch
+        {
+            401 => "Please log in to your account to access this resource. If you don't have an account, you can register for free.",
+            403 => "Your account doesn't have the necessary permissions to access this resource. If you believe this is a mistake, please contact an administrator.",
+            404 => "The page you're looking for might have been moved, deleted, or never existed in our collection.",
+            500 => "We're experiencing technical difficulties. Please try again later or contact support if the problem persists.",
+            _ => "An unexpected error occurred. Please try again or contact support if the problem continues."
+        };
+    }
+
+    private string? GetSuggestions()
+    {
+        return StatusCode switch
+        {
+            404 => "Or explore these areas:",
+            _ => null
+        };
+    }
+}

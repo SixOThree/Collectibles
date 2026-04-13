@@ -1,0 +1,248 @@
+@page "/admin/update-preview-images"
+@using Collectibles.Application.Features.CollectibleItems.Commands
+@using Collectibles.Application.Features.Showcases.Queries
+@using Collectibles.Application.Features.Showcases
+@using MediatR
+@using Microsoft.AspNetCore.Authorization
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+@attribute [Authorize(Roles = "Administrator")]
+@rendermode InteractiveServer
+
+<PageTitle>Update Missing Preview Images</PageTitle>
+
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">
+                        <i class="fas fa-images me-2"></i>Update Missing Preview Images
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info mb-4">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>About this tool:</strong>
+                        <ul class="mt-2 mb-0">
+                            <li>Automatically sets preview images for items that have attachments but no preview selected</li>
+                            <li>Uses the first image attachment as the preview</li>
+                            <li>Can process all items or items in a specific showcase</li>
+                            <li>Safe to run multiple times - only updates items without previews</li>
+                        </ul>
+                    </div>
+
+                    @if (!_isProcessing)
+                    {
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Update Scope:</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="updateScope" id="allItems" 
+                                       checked="@(_selectedScope == UpdateScope.AllItems)" 
+                                       @onchange="() => SetScope(UpdateScope.AllItems)">
+                                <label class="form-check-label" for="allItems">
+                                    All items in the system
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="updateScope" id="specificShowcase" 
+                                       checked="@(_selectedScope == UpdateScope.SpecificShowcase)"
+                                       @onchange="() => SetScope(UpdateScope.SpecificShowcase)">
+                                <label class="form-check-label" for="specificShowcase">
+                                    Items in a specific showcase
+                                </label>
+                            </div>
+                        </div>
+
+                        @if (_selectedScope == UpdateScope.SpecificShowcase)
+                        {
+                            <div class="mb-4">
+                                <label for="showcaseSelect" class="form-label fw-bold">Select Showcase:</label>
+                                <select id="showcaseSelect" class="form-select" @bind="_selectedShowcaseId">
+                                    <option value="">-- Select a showcase --</option>
+                                    @if (_showcases != null)
+                                    {
+                                        @foreach (var showcase in _showcases)
+                                        {
+                                            <option value="@showcase.Id">@showcase.Name (@showcase.ItemCount items)</option>
+                                        }
+                                    }
+                                </select>
+                            </div>
+                        }
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-start">
+                            <button class="btn btn-primary" @onclick="StartUpdate" 
+                                    disabled="@(_selectedScope == UpdateScope.SpecificShowcase && !_selectedShowcaseId.HasValue)">
+                                <i class="fas fa-play me-2"></i>Start Update
+                            </button>
+                            <button class="btn btn-secondary" @onclick="ClearResults">
+                                <i class="fas fa-eraser me-2"></i>Clear Results
+                            </button>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary mb-3" role="status">
+                                <span class="visually-hidden">Processing...</span>
+                            </div>
+                            <p class="text-muted">Processing items, please wait...</p>
+                        </div>
+                    }
+
+                    @if (_lastResult != null)
+                    {
+                        <div class="mt-4">
+                            <h5 class="border-bottom pb-2">Results</h5>
+                            
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <div class="card bg-light">
+                                        <div class="card-body">
+                                            <h6 class="card-title text-muted">Items Processed</h6>
+                                            <p class="card-text fs-3 fw-bold text-primary">@_lastResult.ItemsProcessed</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card bg-light">
+                                        <div class="card-body">
+                                            <h6 class="card-title text-muted">Items Updated</h6>
+                                            <p class="card-text fs-3 fw-bold text-success">@_lastResult.ItemsUpdated</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            @if (_lastResult.Messages.Any())
+                            {
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="mb-0">Update Details</h6>
+                                    </div>
+                                    <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                                        <ul class="list-unstyled mb-0">
+                                            @foreach (var message in _lastResult.Messages)
+                                            {
+                                                <li class="py-1">
+                                                    <i class="fas fa-check-circle text-success me-2"></i>
+                                                    @message
+                                                </li>
+                                            }
+                                        </ul>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(_errorMessage))
+                    {
+                        <div class="alert alert-danger mt-4">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            @_errorMessage
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="card mt-4 shadow-sm">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-question-circle me-2"></i>Additional Tools
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p>After updating preview images, you may also want to:</p>
+                    <ul>
+                        <li>Generate collage previews for parent items with the <a href="/admin/generate-collages">Collage Generator</a></li>
+                        <li>Review items still missing previews in the <a href="/showcases">Showcases</a> section</li>
+                        <li>Check the <a href="/admin/diagnostics">Diagnostics</a> page for system health</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private enum UpdateScope
+    {
+        AllItems,
+        SpecificShowcase
+    }
+
+    private UpdateScope _selectedScope = UpdateScope.AllItems;
+    private long? _selectedShowcaseId;
+    private bool _isProcessing = false;
+    private UpdateMissingPreviewImagesResult? _lastResult;
+    private string? _errorMessage;
+    private List<ShowcaseCardDto>? _showcases;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadShowcases();
+    }
+
+    private async Task LoadShowcases()
+    {
+        try
+        {
+            var query = new GetShowcasesListQuery();
+            _showcases = await Mediator.Send(query);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to load showcases: {ex.Message}";
+        }
+    }
+
+    private void SetScope(UpdateScope scope)
+    {
+        _selectedScope = scope;
+        if (scope == UpdateScope.AllItems)
+        {
+            _selectedShowcaseId = null;
+        }
+    }
+
+    private async Task StartUpdate()
+    {
+        _isProcessing = true;
+        _errorMessage = null;
+        _lastResult = null;
+        StateHasChanged();
+
+        try
+        {
+            var command = new UpdateMissingPreviewImagesCommand
+            {
+                ProcessAllItems = _selectedScope == UpdateScope.AllItems,
+                ShowcaseId = _selectedScope == UpdateScope.SpecificShowcase ? _selectedShowcaseId : null
+            };
+
+            _lastResult = await Mediator.Send(command);
+            
+            if (_lastResult.ItemsUpdated == 0)
+            {
+                _errorMessage = "No items needed updating. All eligible items already have preview images.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Update failed: {ex.Message}";
+        }
+        finally
+        {
+            _isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ClearResults()
+    {
+        _lastResult = null;
+        _errorMessage = null;
+    }
+}

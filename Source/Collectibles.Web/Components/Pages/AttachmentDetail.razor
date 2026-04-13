@@ -1,0 +1,285 @@
+@page "/attachments/{Hash}"
+@inherits LoggablePageBase
+@using Collectibles.Application.Features.Attachments
+@using Collectibles.Application.Features.Attachments.Queries
+@using Collectibles.Application.Features.Tags.Commands
+@using Collectibles.Application.Features.Tags.Queries
+@using Collectibles.Domain.Entities
+@using Collectibles.Domain.Common.Enums
+@using Collectibles.Web.Components.Shared
+@using Collectibles.Application.Interfaces
+@using MediatR
+@using Microsoft.AspNetCore.Authorization
+@using Collectibles.Application.Common.Authorization.Requirements
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider
+@inject IAuthorizationService AuthorizationService
+@inject Collectibles.Application.Services.IHashIdsService HashIds
+
+<PageTitle>Attachment Details</PageTitle>
+
+@if (attachment == null)
+{
+    <div class="text-center">
+        <Spinner Type="SpinnerType.Dots" Color="SpinnerColor.Primary" />
+        <p>Loading attachment details...</p>
+    </div>
+}
+else
+{
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">@attachment.Name</h5>
+                        <div class="d-flex gap-2">
+                            @if (_canEdit)
+                            {
+                                <button class="btn btn-sm btn-primary" @onclick="OpenTagModal">
+                                    <i class="bi bi-tags"></i> Manage Tags
+                                </button>
+                            }
+                        </div>
+                    </div>
+                    <div class="card-body text-center">
+                        @if (!string.IsNullOrEmpty(attachment.Base64PreviewThumbnail))
+                        {
+                            <img src="data:image/png;base64,@attachment.Base64PreviewThumbnail"
+                                 alt="@attachment.Name" class="img-fluid" style="max-height: 500px;" />
+                        }
+                        else
+                        {
+                            <div class="py-5">
+                                <i class="bi @GetAttachmentIcon(attachment.AttachmentType) text-muted" style="font-size: 6rem;"></i>
+                                <p class="text-muted mt-3">No preview available</p>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h6 class="mb-0">Details</h6>
+                    </div>
+                    <div class="card-body">
+                        <dl class="row mb-0">
+                            @if (!string.IsNullOrEmpty(attachment.OriginalFilename))
+                            {
+                                <dt class="col-sm-5">Original File:</dt>
+                                <dd class="col-sm-7 text-truncate" title="@attachment.OriginalFilename">@attachment.OriginalFilename</dd>
+                            }
+                            @if (!string.IsNullOrEmpty(attachment.FileType))
+                            {
+                                <dt class="col-sm-5">Content Type:</dt>
+                                <dd class="col-sm-7">@attachment.FileType</dd>
+                            }
+                            @if (attachment.AttachmentType != null)
+                            {
+                                <dt class="col-sm-5">Category:</dt>
+                                <dd class="col-sm-7"><span class="badge bg-secondary">@attachment.AttachmentType</span></dd>
+                            }
+                            @if (attachment.FileSize > 0)
+                            {
+                                <dt class="col-sm-5">Size:</dt>
+                                <dd class="col-sm-7">@FormatFileSize(attachment.FileSize)</dd>
+                            }
+                            <dt class="col-sm-5">Created:</dt>
+                            <dd class="col-sm-7">@attachment.Created.ToString("MMM dd, yyyy h:mm tt")</dd>
+                            @if (attachment.LastModified != null)
+                            {
+                                <dt class="col-sm-5">Modified:</dt>
+                                <dd class="col-sm-7">@attachment.LastModified?.ToString("MMM dd, yyyy h:mm tt")</dd>
+                            }
+                            @if (!string.IsNullOrEmpty(attachment.CreatedBy))
+                            {
+                                <dt class="col-sm-5">Created By:</dt>
+                                <dd class="col-sm-7">@attachment.CreatedBy</dd>
+                            }
+                        </dl>
+                        @if (attachment.Tags != null && attachment.Tags.Any())
+                        {
+                            <hr class="my-2" />
+                            <div>
+                                <strong>Tags:</strong>
+                                <div class="mt-1">
+                                    @foreach (var tag in attachment.Tags)
+                                    {
+                                        <span class="badge bg-info text-white me-1">@tag.Name</span>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+                <div class="d-grid gap-2">
+                    <a href="/api/attachments/@Hash/download" class="btn btn-success" target="_blank">
+                        <i class="bi bi-download me-1"></i> Download
+                    </a>
+                    <button class="btn btn-outline-secondary" @onclick="GoBack">
+                        <i class="bi bi-arrow-left me-1"></i> Back
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (isTagModalOpen)
+{
+    <div class="modal fade show" style="display: block;" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Manage Tags for @attachment?.Name</h5>
+                    <button type="button" class="btn-close" @onclick="() => isTagModalOpen = false"></button>
+                </div>
+                <div class="modal-body" style="min-height: 200px; max-height: 60vh; overflow-y: auto;">
+                    <TagSelector SelectedTags="_editableTags" SelectedTagsChanged="OnEditableTagsChanged" />
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => isTagModalOpen = false">Close</button>
+                    <button type="button" class="btn btn-primary" @onclick="HandleTagSave">Save changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+}
+
+@code {
+    [Parameter]
+    public string Hash { get; set; } = string.Empty;
+
+    private AttachmentDto? attachment;
+    private List<Collectibles.Application.Features.Tags.TagDto> _editableTags = new();
+    private bool isTagModalOpen = false;
+    private bool _canEdit = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        long id;
+        try
+        {
+            id = HashIds.Decode(Hash);
+        }
+        catch
+        {
+            Navigation.NavigateTo("/404");
+            return;
+        }
+
+        var result = await Mediator.Send(new GetAttachmentDetailQuery { Id = id });
+        if (result != null)
+        {
+            attachment = result;
+
+            // Check if user can edit this attachment
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+            var currentUserId = user?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (currentUserId != null && user != null)
+            {
+                // Create an Attachment entity for authorization
+                var attachmentEntity = new Attachment
+                {
+                    Id = attachment.Id,
+                    Name = attachment.Name,
+                    CreatedBy = attachment.CreatedBy
+                };
+
+                var authResult = await AuthorizationService.AuthorizeAsync(
+                    user,
+                    attachmentEntity,
+                    new EditAttachmentRequirement());
+                _canEdit = authResult.Succeeded;
+            }
+            else
+            {
+                _canEdit = false;
+            }
+        }
+        else
+        {
+            Navigation.NavigateTo("/404");
+        }
+    }
+
+    private async Task GoBack()
+    {
+        await JSRuntime.InvokeVoidAsync("history.back");
+    }
+
+    private void OpenTagModal()
+    {
+        if (attachment == null || !_canEdit)
+        {
+            return;
+        }
+
+        _editableTags = attachment.Tags?
+            .Select(tag => new Collectibles.Application.Features.Tags.TagDto
+            {
+                Id = tag.Id,
+                Name = tag.Name,
+            })
+            .ToList() ?? new();
+        isTagModalOpen = true;
+    }
+
+    private void OnEditableTagsChanged(List<Collectibles.Application.Features.Tags.TagDto> tags)
+    {
+        _editableTags = tags;
+    }
+
+    private async Task HandleTagSave()
+    {
+        if (!_canEdit)
+        {
+            return;
+        }
+
+        if (attachment != null)
+        {
+            var command = new SetTagsForAttachmentCommand
+            {
+                AttachmentId = attachment.Id,
+                TagIds = _editableTags.Select(t => t.Id).ToList(),
+            };
+            await Mediator.Send(command);
+            isTagModalOpen = false;
+
+            // Refresh attachment data
+            await OnInitializedAsync();
+        }
+    }
+
+    private static string GetAttachmentIcon(AttachmentType? type)
+    {
+        return type switch
+        {
+            AttachmentType.Image => "bi-image",
+            AttachmentType.Video => "bi-camera-video",
+            AttachmentType.Audio => "bi-music-note-beamed",
+            AttachmentType.Document => "bi-file-earmark-text",
+            AttachmentType.Archive => "bi-file-earmark-zip",
+            _ => "bi-file-earmark",
+        };
+    }
+
+    private static string FormatFileSize(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB", "TB" };
+        double len = bytes;
+        int order = 0;
+        while (len >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            len = len / 1024;
+        }
+        return $"{len:0.##} {sizes[order]}";
+    }
+}

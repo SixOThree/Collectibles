@@ -1,0 +1,25 @@
+﻿@page "/Account/InvalidUser"
+
+@using Collectibles.Application.Interfaces
+@using Collectibles.Domain.Entities
+
+@inject IEventLogService EventLogService
+
+<PageTitle>Invalid user</PageTitle>
+
+<h3>Invalid user</h3>
+
+<StatusMessage />
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await EventLogService.LogEventAsync(
+                EventAction.View,
+                additionalData: System.Text.Json.JsonSerializer.Serialize(new { Page = "InvalidUser" }));
+        }
+        catch { }
+    }
+}

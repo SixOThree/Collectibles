@@ -1,0 +1,140 @@
+@page "/management"
+@rendermode InteractiveServerWithoutPrerender
+@attribute [Authorize(Roles = "Administrator")]
+@inherits LoggablePageBase
+@using Collectibles.Application.Interfaces
+@using Collectibles.Domain.Interfaces
+@inject NavigationManager Navigation
+@inject IVersionService VersionService
+@implements IAsyncDisposable
+
+<PageTitle>Management Dashboard</PageTitle>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>
+            <i class="bi bi-speedometer2"></i> Management Dashboard
+        </h1>
+        <div class="text-muted">
+            <i class="bi bi-clock"></i> Last refresh: @FormatTimestamp(_lastRefresh, "HH:mm:ss")
+            <button class="btn btn-sm btn-outline-secondary ms-2" @onclick="RefreshData">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <DashboardStatsCards RefreshKey="_refreshKey" />
+
+    <!-- Attachment Indexing Status & Orphans -->
+    <div class="row mb-4">
+        <DashboardIndexingStatus RefreshKey="_refreshKey" />
+        <DashboardOrphanStatus RefreshKey="_refreshKey" />
+    </div>
+
+    <!-- Quick Navigation -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-lightning-charge"></i> Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <button class="btn btn-outline-primary w-100 py-3" @onclick='() => Navigation.NavigateTo("/management/event-logs")'>
+                                <i class="bi bi-journal-text fs-3 d-block mb-2"></i>
+                                Event Logs
+                            </button>
+                        </div>
+                        <div class="col-md-3">
+                            <button class="btn btn-outline-primary w-100 py-3" @onclick='() => Navigation.NavigateTo("/management/user-stories")'>
+                                <i class="bi bi-book fs-3 d-block mb-2"></i>
+                                User Stories
+                            </button>
+                        </div>
+                        <div class="col-md-3">
+                            <button class="btn btn-outline-primary w-100 py-3" @onclick='() => Navigation.NavigateTo("/management/sys-logs")'>
+                                <i class="bi bi-terminal fs-3 d-block mb-2"></i>
+                                System Logs
+                            </button>
+                        </div>
+                        <div class="col-md-3">
+                            <button class="btn btn-outline-primary w-100 py-3" @onclick='() => Navigation.NavigateTo("/admin/migrate-attachments")'>
+                                <i class="bi bi-cloud-upload fs-3 d-block mb-2"></i>
+                                Migrate
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Timezone Indicator -->
+    <div class="small text-muted mb-2">
+        <i class="bi bi-clock"></i>
+        @if (_timeZoneDetected)
+        {
+            @:Times are displayed in your local time (@_browserTimeZoneId)
+        }
+        else
+        {
+            @:Times are displayed in UTC
+        }
+    </div>
+
+    <!-- Recent Logs -->
+    <div class="row">
+        <DashboardRecentEvents RefreshKey="_refreshKey" BrowserTimeZone="_browserTimeZone" />
+        <DashboardRecentSysLogs RefreshKey="_refreshKey" BrowserTimeZone="_browserTimeZone" />
+    </div>
+
+    <!-- Activity Chart -->
+    <DashboardActivityChart RefreshKey="_refreshKey" />
+
+    <!-- Version Information Footer -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card bg-light border-0">
+                <div class="card-body py-2 text-center">
+                    <small class="text-muted">
+                        <i class="bi bi-info-circle"></i> Application Version: <strong>v@(VersionService.GetAssemblyVersion()) | Built: @FormatTimestamp(VersionService.GetBuildTimestamp(), "MMM dd, yyyy HH:mm") @_browserTimeZoneId | @(VersionService.GetEnvironmentName())</strong>
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private Timer? _refreshTimer;
+    private int _refreshKey;
+    private DateTime _lastRefresh = DateTime.UtcNow;
+
+    protected override void OnInitialized()
+    {
+        // Set up auto-refresh every 30 seconds
+        _refreshTimer = new Timer(_ => InvokeAsync(() =>
+        {
+            _refreshKey++;
+            _lastRefresh = DateTime.UtcNow;
+            StateHasChanged();
+        }), null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+    }
+
+    private void RefreshData()
+    {
+        _refreshKey++;
+        _lastRefresh = DateTime.UtcNow;
+        StateHasChanged();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_refreshTimer != null)
+        {
+            await _refreshTimer.DisposeAsync();
+        }
+    }
+}

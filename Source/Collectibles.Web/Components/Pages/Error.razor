@@ -1,0 +1,113 @@
+@page "/Error"
+@inherits LoggablePageBase
+@using System.Diagnostics
+@using Collectibles.Domain.Configuration
+@using Microsoft.AspNetCore.Diagnostics
+@using Microsoft.Extensions.Options
+@inject NavigationManager Navigation
+@inject IWebHostEnvironment Environment
+@inject ILogger<Error> Logger
+@inject IOptions<SiteSettings> SiteSettings
+
+<PageTitle>Error - @SiteSettings.Value.SiteTitle</PageTitle>
+
+<div class="d-flex align-items-center justify-content-center min-vh-100 p-4">
+    <div class="error-content text-center">
+        <div class="error-icon-wrapper">
+            <i class="bi bi-exclamation-triangle error-icon"></i>
+        </div>
+        
+        <h1 class="error-title">Oops! Something went wrong</h1>
+        
+        <p class="error-message text-muted">
+            We encountered an unexpected error while processing your request.
+            Don't worry, your collectibles are safe!
+        </p>
+
+        @if (ShowRequestId)
+        {
+            <div class="error-details">
+                <p class="text-muted small">
+                    <strong>Error Reference:</strong> <code>@RequestId</code>
+                </p>
+            </div>
+        }
+
+        <div class="error-actions">
+            <button class="btn btn-primary" @onclick="NavigateHome">
+                <i class="bi bi-house-door"></i> Back to Home
+            </button>
+            <button class="btn btn-outline-secondary" @onclick="RefreshPage">
+                <i class="bi bi-arrow-clockwise"></i> Try Again
+            </button>
+        </div>
+
+        <div class="error-suggestions">
+            <h5>What you can try:</h5>
+            <ul>
+                <li>Check your internet connection</li>
+                <li>Refresh the page</li>
+                <li>Clear your browser cache</li>
+                <li>Try again in a few moments</li>
+            </ul>
+        </div>
+
+        @if (Environment.IsDevelopment())
+        {
+            <div class="development-info alert alert-warning mt-4">
+                <h6 class="alert-heading">Development Mode</h6>
+                <p class="mb-0">
+                    You're seeing this because the application is running in development mode. 
+                    Additional error details may be available in the console.
+                </p>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    private string? RequestId { get; set; }
+    private bool ShowRequestId => !string.IsNullOrEmpty(RequestId);
+
+    protected override async Task OnInitializedAsync()
+    {
+        RequestId = Activity.Current?.Id ?? HttpContext?.TraceIdentifier;
+        Logger.LogError("Error page accessed. RequestId: {RequestId}", RequestId);
+
+        // Log to SysLogs database - capture that a user saw the error page
+        try
+        {
+            var exceptionFeature = HttpContext?.Features.Get<IExceptionHandlerFeature>();
+            if (exceptionFeature?.Error != null)
+            {
+                await SysLogService.LogErrorAsync(
+                    $"Error page displayed. RequestId: {RequestId}",
+                    exceptionFeature.Error,
+                    "ErrorPage");
+            }
+            else
+            {
+                await SysLogService.LogWarningAsync(
+                    $"Error page displayed without exception context. RequestId: {RequestId}",
+                    "ErrorPage");
+            }
+        }
+        catch
+        {
+            // Silently fail - don't disrupt UX for logging failures
+        }
+    }
+
+    private void NavigateHome()
+    {
+        Navigation.NavigateTo("/");
+    }
+
+    private void RefreshPage()
+    {
+        Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
+    }
+}

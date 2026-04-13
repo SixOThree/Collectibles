@@ -1,0 +1,250 @@
+@page "/showcases"
+@rendermode InteractiveServerWithoutPrerender
+@attribute [Authorize]
+@inherits LoggablePageBase
+@using Collectibles.Application.Features.Showcases
+@using Collectibles.Application.Features.Showcases.Queries
+@using Collectibles.Application.Services
+@using MediatR
+@using Microsoft.AspNetCore.Authorization
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+@inject IHashIdsService HashIds
+
+<PageTitle>Showcases</PageTitle>
+
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h1>My Showcases</h1>
+    <div class="page-header-actions">
+        @if (_showcases != null && _showcases.Any())
+        {
+            <a href="/showcase/new" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> Create New Showcase
+            </a>
+        }
+        @if (_showcases != null && _showcases.Any())
+        {
+            <a href="/qrcodes" class="btn btn-outline-secondary">
+                <i class="bi bi-qr-code"></i> QR Codes
+            </a>
+        }
+    </div>
+</div>
+
+
+@if (IsLoading)
+{
+    <Spinner Type="SpinnerType.Dots" Class="me-3" Color="SpinnerColor.Primary" />
+}
+else if (_showcases == null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (!_showcases.Any())
+{
+    <div class="empty-state-container">
+        <div class="empty-state-header">
+            <div class="empty-state-icon text-muted">
+                <i class="bi bi-collection"></i>
+            </div>
+            <h2>Welcome to Your Showcases</h2>
+            <p class="lead">Showcases are the perfect way to organize and display your collectibles</p>
+        </div>
+
+        <div class="feature-grid">
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <i class="bi bi-folder-plus"></i>
+                </div>
+                <h3>Organize Collections</h3>
+                <p class="text-muted">Group related items together - create showcases for different themes, categories, or time periods</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <i class="bi bi-tags"></i>
+                </div>
+                <h3>Smart Tagging</h3>
+                <p class="text-muted">Add tags to your showcases and items for easy filtering and searching across your entire collection</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <i class="bi bi-images"></i>
+                </div>
+                <h3>Visual Display</h3>
+                <p class="text-muted">Add cover images and detailed photos to bring your collections to life</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <i class="bi bi-card-text"></i>
+                </div>
+                <h3>Rich Descriptions</h3>
+                <p class="text-muted">Tell the story behind your collections with detailed descriptions and notes</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <i class="bi bi-box-seam"></i>
+                </div>
+                <h3>Track Items</h3>
+                <p class="text-muted">Add unlimited items to each showcase and keep track of your growing collection</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <i class="bi bi-share"></i>
+                </div>
+                <h3>Share & Export</h3>
+                <p class="text-muted">Share your showcases with others or export your collection data</p>
+            </div>
+        </div>
+
+        <div class="getting-started">
+            <h3>Ready to get started?</h3>
+            <p>Create your first showcase in just a few clicks. You can always edit and refine it later!</p>
+            <div class="d-flex gap-3 justify-content-center flex-wrap">
+                <a href="/showcase/new" class="btn btn-primary btn-lg">
+                    <i class="bi bi-plus-circle"></i> Create Your First Showcase
+                </a>
+            </div>
+        </div>
+
+        <div class="pro-tips">
+            <h4><i class="bi bi-lightbulb"></i> Pro Tips</h4>
+            <ul>
+                <li>Start with a general showcase and create more specific ones as your collection grows</li>
+                <li>Use consistent naming and tagging to keep everything organized</li>
+                <li>Add photos to make your showcases visually appealing</li>
+                <li>Update your showcases regularly as you acquire new items</li>
+            </ul>
+        </div>
+    </div>
+}
+else if (_showcases.Count == 1)
+{
+    @* Hero layout for single showcase *@
+    <div class="showcase-hero mb-4">
+        <div class="hero-card" @onclick="() => NavigateToShowcase(_showcases[0].Id)">
+            @if (!string.IsNullOrEmpty(_showcases[0].ImageUrl))
+            {
+                <img src="@_showcases[0].ImageUrl" alt="@_showcases[0].Name" class="hero-image" />
+            }
+            else
+            {
+                <div class="hero-placeholder">
+                    <i class="bi bi-collection"></i>
+                </div>
+            }
+            <div class="hero-content">
+                <h2>@_showcases[0].Name</h2>
+                @if (!string.IsNullOrEmpty(_showcases[0].Description))
+                {
+                    <p class="hero-description">@_showcases[0].Description</p>
+                }
+                <div class="hero-stats">
+                    <span class="item-count">
+                        <i class="bi bi-box-seam"></i> @_showcases[0].ItemCount items
+                    </span>
+                    @if (_showcases[0].TopTags.Any())
+                    {
+                        <div class="hero-tags">
+                            @foreach (var tag in _showcases[0].TopTags)
+                            {
+                                <span class="tag">@tag</span>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    @* Card grid layout for multiple showcases *@
+    <div class="showcase-grid">
+        @foreach (var showcase in _showcases)
+        {
+            <div class="showcase-card" @onclick="() => NavigateToShowcase(showcase.Id)">
+                @if (!string.IsNullOrEmpty(showcase.ImageUrl))
+                {
+                    <img src="@showcase.ImageUrl" alt="@showcase.Name" class="card-image" />
+                }
+                else
+                {
+                    <div class="card-placeholder">
+                        <i class="bi bi-collection"></i>
+                    </div>
+                }
+                <div class="card-content">
+                    <h3>@showcase.Name</h3>
+                    @if (!string.IsNullOrEmpty(showcase.Description))
+                    {
+                        <p class="card-description">@showcase.Description</p>
+                    }
+                    <div class="card-footer">
+                        <span class="item-count">
+                            <i class="bi bi-box-seam"></i> @showcase.ItemCount
+                        </span>
+                        @if (showcase.TopTags.Any())
+                        {
+                            <div class="card-tags">
+                                @foreach (var tag in showcase.TopTags)
+                                {
+                                    <span class="tag">@tag</span>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    public bool IsLoading { get; set; } = true;
+
+    private List<ShowcaseCardDto>? _showcases;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Get the authenticated user's ID from the authentication state
+        var authState = await base.AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        var userId = user?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        
+        _showcases = await Mediator.Send(new GetShowcasesListQuery { UserId = userId });
+        
+        // Debug: Log showcase data
+        if (_showcases != null)
+        {
+            foreach (var showcase in _showcases)
+            {
+                Console.WriteLine($"Showcase: {showcase.Name}, ImageUrl: {showcase.ImageUrl?.Substring(0, Math.Min(showcase.ImageUrl.Length, 50))}...");
+            }
+        }
+
+        IsLoading = false;
+    }
+
+    private void NavigateToShowcase(long showcaseId)
+    {
+        IsLoading = true;
+
+        var showcaseHash = HashIds.Encode(showcaseId);
+        Console.WriteLine($"NavigateToShowcase called with ID: {showcaseId}, Hash: {showcaseHash}");
+        Navigation.NavigateTo($"/showcase/{showcaseHash}");
+    }
+
+    private void CreateNewShowcase()
+    {
+        IsLoading = true;
+     
+        Console.WriteLine("CreateNewShowcase method called");
+        Navigation.NavigateTo("/showcase/new");
+    }
+}
+

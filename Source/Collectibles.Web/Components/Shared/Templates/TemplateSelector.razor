@@ -1,0 +1,94 @@
+@using Collectibles.Application.Features.ContentDefinitions
+@using Collectibles.Application.Features.ContentDefinitions.Queries
+@using MediatR
+@inject IMediator Mediator
+
+<div class="template-selector mb-3">
+    <label for="@SelectorId" class="form-label">Template</label>
+    <select id="@SelectorId" class="form-select" value="@(SelectedTemplateId?.ToString() ?? "")" @onchange="OnTemplateChanged">
+        <option value="">No Template (Basic Item)</option>
+        @foreach (var template in _templates)
+        {
+            <option value="@template.Id">@template.Name</option>
+        }
+    </select>
+    
+    @if (SelectedTemplate != null && !string.IsNullOrEmpty(SelectedTemplate.Description))
+    {
+        <small class="form-text text-muted">@SelectedTemplate.Description</small>
+    }
+    
+    @if (_loading)
+    {
+        <small class="form-text text-muted d-flex align-items-center">
+            <Spinner Type="SpinnerType.Dots" Size="SpinnerSize.Small" Color="SpinnerColor.Primary" Class="me-2" />
+            Loading templates...
+        </small>
+    }
+</div>
+
+@code {
+    [Parameter] public long? SelectedTemplateId { get; set; }
+    [Parameter] public EventCallback<long?> SelectedTemplateIdChanged { get; set; }
+    [Parameter] public ContentDefinitionSelectDto? SelectedTemplate { get; set; }
+    [Parameter] public EventCallback<ContentDefinitionSelectDto?> SelectedTemplateChanged { get; set; }
+    [Parameter] public string SelectorId { get; set; } = "templateSelector";
+
+    private List<ContentDefinitionSelectDto> _templates = new();
+    private bool _loading = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTemplates();
+    }
+
+    private async Task LoadTemplates()
+    {
+        _loading = true;
+        try
+        {
+            _templates = await Mediator.Send(new GetActiveContentDefinitionsQuery());
+            var defaultTemplate = _templates.FirstOrDefault(t => t.IsDefault);
+            if (defaultTemplate != null && SelectedTemplateId == null)
+            {
+                SelectedTemplateId = defaultTemplate.Id;
+                SelectedTemplate = defaultTemplate;
+                await SelectedTemplateIdChanged.InvokeAsync(SelectedTemplateId);
+                await SelectedTemplateChanged.InvokeAsync(SelectedTemplate);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading templates: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OnTemplateChanged(ChangeEventArgs e)
+    {
+        var selectedValue = e.Value?.ToString();
+        
+        if (string.IsNullOrEmpty(selectedValue))
+        {
+            SelectedTemplateId = null;
+            SelectedTemplate = null;
+        }
+        else if (long.TryParse(selectedValue, out var templateId))
+        {
+            SelectedTemplateId = templateId;
+            SelectedTemplate = _templates.FirstOrDefault(t => t.Id == templateId);
+        }
+
+        await SelectedTemplateIdChanged.InvokeAsync(SelectedTemplateId);
+        await SelectedTemplateChanged.InvokeAsync(SelectedTemplate);
+    }
+}
+
+<style>
+    .template-selector .form-text {
+        margin-top: 0.25rem;
+    }
+</style>

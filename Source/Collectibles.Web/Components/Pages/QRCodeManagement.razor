@@ -1,0 +1,503 @@
+@page "/qrcodes"
+@rendermode InteractiveServerWithoutPrerender
+@using Collectibles.Application.Features.QRCodes
+@using Collectibles.Application.Features.QRCodes.Commands
+@using Collectibles.Application.Features.QRCodes.Queries
+@using Collectibles.Application.Services
+@using Collectibles.Domain.Common.Enums
+@using Microsoft.AspNetCore.Authorization
+@using MediatR
+@inject IMediator Mediator
+@inject IHashIdsService HashIds
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@inject IAuthorizationService AuthorizationService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IQRCodeUrlService QRCodeUrlService
+@attribute [Authorize]
+
+<PageTitle>QR Code Management</PageTitle>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1><i class="bi bi-qr-code me-2"></i>QR Code Management</h1>
+            <p class="text-muted">Generate and manage QR codes for your collectible items</p>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Generate QR Codes</h5>
+                    <p class="card-text">Create a batch of unassigned QR codes for printing.</p>
+                    
+                    <div class="mb-3">
+                        <label for="quantity" class="form-label">Quantity</label>
+                        <input type="number" class="form-control" id="quantity" @bind="_generateQuantity" min="1" max="100">
+                        <small class="text-muted">Maximum 100 codes per batch</small>
+                    </div>
+                    
+                    <button class="btn btn-primary" @onclick="GenerateQRCodes" disabled="@_isGenerating">
+                        @if (_isGenerating)
+                        {
+                            <Spinner Type="SpinnerType.Dots" Size="SpinnerSize.Small" Color="SpinnerColor.Light" Class="me-2" />
+                            <span>Generating...</span>
+                        }
+                        else
+                        {
+                            <span><i class="bi bi-plus-circle me-2"></i>Generate QR Codes</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Statistics</h5>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="text-center">
+                                <h3 class="text-primary">@_totalCodes</h3>
+                                <p class="text-muted">Total QR Codes</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center">
+                                <h3 class="text-success">@_assignedCodes</h3>
+                                <p class="text-muted">Assigned</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center">
+                                <h3 class="text-warning">@_unassignedCodes</h3>
+                                <p class="text-muted">Unassigned</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (_generationResult != null && _generationResult.Success)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <strong>Success!</strong> Generated @_generationResult.GeneratedCodes.Count QR codes.
+            <button type="button" class="btn-close" @onclick="() => _generationResult = null"></button>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Recently Generated Codes</h5>
+                        <button class="btn btn-outline-primary mb-3" @onclick="() => DownloadPrintableSheet(_generationResult.GeneratedCodes)">
+                            <i class="bi bi-printer me-2"></i>Download Printable Sheet
+                        </button>
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Code</th>
+                                        <th>QR Image</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var code in _generationResult.GeneratedCodes.Take(10))
+                                    {
+                                        <tr>
+                                            <td class="align-middle">
+                                                <code>@(code.Code)</code>
+                                                <button class="btn btn-sm btn-link" @onclick="() => CopyToClipboard(code.Code)">
+                                                    <i class="bi bi-clipboard"></i>
+                                                </button>
+                                            </td>
+                                            <td>
+                                                <div class="qr-preview" style="width: 80px; height: 80px;">
+                                                    <img src="@GetQRCodeDataUrl(code.Code)" alt="@(code.Code)" class="img-fluid" />
+                                                </div>
+                                            </td>
+                                            <td class="align-middle">
+                                                <button class="btn btn-sm btn-outline-primary" @onclick="() => DownloadSingleQR(code.Code)" title="Download">
+                                                    <i class="bi bi-download"></i>
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-primary ms-1" @onclick="() => PrintSingleQR(code.Code)" title="Print">
+                                                    <i class="bi bi-printer"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                            @if (_generationResult.GeneratedCodes.Count > 10)
+                            {
+                                <p class="text-muted">Showing first 10 of @_generationResult.GeneratedCodes.Count codes. Use the printable sheet to see all.</p>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (_generationResult != null && !_generationResult.Success)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <strong>Error!</strong> @_generationResult.ErrorMessage
+            <button type="button" class="btn-close" @onclick="() => _generationResult = null"></button>
+        </div>
+    }
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Your QR Codes</h5>
+                    
+                    <div class="mb-3">
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn @(_filterStatus == null ? "btn-primary" : "btn-outline-primary")" 
+                                    @onclick="() => FilterByStatus(null)">
+                                All
+                            </button>
+                            <button type="button" class="btn @(_filterStatus == QRCodeStatus.Unassigned ? "btn-primary" : "btn-outline-primary")" 
+                                    @onclick="() => FilterByStatus(QRCodeStatus.Unassigned)">
+                                Unassigned
+                            </button>
+                            <button type="button" class="btn @(_filterStatus == QRCodeStatus.Assigned ? "btn-primary" : "btn-outline-primary")" 
+                                    @onclick="() => FilterByStatus(QRCodeStatus.Assigned)">
+                                Assigned
+                            </button>
+                            <button type="button" class="btn @(_filterStatus == QRCodeStatus.Revoked ? "btn-primary" : "btn-outline-primary")" 
+                                    @onclick="() => FilterByStatus(QRCodeStatus.Revoked)">
+                                Revoked
+                            </button>
+                        </div>
+                    </div>
+
+                    @if (_isLoading)
+                    {
+                        <div class="text-center my-4">
+                            <Spinner Type="SpinnerType.Dots" Color="SpinnerColor.Primary" />
+                        </div>
+                    }
+                    else if (_qrCodes != null && _qrCodes.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Code</th>
+                                        <th>Status</th>
+                                        <th>Assigned To</th>
+                                        <th>Scans</th>
+                                        <th>Created</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var qrCode in _qrCodes)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <code>@(qrCode.Code)</code>
+                                                <button class="btn btn-sm btn-link" @onclick="() => CopyToClipboard(qrCode.Code)">
+                                                    <i class="bi bi-clipboard"></i>
+                                                </button>
+                                            </td>
+                                            <td>
+                                                <span class="badge @GetStatusBadgeClass(qrCode.Status)">
+                                                    @qrCode.Status
+                                                </span>
+                                            </td>
+                                            <td>
+                                                @if (!string.IsNullOrEmpty(qrCode.CollectibleItemName))
+                                                {
+                                                    <a href="/item/@qrCode.CollectibleItemHashId">@qrCode.CollectibleItemName</a>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">-</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                @qrCode.ScanCount
+                                                @if (qrCode.LastScannedDate.HasValue)
+                                                {
+                                                    <br />
+                                                    <small class="text-muted">Last: @qrCode.LastScannedDate.Value.ToString("MMM d")</small>
+                                                }
+                                            </td>
+                                            <td>@qrCode.Created.ToString("MMM d, yyyy")</td>
+                                            <td>
+                                                <div class="btn-group btn-group-sm" role="group">
+                                                    <button class="btn btn-outline-primary" @onclick="() => ShowQRCode(qrCode)" title="View QR Code">
+                                                        <i class="bi bi-eye"></i>
+                                                    </button>
+                                                    <button class="btn btn-outline-primary" @onclick="() => PrintSingleQR(qrCode.Code)" title="Print QR Code">
+                                                        <i class="bi bi-printer"></i>
+                                                    </button>
+                                                    @if (qrCode.Status == QRCodeStatus.Assigned && !string.IsNullOrEmpty(qrCode.CollectibleItemHashId))
+                                                    {
+                                                        <button class="btn btn-outline-warning" @onclick="() => UnassignQRCode(qrCode)" title="Unassign">
+                                                            <i class="bi bi-x-circle"></i>
+                                                        </button>
+                                                    }
+                                                    @if (qrCode.Status == QRCodeStatus.Unassigned)
+                                                    {
+                                                        <button class="btn btn-outline-danger" @onclick="() => RevokeQRCode(qrCode)" title="Revoke">
+                                                            <i class="bi bi-slash-circle"></i>
+                                                        </button>
+                                                    }
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted">No QR codes found. Generate some codes to get started!</p>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* QR Code Preview Modal *@
+@if (_selectedQRCode != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">QR Code: @_selectedQRCode.Code</h5>
+                    <button type="button" class="btn-close" @onclick="CloseQRModal"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <div class="mb-3">
+                        <img src="@GetQRCodeDataUrl(_selectedQRCode.Code)" alt="@_selectedQRCode.Code" class="img-fluid" style="max-width: 300px;" />
+                    </div>
+                    <p class="text-muted">
+                        URL: @GetQRCodeUrl(_selectedQRCode.Code)
+                    </p>
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-primary" @onclick="() => PrintSingleQR(_selectedQRCode.Code)">
+                            <i class="bi bi-printer me-2"></i>Print QR Code
+                        </button>
+                        <button class="btn btn-outline-primary" @onclick="() => DownloadSingleQR(_selectedQRCode.Code)">
+                            <i class="bi bi-download me-2"></i>Download QR Code
+                        </button>
+                        <button class="btn btn-outline-primary" @onclick="() => CopyToClipboard(GetQRCodeUrl(_selectedQRCode.Code))">
+                            <i class="bi bi-link-45deg me-2"></i>Copy Link
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private int _generateQuantity = 12;
+    private bool _isGenerating = false;
+    private bool _isLoading = true;
+    private GenerateQRCodesResult? _generationResult;
+    private List<QRCodeDto> _qrCodes = new();
+    private List<QRCodeDto> _allQrCodes = new();
+    private QRCodeStatus? _filterStatus = null;
+    private QRCodeDto? _selectedQRCode = null;
+    
+    private int _totalCodes = 0;
+    private int _assignedCodes = 0;
+    private int _unassignedCodes = 0;
+
+    [Inject] private IQRCodeGeneratorService QRGenerator { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadQRCodes();
+    }
+
+    private async Task LoadQRCodes()
+    {
+        _isLoading = true;
+        
+        // Get all QR codes for the current user
+        var query = new GetQRCodesByUserQuery { PageNumber = 1, PageSize = 500 };
+        _allQrCodes = await Mediator.Send(query);
+        
+        UpdateStatistics();
+        FilterByStatus(_filterStatus);
+        
+        _isLoading = false;
+    }
+
+    private void UpdateStatistics()
+    {
+        _totalCodes = _allQrCodes.Count;
+        _unassignedCodes = _allQrCodes.Count(q => q.Status == QRCodeStatus.Unassigned);
+        _assignedCodes = _allQrCodes.Count(q => q.Status == QRCodeStatus.Assigned);
+    }
+
+    private void FilterByStatus(QRCodeStatus? status)
+    {
+        _filterStatus = status;
+        
+        if (status == null)
+        {
+            _qrCodes = _allQrCodes.ToList();
+        }
+        else
+        {
+            _qrCodes = _allQrCodes.Where(q => q.Status == status).ToList();
+        }
+    }
+
+    private async Task GenerateQRCodes()
+    {
+        _isGenerating = true;
+        _generationResult = null;
+        
+        // Get the current user's ID from the authentication state
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var userId = authState.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        
+        if (string.IsNullOrEmpty(userId))
+        {
+            _generationResult = new GenerateQRCodesResult 
+            { 
+                Success = false, 
+                ErrorMessage = "User authentication context not available" 
+            };
+            _isGenerating = false;
+            return;
+        }
+        
+        var command = new GenerateQRCodesCommand 
+        { 
+            Quantity = _generateQuantity,
+            UserId = userId 
+        };
+        _generationResult = await Mediator.Send(command);
+        
+        if (_generationResult.Success)
+        {
+            await LoadQRCodes();
+        }
+        
+        _isGenerating = false;
+    }
+
+    private async Task UnassignQRCode(QRCodeDto qrCode)
+    {
+        if (string.IsNullOrEmpty(qrCode.CollectibleItemHashId))
+            return;
+            
+        var command = new UnassignQRCodeCommand 
+        { 
+            CollectibleItemHashId = qrCode.CollectibleItemHashId 
+        };
+        
+        var result = await Mediator.Send(command);
+        
+        if (result.Success)
+        {
+            await LoadQRCodes();
+        }
+    }
+
+    private async Task RevokeQRCode(QRCodeDto qrCode)
+    {
+        var command = new RevokeQRCodeCommand 
+        { 
+            QRCodeId = qrCode.Id,
+            Reason = "Manually revoked by user"
+        };
+        
+        var result = await Mediator.Send(command);
+        
+        if (result.Success)
+        {
+            await LoadQRCodes();
+        }
+    }
+
+    private void ShowQRCode(QRCodeDto qrCode)
+    {
+        _selectedQRCode = qrCode;
+    }
+
+    private void CloseQRModal()
+    {
+        _selectedQRCode = null;
+    }
+
+    private string GetQRCodeUrl(string code)
+    {
+        return QRCodeUrlService.GenerateQRCodeUrl(code);
+    }
+
+    private string GetQRCodeDataUrl(string code)
+    {
+        var url = GetQRCodeUrl(code);
+        var qrBytes = QRGenerator.GenerateQRCodeImage(url, 10);
+        var base64 = Convert.ToBase64String(qrBytes);
+        return $"data:image/png;base64,{base64}";
+    }
+
+    private async Task CopyToClipboard(string text)
+    {
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", text);
+    }
+
+    private async Task DownloadSingleQR(string code)
+    {
+        var url = GetQRCodeUrl(code);
+        var qrBytes = QRGenerator.GenerateQRCodeImage(url, 20);
+        var base64 = Convert.ToBase64String(qrBytes);
+        var dataUrl = $"data:image/png;base64,{base64}";
+        
+        await JS.InvokeVoidAsync("downloadFile", dataUrl, $"{code}.png");
+    }
+
+    private async Task PrintSingleQR(string code)
+    {
+        var url = GetQRCodeUrl(code);
+        var qrBytes = QRGenerator.GenerateQRCodeImage(url, 20);
+        var base64 = Convert.ToBase64String(qrBytes);
+        var dataUrl = $"data:image/png;base64,{base64}";
+        
+        await JS.InvokeVoidAsync("printQRCode", dataUrl);
+    }
+
+    private async Task DownloadPrintableSheet(List<QRCodeDto> codes)
+    {
+        var codeStrings = codes.Select(c => c.Code).ToList();
+        var urls = codeStrings.Select(c => GetQRCodeUrl(c)).ToList();
+        var sheetBytes = QRGenerator.GeneratePrintableSheet(urls, 1, 1);
+        var base64 = Convert.ToBase64String(sheetBytes);
+        var dataUrl = $"data:text/html;base64,{base64}";
+        
+        await JS.InvokeVoidAsync("downloadFile", dataUrl, "qr-codes.html");
+    }
+
+    private string GetStatusBadgeClass(QRCodeStatus status)
+    {
+        return status switch
+        {
+            QRCodeStatus.Unassigned => "bg-warning",
+            QRCodeStatus.Assigned => "bg-success",
+            QRCodeStatus.Revoked => "bg-danger",
+            _ => "bg-secondary"
+        };
+    }
+}

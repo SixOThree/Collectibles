@@ -1,0 +1,103 @@
+@page "/qr/{Code}"
+@rendermode InteractiveServerWithoutPrerender
+@using Collectibles.Application.Features.QRCodes.Queries
+@using Collectibles.Application.Features.QRCodes.Commands
+@using Collectibles.Application.Services
+@using Collectibles.Domain.Common.Enums
+@using MediatR
+@inject IMediator Mediator
+@inject IHashIdsService HashIds
+@inject NavigationManager Navigation
+
+<PageTitle>QR Code Redirect</PageTitle>
+
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            @if (_loading)
+            {
+                <div class="text-center my-5">
+                    <Spinner Type="SpinnerType.Dots" Color="SpinnerColor.Primary" />
+                    <p class="mt-3">Processing QR code...</p>
+                </div>
+            }
+            else if (_error != null)
+            {
+                <div class="alert alert-danger mt-5" role="alert">
+                    <h4 class="alert-heading">QR Code Error</h4>
+                    <p>@_error</p>
+                    <hr>
+                    <p class="mb-0">
+                        <a href="/" class="btn btn-primary">Go to Home</a>
+                    </p>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Code { get; set; } = string.Empty;
+    
+    private bool _loading = true;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ProcessQRCode();
+    }
+
+    private async Task ProcessQRCode()
+    {
+        _loading = true;
+        
+        try
+        {
+            // Look up the QR code
+            var query = new GetQRCodeByCodeQuery { Code = Code };
+            var qrCode = await Mediator.Send(query);
+            
+            if (qrCode == null)
+            {
+                _error = "This QR code is not recognized. It may not have been registered in the system.";
+                _loading = false;
+                return;
+            }
+            
+            // Increment scan count
+            await Mediator.Send(new IncrementQRCodeScanCommand { QRCodeId = qrCode.Id });
+            
+            // Check status
+            if (qrCode.Status == QRCodeStatus.Revoked)
+            {
+                _error = "This QR code has been revoked and is no longer valid.";
+                _loading = false;
+                return;
+            }
+            
+            if (qrCode.Status == QRCodeStatus.Unassigned || qrCode.CollectibleItemId == null)
+            {
+                _error = "This QR code has not been assigned to any item yet. Please assign it to a collectible item first.";
+                _loading = false;
+                return;
+            }
+            
+            // Redirect to the item page
+            if (!string.IsNullOrEmpty(qrCode.CollectibleItemHashId))
+            {
+                Navigation.NavigateTo($"/item/{qrCode.CollectibleItemHashId}");
+            }
+            else
+            {
+                // Fallback: encode the ID if we don't have the hash
+                var hashId = HashIds.Encode(qrCode.CollectibleItemId.Value);
+                Navigation.NavigateTo($"/item/{hashId}");
+            }
+        }
+        catch
+        {
+            _error = "An error occurred while processing the QR code. Please try again later.";
+            _loading = false;
+        }
+    }
+}

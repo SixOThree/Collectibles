@@ -1,0 +1,1095 @@
+@page "/item/{Hash}/edit"
+@rendermode InteractiveServerWithoutPrerender
+@attribute [Authorize]
+@inherits LoggablePageBase
+@implements IAsyncDisposable
+@using Collectibles.Application.Features.CollectibleItems
+@using Collectibles.Application.Features.CollectibleItems.Commands
+@using Collectibles.Application.Features.CollectibleItems.Queries
+@using Collectibles.Application.Features.Tags
+@using Collectibles.Application.Features.Tags.Queries
+@using Collectibles.Application.Features.Attachments
+@using Collectibles.Application.Features.ContentDefinitions
+@using Collectibles.Application.Features.ContentDefinitions.Queries
+@using Collectibles.Application.Features.QRCodes
+@using Collectibles.Application.Features.QRCodes.Commands
+@using Collectibles.Application.Features.QRCodes.Queries
+@using Collectibles.Web.Components.Shared
+@using Collectibles.Application.Services
+@using Collectibles.Application.Interfaces
+@using Collectibles.Web.Components.Collectible
+@using MediatR
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Routing
+@using Microsoft.Extensions.Options
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+@inject IHashIdsService HashIds
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider
+@inject IJSRuntime JSRuntime
+@inject IOptions<Collectibles.Domain.Configuration.ExternalLinksOptions> ExternalLinksOptions
+
+<PageTitle>Edit Collectible Item</PageTitle>
+
+<NavigationLock OnBeforeInternalNavigation="OnBeforeInternalNavigation" ConfirmExternalNavigation="_hasUnsavedChanges" />
+
+<div class="edit-item-container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Edit Collectible Item</h1>
+        <button class="btn btn-link" @onclick="NavigateBack">
+            <i class="bi bi-arrow-left"></i> Back to Item
+        </button>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="text-center my-5">
+            <Spinner Type="SpinnerType.Dots" Color="SpinnerColor.Primary" />
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    }
+    else if (_unauthorized)
+    {
+        <div class="alert alert-danger">
+            <h4>Unauthorized</h4>
+            <p>You don't have permission to edit this item. Only the showcase owner can edit items.</p>
+            <button class="btn btn-primary" @onclick="NavigateToShowcases">Back to Showcases</button>
+        </div>
+    }
+    else if (_item == null)
+    {
+        <div class="alert alert-warning">
+            <h4>Item not found</h4>
+            <p>The collectible item you're trying to edit doesn't exist.</p>
+            <button class="btn btn-primary" @onclick="NavigateToShowcases">Back to Showcases</button>
+        </div>
+    }
+    else
+    {
+        <EditForm EditContext="_editContext" OnValidSubmit="HandleValidSubmit">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+
+            <div class="form-section">
+                <h3>Basic Information</h3>
+                
+                <Collectibles.Web.Components.Shared.Templates.TemplateSelector 
+                    SelectedTemplateId="_command.ContentDefinitionId"
+                    SelectedTemplateIdChanged="OnTemplateChanged"
+                    SelectedTemplate="_selectedTemplate"
+                    SelectedTemplateChanged="OnSelectedTemplateObjectChanged" />
+                
+                <div class="mb-3">
+                    <label for="name" class="form-label">Name <span class="text-danger">*</span></label>
+                    <InputText id="name" class="form-control" @bind-Value="_command.Name" />
+                    <ValidationMessage For="@(() => _command.Name)" />
+                </div>
+
+                <div class="mb-3">
+                    <label for="description" class="form-label">Description</label>
+                    <InputTextArea id="description" class="form-control" @bind-Value="_command.Description" rows="4" />
+                    <ValidationMessage For="@(() => _command.Description)" />
+                </div>
+                
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="hasParent" 
+                               checked="@_hasParent"
+                               @onchange="OnHasParentChanged" />
+                        <label class="form-check-label" for="hasParent">
+                            Has Parent Item
+                        </label>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="showRelatedItemsFirst" 
+                               @bind="_command.ShowRelatedItemsFirst" />
+                        <label class="form-check-label" for="showRelatedItemsFirst">
+                            Show related items before pictures
+                        </label>
+                    </div>
+                </div>
+                
+                @if (_hasParent)
+                {
+                    <div class="mb-3">
+                        <label class="form-label">Parent Item</label>
+                        <div class="input-group">
+                            @if (_command.ParentId.HasValue && !string.IsNullOrEmpty(_parentName))
+                            {
+                                <input type="text" class="form-control" value="@_parentName" readonly />
+                                <button type="button" class="btn btn-outline-secondary" @onclick="ShowParentSelectionModal">
+                                    <i class="bi bi-pencil"></i> Change
+                                </button>
+                                <button type="button" class="btn btn-outline-danger" @onclick="ClearParent">
+                                    <i class="bi bi-x"></i> Clear
+                                </button>
+                            }
+                            else
+                            {
+                                <input type="text" class="form-control" placeholder="No parent selected" readonly />
+                                <button type="button" class="btn btn-outline-secondary" @onclick="ShowParentSelectionModal">
+                                    <i class="bi bi-search"></i> Select Parent
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+
+            @if (_command.ContentDefinitionId.HasValue)
+            {
+                <div class="form-section">
+                    @if (_isMultiEntry)
+                    {
+                        <Collectibles.Web.Components.Shared.Templates.MultiEntryEditor
+                            @ref="_multiEntryEditor"
+                            TemplateId="_command.ContentDefinitionId"
+                            Entries="_fieldValueEntries"
+                            EntriesChanged="OnFieldValueEntriesChanged" />
+                    }
+                    else
+                    {
+                        <Collectibles.Web.Components.Shared.Templates.DynamicFieldsEditor
+                            @ref="_fieldsEditor"
+                            TemplateId="_command.ContentDefinitionId"
+                            FieldValues="_command.FieldValues"
+                            FieldValuesChanged="OnFieldValuesChanged" />
+                    }
+                </div>
+            }
+
+            <div class="form-section">
+                <h3>Preview Image</h3>
+                <p class="text-muted">Select an image to use as the preview for this item.</p>
+
+                @{
+                    var previewBrief = GetCurrentPreviewBrief();
+                }
+                @if (previewBrief != null)
+                {
+                    <div class="current-preview mb-3">
+                        <h5>Current Preview:</h5>
+                        <div class="d-flex align-items-start gap-3">
+                            <img src="@GetCurrentPreviewSrc(previewBrief)"
+                                 alt="Current preview"
+                                 class="img-thumbnail"
+                                 style="max-width: 200px;" />
+                            <div class="d-flex flex-column gap-2">
+                                <button type="button" class="btn btn-outline-primary" @onclick="ShowPreviewSelector">
+                                    <i class="bi bi-image"></i> Choose Preview Image
+                                </button>
+                                @if (_item?.Children?.Any() == true)
+                                {
+                                    <button type="button" class="btn btn-sm btn-outline-primary" @onclick="RecomputeCollage" disabled="@_recomputingCollage">
+                                        @if (_recomputingCollage)
+                                        {
+                                            <Spinner Type="SpinnerType.Dots" Size="SpinnerSize.Small" Color="SpinnerColor.Primary" Class="me-2" />
+                                            <span>Generating...</span>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-grid-3x3-gap me-1"></i>
+                                            <span>Generate Collage</span>
+                                        }
+                                    </button>
+                                }
+                                <button type="button" class="btn btn-outline-danger btn-sm" @onclick="ClearPreviewImage">
+                                    <i class="bi bi-x-circle"></i> Clear Preview
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <div class="text-muted">No preview selected.</div>
+                        <button type="button" class="btn btn-outline-primary" @onclick="ShowPreviewSelector">
+                            <i class="bi bi-image"></i> Choose Preview Image
+                        </button>
+                        @if (_item?.Children?.Any() == true)
+                        {
+                            <button type="button" class="btn btn-outline-primary" @onclick="RecomputeCollage" disabled="@_recomputingCollage">
+                                @if (_recomputingCollage)
+                                {
+                                    <Spinner Type="SpinnerType.Dots" Size="SpinnerSize.Small" Color="SpinnerColor.Primary" Class="me-2" />
+                                    <span>Generating...</span>
+                                }
+                                else
+                                {
+                                    <i class="bi bi-grid-3x3-gap me-1"></i>
+                                    <span>Generate Collage</span>
+                                }
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+
+            <div class="form-section">
+                <h3>Attachments</h3>
+                <p class="text-muted">Manage files attached to this item.</p>
+                
+                @if (_item.Attachments.Any())
+                {
+                    <div class="existing-attachments mb-3">
+                        <h5>Current Attachments:</h5>
+                        <div class="row g-2">
+                            @foreach (var attachment in _item.Attachments)
+                            {
+                                var isRemoved = !_selectedAttachmentIds.Contains(attachment.Id);
+                                <div class="col-12 col-md-6">
+                                    <div class="card @(isRemoved ? "attachment-removed" : "")">
+                                        <div class="card-body d-flex align-items-center" style="min-width: 0;">
+                                            <div class="flex-grow-1" style="min-width: 0;">
+                                                <h6 class="mb-0" style="overflow-wrap: break-word; word-break: break-all;">@attachment.OriginalFilename</h6>
+                                                <small class="text-muted">
+                                                    @attachment.AttachmentType
+                                                </small>
+                                            </div>
+                                            @if (attachment.AttachmentType == Domain.Common.Enums.AttachmentType.Image)
+                                            {
+                                                <img src="@GetAttachmentPreviewSrc(attachment)"
+                                                     alt="@attachment.OriginalFilename"
+                                                     class="img-thumbnail ms-2"
+                                                     style="max-width: 60px; max-height: 60px; object-fit: cover;" />
+                                            }
+                                            @if (isRemoved)
+                                            {
+                                                <button type="button" class="btn btn-sm btn-outline-secondary ms-2 flex-shrink-0" title="Undo remove"
+                                                        @onclick="() => ToggleAttachment(attachment.Id, true)">
+                                                    <i class="bi bi-arrow-counterclockwise"></i>
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <button type="button" class="btn btn-sm btn-outline-danger ms-2 flex-shrink-0" title="Remove attachment"
+                                                        @onclick="() => ToggleAttachment(attachment.Id, false)">
+                                                    <i class="bi bi-x-lg"></i>
+                                                </button>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+                
+                <div class="upload-section">
+                    <h5>Upload New Attachments:</h5>
+                    <Collectibles.Web.Components.Shared.AttachmentUpload
+                        OnUploadCompleted="HandleAttachmentsUploaded"
+                        AutoUpload="true"
+                        ShowcaseId="@(_item?.Showcases?.FirstOrDefault()?.Id)"
+                        CollectibleItemId="@(_item?.Id)" />
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3>Tags</h3>
+                <p class="text-muted">Add tags to help organize and find this item.</p>
+                <Collectibles.Web.Components.Shared.TagSelector 
+                    SelectedTags="_selectedTags" 
+                    SelectedTagsChanged="OnTagsChanged" 
+                    MaxTags="10" />
+            </div>
+
+            <div class="form-section">
+                <h3>QR Code</h3>
+                <p class="text-muted">Assign a QR code to this item for easy physical linking.</p>
+                
+                @if (_currentQRCode != null)
+                {
+                    <div class="alert alert-info">
+                        <div class="row align-items-center">
+                            <div class="col-md-8">
+                                <h6>Current QR Code: <code>@_currentQRCode.Code</code></h6>
+                                <p class="mb-0">
+                                    Scans: @_currentQRCode.ScanCount
+                                    @if (_currentQRCode.LastScannedDate.HasValue)
+                                    {
+                                        <span> | Last scanned: @_currentQRCode.LastScannedDate.Value.ToString("MMM d, yyyy")</span>
+                                    }
+                                </p>
+                            </div>
+                            <div class="col-md-4 text-end">
+                                <button type="button" class="btn btn-sm btn-warning" @onclick="UnassignQRCode">
+                                    <i class="bi bi-x-circle me-1"></i>Unassign
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="input-group">
+                                <input type="text" class="form-control" placeholder="Enter QR code or scan" @bind="_qrCodeInput" />
+                                <button type="button" class="btn btn-outline-secondary" @onclick="async () => await ShowQRScanner()">
+                                    <i class="bi bi-camera"></i> Scan
+                                </button>
+                                <button type="button" class="btn btn-primary" @onclick="AssignQRCode" disabled="@(string.IsNullOrWhiteSpace(_qrCodeInput))">
+                                    <i class="bi bi-link-45deg"></i> Assign
+                                </button>
+                            </div>
+                            @if (!string.IsNullOrEmpty(_qrCodeError))
+                            {
+                                <div class="text-danger mt-2">@_qrCodeError</div>
+                            }
+                        </div>
+                        <div class="col-md-4">
+                            <a href="/qrcodes" target="_blank" class="btn btn-outline-primary">
+                                <i class="bi bi-qr-code me-1"></i>Manage QR Codes
+                            </a>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            @if (ExternalLinksOptions.Value.Enabled)
+            {
+                <div class="form-section">
+                    <h3>External Links</h3>
+                    <p class="text-muted">Manage external links for this item.</p>
+                    <CollectibleLinks CollectibleItem="_item" OnLinkAdded="HandleLinkAdded" OnRefreshRequested="HandleLinkAdded" />
+                </div>
+            }
+
+            @if (!string.IsNullOrEmpty(_saveError))
+            {
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    @_saveError
+                    <button type="button" class="btn-close" @onclick="@(() => _saveError = null)"></button>
+                </div>
+            }
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary" disabled="@_submitting">
+                    @if (_submitting)
+                    {
+                        <Spinner Type="SpinnerType.Dots" Size="SpinnerSize.Small" Color="SpinnerColor.Light" Class="me-2" />
+                        <span>Saving...</span>
+                    }
+                    else
+                    {
+                        <span>Save Changes</span>
+                    }
+                </button>
+                <button type="button" class="btn btn-secondary" @onclick="NavigateBack">Cancel</button>
+                <button type="button" class="btn btn-danger ms-auto" @onclick="ShowDeleteConfirmation">
+                    <i class="bi bi-trash me-2"></i>Delete Item
+                </button>
+            </div>
+        </EditForm>
+    }
+</div>
+
+<Collectibles.Web.Components.Shared.ParentSelectionModal
+    @ref="_parentSelectionModal"
+    SelectedItemId="_command.ParentId"
+    SelectedItemIdChanged="OnParentSelected"
+    ExcludeItemId="_item?.Id"
+    ShowcaseIds="_item?.Showcases.Select(s => s.Id).ToList()" />
+
+<DeleteItemConfirmationModal 
+    @ref="_deleteConfirmationModal"
+    ItemName="@(_item?.Name ?? string.Empty)"
+    ItemId="@(_item?.Id ?? 0)"
+    HasChildren="@(_item?.Children?.Any() ?? false)"
+    ChildCount="@(_item?.Children?.Count ?? 0)"
+    AttachmentCount="@(_item?.Attachments?.Count ?? 0)"
+    OnDeleteConfirmed="HandleDeleteConfirmed"
+    OnCancelled="HandleDeleteCancelled" />
+
+<QRScannerModal @ref="_qrScannerModal" OnQRCodeScanned="HandleQRCodeScanned" OnClose="HandleScannerClose" />
+
+<Collectibles.Web.Components.Shared.PreviewImageSelectorModal
+    @ref="_previewSelectorModal"
+    CurrentItemId="@(_item?.Id ?? 0)"
+    CurrentItemName="@(_item?.Name ?? string.Empty)"
+    CurrentItemAttachments="@(_item?.Attachments ?? new())"
+    ChildItems="@(_item?.Children ?? new())"
+    OnAttachmentSelected="OnPreviewSelected"
+    OnClose="OnPreviewSelectorClosed" />
+
+@code {
+    [Parameter] public string Hash { get; set; } = string.Empty;
+
+    private CollectibleItemDetailDto? _item;
+    private UpdateCollectibleItemCommand _command = new();
+    private ContentDefinitionSelectDto? _selectedTemplate;
+    private List<Collectibles.Application.Features.Tags.TagDto> _selectedTags = new();
+    private List<Collectibles.Application.Features.Tags.TagDto> _selectedRelatedTags = new();
+    private HashSet<long> _selectedAttachmentIds = new();
+    private List<long> _newAttachmentIds = new();
+    private bool _loading = true;
+    private bool _submitting = false;
+    private bool _unauthorized = false;
+    private bool _hasParent = false;
+    private string? _parentName;
+    private Collectibles.Web.Components.Shared.ParentSelectionModal? _parentSelectionModal;
+    private DeleteItemConfirmationModal? _deleteConfirmationModal;
+    private QRScannerModal? _qrScannerModal;
+    private Collectibles.Web.Components.Shared.PreviewImageSelectorModal? _previewSelectorModal;
+    private QRCodeDto? _currentQRCode;
+    private string _qrCodeInput = string.Empty;
+    private string? _qrCodeError;
+    private bool _recomputingCollage = false;
+    private AttachmentBriefDto? _selectedPreviewAttachment;
+    private bool _hasUnsavedChanges = false;
+    private EditContext? _editContext;
+    private bool _jsInitialized = false;
+    private string? _saveError;
+    private Collectibles.Web.Components.Shared.Templates.DynamicFieldsEditor? _fieldsEditor;
+    private Collectibles.Web.Components.Shared.Templates.MultiEntryEditor? _multiEntryEditor;
+    private bool _isMultiEntry;
+    private List<Dictionary<string, object?>> _fieldValueEntries = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JSRuntime.InvokeVoidAsync("unsavedChangesHandler.enable");
+            _jsInitialized = true;
+        }
+    }
+
+    private async Task OnBeforeInternalNavigation(LocationChangingContext context)
+    {
+        if (_hasUnsavedChanges)
+        {
+            var isConfirmed = await JSRuntime.InvokeAsync<bool>("confirm", "You have unsaved changes. Are you sure you want to leave this page?");
+            if (!isConfirmed)
+            {
+                context.PreventNavigation();
+            }
+        }
+    }
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        
+        try
+        {
+            var id = HashIds.Decode(Hash);
+            var query = new GetCollectibleItemByIdQuery { Id = id };
+            _item = await Mediator.Send(query);
+        }
+        catch (ArgumentException)
+        {
+            // Invalid hash
+            _item = null;
+        }
+        
+        if (_item != null)
+        {
+            // Check if user owns the showcase this item belongs to
+            if (_item.Showcases.Any())
+            {
+                var showcase = _item.Showcases.First();
+                var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+                var currentUserId = authState.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                if (showcase.UserId != currentUserId)
+                {
+                    _unauthorized = true;
+                    _item = null;
+                }
+            }
+            else
+            {
+                // Item not in any showcase - don't allow editing
+                _unauthorized = true;
+                _item = null;
+            }
+            
+            if (_item != null)
+            {
+                _command.Id = _item.Id;
+                _command.Name = _item.Name;
+                _command.Description = _item.DetailedDescription;
+                _command.PreviewImageId = _item.PreviewImageId;
+                _command.ParentId = _item.ParentId;
+                _command.ContentDefinitionId = _item.ContentDefinitionId;
+                _command.FieldValues = _item.FieldValues.ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+                _command.ShowRelatedItemsFirst = _item.ShowRelatedItemsFirst;
+                _isMultiEntry = _item.AllowMultipleEntries;
+                if (_item.FieldValueEntries != null)
+                {
+                    _fieldValueEntries = _item.FieldValueEntries
+                        .Select(e => new Dictionary<string, object?>(e))
+                        .ToList();
+                }
+                
+                _hasParent = _item.ParentId.HasValue;
+                _parentName = _item.ParentName;
+                
+                _selectedTags = _item.Tags.ToList();
+                _selectedRelatedTags = _item.RelatedTags.ToList();
+                _selectedAttachmentIds = _item.Attachments.Select(a => a.Id).ToHashSet();
+                _selectedPreviewAttachment = _item.Attachments.FirstOrDefault(a => a.Id == _item.PreviewImageId);
+                
+                // Initialize EditContext for form change tracking
+                _editContext = new EditContext(_command);
+                _editContext.OnFieldChanged += async (sender, args) =>
+                {
+                    await InvokeAsync(async () =>
+                    {
+                        await SetUnsavedChangesAsync(true);
+                        StateHasChanged();
+                    });
+                };
+                
+                // Load QR code if assigned
+                if (_item.QRCodeId.HasValue)
+                {
+                    await LoadQRCode();
+                }
+            }
+        }
+        
+        _loading = false;
+    }
+
+    private void ToggleAttachment(long attachmentId, bool isSelected)
+    {
+        if (isSelected)
+        {
+            _selectedAttachmentIds.Add(attachmentId);
+        }
+        else
+        {
+            _selectedAttachmentIds.Remove(attachmentId);
+
+            // Clear preview if the removed attachment was the preview image
+            if (_command.PreviewImageId == attachmentId)
+            {
+                _command.PreviewImageId = null;
+                _selectedPreviewAttachment = null;
+            }
+        }
+        _hasUnsavedChanges = true;
+    }
+
+    private void HandleAttachmentsUploaded(List<long> attachmentIds)
+    {
+        _newAttachmentIds.AddRange(attachmentIds);
+        _selectedAttachmentIds.UnionWith(attachmentIds);
+        _hasUnsavedChanges = true;
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        _saveError = null;
+        _submitting = true;
+
+        // Validate template fields before saving
+        if (_isMultiEntry && _multiEntryEditor != null && !_multiEntryEditor.ValidateAll())
+        {
+            _saveError = "Please fix the errors in the template entries before saving.";
+            _submitting = false;
+            return;
+        }
+
+        if (!_isMultiEntry && _fieldsEditor != null && !_fieldsEditor.ValidateAll())
+        {
+            _saveError = "Please fix the errors in the template fields before saving.";
+            _submitting = false;
+            return;
+        }
+
+        try
+        {
+            _command.AttachmentIds = _selectedAttachmentIds.ToList();
+            _command.TagIds = _selectedTags.Select(t => t.Id).ToList();
+            _command.RelatedTagIds = _selectedRelatedTags.Select(t => t.Id).ToList();
+
+            if (_isMultiEntry)
+            {
+                _command.FieldValueEntries = _fieldValueEntries;
+            }
+
+            await Mediator.Send(_command);
+            await SetUnsavedChangesAsync(false);
+            Navigation.NavigateTo($"/item/{Hash}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error updating item: {ex.Message}");
+            _saveError = "An error occurred while saving. Please try again.";
+            _submitting = false;
+        }
+    }
+
+    private void NavigateBack()
+    {
+        Navigation.NavigateTo($"/item/{Hash}");
+    }
+
+    private void NavigateToShowcases()
+    {
+        Navigation.NavigateTo("/showcases");
+    }
+
+    private void OnTemplateChanged(long? templateId)
+    {
+        _command.ContentDefinitionId = templateId;
+        if (!templateId.HasValue)
+        {
+            _command.FieldValues.Clear();
+            _fieldValueEntries.Clear();
+        }
+
+        _hasUnsavedChanges = true;
+    }
+
+    private void OnSelectedTemplateObjectChanged(ContentDefinitionSelectDto? template)
+    {
+        _selectedTemplate = template;
+        _isMultiEntry = template?.AllowMultipleEntries ?? false;
+    }
+
+    private void OnFieldValueEntriesChanged(List<Dictionary<string, object?>> entries)
+    {
+        _fieldValueEntries = entries;
+        _hasUnsavedChanges = true;
+    }
+
+    private void OnTagsChanged(List<Collectibles.Application.Features.Tags.TagDto> tags)
+    {
+        _selectedTags = tags;
+        _hasUnsavedChanges = true;
+    }
+
+    private void OnFieldValuesChanged(Dictionary<string, object?> values)
+    {
+        _command.FieldValues = values;
+        _hasUnsavedChanges = true;
+    }
+
+    private string BytesToString(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB" };
+        int order = 0;
+        double len = bytes;
+        while (len >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            len /= 1024;
+        }
+        return $"{len:0.##} {sizes[order]}";
+    }
+    
+    private async Task ShowParentSelectionModal()
+    {
+        if (_parentSelectionModal != null)
+        {
+            await _parentSelectionModal.ShowModal();
+        }
+    }
+    
+    private async Task OnParentSelected(long? parentId)
+    {
+        _command.ParentId = parentId;
+        _hasUnsavedChanges = true;
+        
+        if (parentId.HasValue)
+        {
+            // Fetch parent name
+            try
+            {
+                var query = new GetCollectibleItemByIdQuery { Id = parentId.Value };
+                var parent = await Mediator.Send(query);
+                _parentName = parent?.Name;
+            }
+            catch
+            {
+                _parentName = "Unknown";
+            }
+        }
+        else
+        {
+            _parentName = null;
+        }
+    }
+    
+    private void ClearParent()
+    {
+        _command.ParentId = null;
+        _parentName = null;
+        _hasUnsavedChanges = true;
+    }
+    
+    private void OnHasParentChanged(ChangeEventArgs e)
+    {
+        _hasParent = (bool)e.Value!;
+        if (!_hasParent)
+        {
+            _command.ParentId = null;
+            _parentName = null;
+        }
+        _hasUnsavedChanges = true;
+    }
+    
+    private async Task LoadQRCode()
+    {
+        if (_item?.QRCodeId == null) return;
+        
+        try
+        {
+            var query = new GetQRCodeByIdQuery { Id = _item.QRCodeId.Value };
+            _currentQRCode = await Mediator.Send(query);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading QR code: {ex.Message}");
+            _currentQRCode = null;
+        }
+    }
+    
+    private async Task AssignQRCode()
+    {
+        if (string.IsNullOrWhiteSpace(_qrCodeInput) || _item == null)
+            return;
+            
+        _qrCodeError = null;
+        
+        try
+        {
+            var command = new AssignQRCodeCommand
+            {
+                QRCode = _qrCodeInput.Trim(),
+                CollectibleItemHashId = Hash
+            };
+            
+            var result = await Mediator.Send(command);
+            
+            if (result.Success)
+            {
+                _currentQRCode = result.QRCode;
+                _qrCodeInput = string.Empty;
+                if (_item != null && result.QRCode != null)
+                {
+                    _item.QRCodeId = result.QRCode.Id;
+                }
+                StateHasChanged();
+            }
+            else
+            {
+                _qrCodeError = result.ErrorMessage;
+            }
+        }
+        catch
+        {
+            _qrCodeError = "An error occurred while assigning the QR code.";
+        }
+    }
+    
+    private async Task UnassignQRCode()
+    {
+        if (_currentQRCode == null || _item == null)
+            return;
+            
+        try
+        {
+            var command = new UnassignQRCodeCommand
+            {
+                CollectibleItemHashId = Hash
+            };
+            
+            var result = await Mediator.Send(command);
+            
+            if (result.Success)
+            {
+                _currentQRCode = null;
+                _qrCodeInput = string.Empty;
+                _item.QRCodeId = null;
+                StateHasChanged();
+            }
+            else
+            {
+                _qrCodeError = result.ErrorMessage ?? "Failed to unassign QR code";
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error unassigning QR code: {ex.Message}");
+            _qrCodeError = "An error occurred while unassigning the QR code.";
+        }
+    }
+    
+    private async Task ShowQRScanner()
+    {
+        if (_qrScannerModal != null)
+        {
+            await _qrScannerModal.ShowModal();
+        }
+    }
+    
+    private async Task HandleQRCodeScanned(string qrCode)
+    {
+        _qrCodeInput = qrCode;
+        await AssignQRCode();
+    }
+    
+    private void HandleScannerClose()
+    {
+        // Nothing specific needed when scanner closes
+    }
+    
+    private async Task RecomputeCollage()
+    {
+        if (_item == null) return;
+
+        _recomputingCollage = true;
+        StateHasChanged();
+
+        try
+        {
+            var command = new RecomputeCollagePreviewCommand(_item.Id);
+            var result = await Mediator.Send(command);
+
+            if (result.Success)
+            {
+                // Reload the item to pick up the new preview attachment and ID
+                var reloaded = await Mediator.Send(new GetCollectibleItemByIdQuery { Id = _item.Id });
+                if (reloaded != null)
+                {
+                    _item.PreviewImage = reloaded.PreviewImage;
+                    _item.PreviewImageId = reloaded.PreviewImageId;
+                    _command.PreviewImageId = reloaded.PreviewImageId;
+
+                    // Update base64 thumbnail if available from the result
+                    if (!string.IsNullOrEmpty(result.Base64Thumbnail) && _item.PreviewImage != null)
+                    {
+                        _item.PreviewImage.Base64PreviewThumbnail = result.Base64Thumbnail;
+                    }
+                }
+
+                StateHasChanged();
+            }
+            else
+            {
+                await LogErrorToSysLog(new Exception(result.ErrorMessage), "generating collage preview");
+            }
+        }
+        catch (Exception ex)
+        {
+            await LogErrorToSysLog(ex, "generating collage preview");
+        }
+        finally
+        {
+            _recomputingCollage = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ClearPreviewImage()
+    {
+        _command.PreviewImageId = null;
+        _selectedPreviewAttachment = null;
+        _hasUnsavedChanges = true;
+    }
+
+    private async Task ShowPreviewSelector()
+    {
+        if (_previewSelectorModal != null)
+        {
+            await _previewSelectorModal.ShowModal(_command.PreviewImageId);
+        }
+    }
+
+    private Task OnPreviewSelected(AttachmentBriefDto? selected)
+    {
+        if (selected == null)
+        {
+            _command.PreviewImageId = null;
+            _selectedPreviewAttachment = null;
+            _hasUnsavedChanges = true;
+            return Task.CompletedTask;
+        }
+
+        _command.PreviewImageId = selected.Id;
+        _selectedPreviewAttachment = selected;
+        _hasUnsavedChanges = true;
+
+        // Ensure the selected attachment is part of the item's attachments for backend validation
+        if (!_selectedAttachmentIds.Contains(selected.Id))
+        {
+            _selectedAttachmentIds.Add(selected.Id);
+        }
+        if (_item != null && !_item.Attachments.Any(a => a.Id == selected.Id))
+        {
+            _item.Attachments.Add(selected);
+        }
+
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private void OnPreviewSelectorClosed()
+    {
+        // no-op; reserved for future needs
+    }
+
+    private AttachmentBriefDto? GetCurrentPreviewBrief()
+    {
+        if (_item == null)
+        {
+            return null;
+        }
+
+        if (_command.PreviewImageId.HasValue)
+        {
+            var fromList = _item.Attachments.FirstOrDefault(a => a.Id == _command.PreviewImageId.Value);
+            if (fromList != null)
+            {
+                return fromList;
+            }
+            if (_selectedPreviewAttachment != null && _selectedPreviewAttachment.Id == _command.PreviewImageId.Value)
+            {
+                return _selectedPreviewAttachment;
+            }
+        }
+
+        // Fallback to original preview (preloaded)
+        return _item.PreviewImage != null ? new AttachmentBriefDto
+        {
+            Id = _item.PreviewImage.Id,
+            Name = _item.PreviewImage.Name,
+            OriginalFilename = _item.PreviewImage.OriginalFilename,
+            FileType = _item.PreviewImage.FileType,
+            AttachmentType = _item.PreviewImage.AttachmentType,
+            Base64PreviewThumbnail = _item.PreviewImage.Base64PreviewThumbnail,
+            Created = _item.PreviewImage.Created,
+            IsFeatured = _item.PreviewImage.IsFeatured,
+        } : null;
+    }
+
+    private string GetCurrentPreviewSrc(AttachmentBriefDto brief)
+    {
+        if (!string.IsNullOrEmpty(brief.Base64PreviewThumbnail) && !string.IsNullOrEmpty(brief.FileType))
+        {
+            return $"data:{brief.FileType};base64,{brief.Base64PreviewThumbnail}";
+        }
+        // Use direct attachment preview URL
+        var hash = HashIds.Encode(brief.Id);
+        return $"/api/attachments/{hash}/preview";
+    }
+
+    private string GetAttachmentPreviewSrc(AttachmentBriefDto att)
+    {
+        if (!string.IsNullOrEmpty(att.Base64PreviewThumbnail) && !string.IsNullOrEmpty(att.FileType))
+        {
+            return $"data:{att.FileType};base64,{att.Base64PreviewThumbnail}";
+        }
+        var hash = HashIds.Encode(att.Id);
+        return $"/api/attachments/{hash}/preview";
+    }
+
+    private async Task ShowDeleteConfirmation()
+    {
+        if (_deleteConfirmationModal != null)
+        {
+            await _deleteConfirmationModal.ShowModal();
+        }
+    }
+
+    private async Task HandleDeleteConfirmed(ChildItemAction childItemAction)
+    {
+        if (_item == null) return;
+
+        try
+        {
+            var command = new DeleteCollectibleItemCommand
+            {
+                Id = _item.Id,
+                ChildItemAction = childItemAction
+            };
+
+            var result = await Mediator.Send(command);
+
+            if (result.Success)
+            {
+                // Navigate back to the showcases page after successful deletion
+                Navigation.NavigateTo("/showcases");
+            }
+            else
+            {
+                // Handle error - the modal will display the error message
+                Console.WriteLine($"Failed to delete item: {result.ErrorMessage}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error deleting item: {ex.Message}");
+            throw; // Let the modal handle the exception
+        }
+    }
+
+    private Task HandleDeleteCancelled()
+    {
+        // Nothing special to do when delete is cancelled
+        return Task.CompletedTask;
+    }
+    
+    private async Task HandleLinkAdded()
+    {
+        // Only reload the external links to avoid losing unsaved changes
+        if (_item != null)
+        {
+            try
+            {
+                var id = HashIds.Decode(Hash);
+                var query = new GetCollectibleItemByIdQuery { Id = id };
+                var updatedItem = await Mediator.Send(query);
+                
+                if (updatedItem != null)
+                {
+                    // Update only the external references
+                    _item.ExternalReferences = updatedItem.ExternalReferences;
+                    StateHasChanged();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error refreshing links: {ex.Message}");
+            }
+        }
+    }
+
+    private async Task SetUnsavedChangesAsync(bool hasChanges)
+    {
+        _hasUnsavedChanges = hasChanges;
+        if (_jsInitialized)
+        {
+            await JSRuntime.InvokeVoidAsync("unsavedChangesHandler.setUnsavedChanges", hasChanges);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_jsInitialized)
+        {
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("unsavedChangesHandler.disable");
+            }
+            catch (JSDisconnectedException)
+            {
+                // Circuit disconnected, ignore
+            }
+        }
+    }
+}

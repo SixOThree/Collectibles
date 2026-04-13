@@ -1,0 +1,816 @@
+@page "/management/sys-logs"
+@rendermode InteractiveServerWithoutPrerender
+@attribute [Authorize(Roles = "Administrator")]
+@inherits LoggablePageBase
+@using Collectibles.Domain.Entities
+@inject ISysLogService SysLogService
+@inject ISiteConfigurationService SiteConfigurationService
+@implements IDisposable
+
+<PageTitle>System Logs - Management</PageTitle>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>
+            <i class="bi bi-terminal"></i> System Logs
+        </h1>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-warning" @onclick="ShowCleanupDialog" disabled="@_isCleaningUp">
+                @if (_isCleaningUp)
+                {
+                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                }
+                <i class="bi bi-trash"></i> Cleanup Old Logs
+            </button>
+            <button class="btn btn-outline-primary" @onclick="ExportLogs" disabled="@_isExporting">
+                @if (_isExporting)
+                {
+                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                }
+                <i class="bi bi-download"></i> Export
+            </button>
+            <button class="btn btn-primary" @onclick="RefreshLogs">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Filters Section -->
+    <div class="card mb-4">
+        <div class="card-header" @onclick="ToggleFilters" style="cursor: pointer;">
+            <h5 class="mb-0 d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-funnel"></i> Filters</span>
+                <i class="bi @(_showFilters ? "bi-chevron-up" : "bi-chevron-down")"></i>
+            </h5>
+        </div>
+        <div class="collapse @(_showFilters ? "show" : "")">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Date Range</label>
+                        <div class="input-group">
+                            <input type="datetime-local" class="form-control" @bind="_startDate" />
+                            <span class="input-group-text">to</span>
+                            <input type="datetime-local" class="form-control" @bind="_endDate" />
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Log Level</label>
+                        <select class="form-select" @bind="_minLevelFilter">
+                            <option value="">All Levels</option>
+                            @foreach (var level in Enum.GetValues<LogLevel>())
+                            {
+                                <option value="@level">@level and above</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Category</label>
+                        <input type="text" class="form-control" placeholder="Category name" @bind="_categoryFilter" />
+                    </div>
+                </div>
+                <div class="row g-3 mt-1">
+                    <div class="col-md-4">
+                        <label class="form-label">Correlation ID</label>
+                        <input type="text" class="form-control" placeholder="Correlation ID" @bind="_correlationIdFilter" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Message Search</label>
+                        <input type="text" class="form-control" placeholder="Search in log messages..." @bind="_searchFilter" />
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <div class="btn-group w-100" role="group">
+                            <button class="btn btn-primary" @onclick="ApplyFilters">
+                                <i class="bi bi-check-lg"></i> Apply Filters
+                            </button>
+                            <button class="btn btn-outline-secondary" @onclick="ClearFilters">
+                                <i class="bi bi-x-lg"></i> Clear All
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Quick Level Filters -->
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <label class="form-label">Quick Filters:</label>
+                        <div class="btn-group" role="group">
+                            <button class="btn @(_quickFilter == "all" ? "btn-primary" : "btn-outline-primary")" 
+                                    @onclick='() => SetQuickFilter("all")'>
+                                All Levels
+                            </button>
+                            <button class="btn @(_quickFilter == "errors" ? "btn-danger" : "btn-outline-danger")" 
+                                    @onclick='() => SetQuickFilter("errors")'>
+                                <i class="bi bi-x-circle"></i> Errors Only
+                            </button>
+                            <button class="btn @(_quickFilter == "warnings" ? "btn-warning" : "btn-outline-warning")" 
+                                    @onclick='() => SetQuickFilter("warnings")'>
+                                <i class="bi bi-exclamation-triangle"></i> Warnings & Above
+                            </button>
+                            <button class="btn @(_quickFilter == "info" ? "btn-info" : "btn-outline-info")" 
+                                    @onclick='() => SetQuickFilter("info")'>
+                                <i class="bi bi-info-circle"></i> Info & Above
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Bar -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="alert alert-info py-2 mb-0">
+                <i class="bi bi-info-circle"></i> 
+                Showing @_logs.Count of @_totalCount total logs
+                @if (_isLoading)
+                {
+                    <span class="ms-3">
+                        <span class="spinner-border spinner-border-sm" role="status"></span>
+                        Loading more...
+                    </span>
+                }
+                <span class="ms-3">
+                    <span class="badge bg-danger">@_errorCount Errors</span>
+                    <span class="badge bg-warning">@_warningCount Warnings</span>
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Timezone Indicator -->
+    <div class="small text-muted mb-2">
+        <i class="bi bi-clock"></i>
+        @if (_timeZoneDetected)
+        {
+            @:Times are displayed in your local time (@_browserTimeZoneId)
+        }
+        else
+        {
+            @:Times are displayed in UTC
+        }
+    </div>
+
+    <!-- Logs Table -->
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-sm mb-0" style="table-layout: fixed;">
+                    <thead class="bg-light" style="position: sticky; top: 0; z-index: 1;">
+                        <tr>
+                            <th style="width: 150px;">Timestamp</th>
+                            <th style="width: 100px;">Level</th>
+                            <th style="width: 150px;">Category</th>
+                            <th>Message</th>
+                            <th style="width: 150px;">Source</th>
+                            <th style="width: 80px;">Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (_logs.Any())
+                        {
+                            @foreach (var log in _logs)
+                            {
+                                <tr @key="log.Id" class="@GetRowClass(log.Level)">
+                                    <td>
+                                        <small>@FormatTimestamp(log.Timestamp)</small>
+                                        @if (_lastViewedId.HasValue && log.Id > _lastViewedId.Value)
+                                        {
+                                            <span class="badge bg-info ms-1">NEW</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @{
+                                            var (levelClass, levelIcon) = GetLevelClassAndIcon(log.Level);
+                                        }
+                                        <span class="badge bg-@levelClass">
+                                            <i class="bi bi-@levelIcon"></i> @log.Level
+                                        </span>
+                                    </td>
+                                    <td style="word-break: break-word; overflow-wrap: break-word;">
+                                        <small>@log.Category</small>
+                                    </td>
+                                    <td style="word-break: break-word; overflow-wrap: break-word;">
+                                        <small>
+                                            @if (log.Message.Length > 150)
+                                            {
+                                                @log.Message.Substring(0, 150)<span>...</span>
+                                            }
+                                            else
+                                            {
+                                                @log.Message
+                                            }
+                                        </small>
+                                        @if (!string.IsNullOrEmpty(log.Exception))
+                                        {
+                                            <span class="badge bg-danger ms-1">
+                                                <i class="bi bi-bug"></i> Exception
+                                            </span>
+                                        }
+                                    </td>
+                                    <td style="word-break: break-word; overflow-wrap: break-word;">
+                                        <small class="text-muted">@log.Source</small>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => ShowDetails(log)">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                            
+                            @if (_hasMore && !_isLoading)
+                            {
+                                <tr>
+                                    <td colspan="6" class="text-center py-3">
+                                        <button class="btn btn-sm btn-primary" @onclick="LoadMore">
+                                            Load More
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else if (!_isLoading)
+                        {
+                            <tr>
+                                <td colspan="6" class="text-center py-5 text-muted">
+                                    <i class="bi bi-inbox display-4 d-block mb-2"></i>
+                                    No system logs found matching your criteria
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Details Modal -->
+@if (_selectedLog != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-info-circle"></i> Log Details
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CloseDetails"></button>
+                </div>
+                <div class="modal-body">
+                    <dl class="row">
+                        <dt class="col-sm-2">ID</dt>
+                        <dd class="col-sm-10">@_selectedLog.Id</dd>
+
+                        <dt class="col-sm-2">Timestamp</dt>
+                        <dd class="col-sm-10">@FormatTimestamp(_selectedLog.Timestamp, "yyyy-MM-dd HH:mm:ss.fff")</dd>
+
+                        <dt class="col-sm-2">Level</dt>
+                        <dd class="col-sm-10">
+                            @{
+                                var (levelClass, levelIcon) = GetLevelClassAndIcon(_selectedLog.Level);
+                            }
+                            <span class="badge bg-@levelClass">
+                                <i class="bi bi-@levelIcon"></i> @_selectedLog.Level
+                            </span>
+                        </dd>
+
+                        <dt class="col-sm-2">Category</dt>
+                        <dd class="col-sm-10">@_selectedLog.Category</dd>
+
+                        <dt class="col-sm-2">Message</dt>
+                        <dd class="col-sm-10">
+                            <pre class="bg-light p-2 rounded" style="white-space: pre-wrap;">@_selectedLog.Message</pre>
+                        </dd>
+
+                        @if (!string.IsNullOrEmpty(_selectedLog.Source))
+                        {
+                            <dt class="col-sm-2">Source</dt>
+                            <dd class="col-sm-10">@_selectedLog.Source</dd>
+                        }
+
+                        @if (!string.IsNullOrEmpty(_selectedLog.CorrelationId))
+                        {
+                            <dt class="col-sm-2">Correlation ID</dt>
+                            <dd class="col-sm-10"><code>@_selectedLog.CorrelationId</code></dd>
+                        }
+
+                        @if (!string.IsNullOrEmpty(_selectedLog.UserId))
+                        {
+                            <dt class="col-sm-2">User ID</dt>
+                            <dd class="col-sm-10">@_selectedLog.UserId</dd>
+                        }
+
+                        @if (!string.IsNullOrEmpty(_selectedLog.RequestPath))
+                        {
+                            <dt class="col-sm-2">Request</dt>
+                            <dd class="col-sm-10">
+                                <code>@_selectedLog.RequestMethod @_selectedLog.RequestPath</code>
+                            </dd>
+                        }
+
+                        @if (!string.IsNullOrEmpty(_selectedLog.MachineName))
+                        {
+                            <dt class="col-sm-2">Machine</dt>
+                            <dd class="col-sm-10">@_selectedLog.MachineName</dd>
+                        }
+
+                        @if (!string.IsNullOrEmpty(_selectedLog.ProcessName))
+                        {
+                            <dt class="col-sm-2">Process</dt>
+                            <dd class="col-sm-10">
+                                @_selectedLog.ProcessName
+                                @if (_selectedLog.ThreadId.HasValue)
+                                {
+                                    <span class="text-muted">(Thread: @_selectedLog.ThreadId)</span>
+                                }
+                            </dd>
+                        }
+
+                        @if (!string.IsNullOrEmpty(_selectedLog.Properties))
+                        {
+                            <dt class="col-sm-2">Properties</dt>
+                            <dd class="col-sm-10">
+                                <pre class="bg-light p-2 rounded" style="max-height: 200px; overflow-y: auto;">@FormatJson(_selectedLog.Properties)</pre>
+                            </dd>
+                        }
+
+                        @if (!string.IsNullOrEmpty(_selectedLog.Exception))
+                        {
+                            <dt class="col-sm-2">Exception</dt>
+                            <dd class="col-sm-10">
+                                <div class="alert alert-danger">
+                                    <pre style="white-space: pre-wrap;">@_selectedLog.Exception</pre>
+                                </div>
+                            </dd>
+                        }
+
+                        @if (!string.IsNullOrEmpty(_selectedLog.StackTrace))
+                        {
+                            <dt class="col-sm-2">Stack Trace</dt>
+                            <dd class="col-sm-10">
+                                <pre class="bg-dark text-light p-2 rounded" style="max-height: 300px; overflow-y: auto;">@_selectedLog.StackTrace</pre>
+                            </dd>
+                        }
+                    </dl>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-primary" @onclick="CopyLogToClipboard">
+                        <i class="bi bi-clipboard"></i> @(_copyButtonText)
+                    </button>
+                    <button type="button" class="btn btn-secondary" @onclick="CloseDetails">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Cleanup Dialog -->
+@if (_showCleanupDialog)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-trash"></i> Cleanup Old Logs
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="() => _showCleanupDialog = false"></button>
+                </div>
+                <div class="modal-body">
+                    <p>This will permanently delete system logs older than the specified number of days.</p>
+                    <div class="mb-3">
+                        <label class="form-label">Delete logs older than:</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" @bind="_cleanupDays" min="1" max="365" />
+                            <span class="input-group-text">days</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => _showCleanupDialog = false">Cancel</button>
+                    <button type="button" class="btn btn-danger" @onclick="PerformCleanup">
+                        <i class="bi bi-trash"></i> Delete Old Logs
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    // Removed timer - no longer using virtual scrolling
+    private bool _isLoading = false;
+    private bool _isExporting = false;
+    private bool _isCleaningUp = false;
+    private bool _showFilters = true;
+    private bool _hasMore = true;
+    private bool _showCleanupDialog = false;
+    
+    private string _copyButtonText = "Copy";
+    private List<SysLog> _logs = new();
+    private SysLog? _selectedLog;
+    private int _currentPage = 1;
+    private int _pageSize = 50;
+    private int _totalCount = 0;
+    private int _errorCount = 0;
+    private int _warningCount = 0;
+    private int _cleanupDays = 30;
+    private long? _lastViewedId;
+
+    // Filter fields
+    private DateTime? _startDate;
+    private DateTime? _endDate;
+    private LogLevel? _minLevelFilter;
+    private string _categoryFilter = string.Empty;
+    private string _correlationIdFilter = string.Empty;
+    private string _searchFilter = string.Empty;
+    private string _quickFilter = "all";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadLastViewedId();
+        await LoadLogs();
+        await SaveLastViewedId();
+        await CountLogLevels();
+    }
+
+    private async Task LoadLastViewedId()
+    {
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authState.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (!string.IsNullOrEmpty(userId))
+            {
+                var value = await SiteConfigurationService.GetConfigurationValueAsync($"LastViewedSysLogId:{userId}");
+                if (long.TryParse(value, out var id))
+                {
+                    _lastViewedId = id;
+                }
+            }
+        }
+        catch
+        {
+            // Leave as null - no badges on error
+        }
+    }
+
+    private async Task SaveLastViewedId()
+    {
+        try
+        {
+            if (!_logs.Any()) return;
+            var maxId = _logs.Max(l => l.Id);
+
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authState.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (!string.IsNullOrEmpty(userId))
+            {
+                await SiteConfigurationService.SetConfigurationValueAsync(
+                    $"LastViewedSysLogId:{userId}",
+                    maxId.ToString());
+            }
+        }
+        catch
+        {
+            // Silently fail - don't disrupt UX for tracking failures
+        }
+    }
+
+    private async Task LoadLogs(bool append = false)
+    {
+        _isLoading = true;
+        
+        try
+        {
+            var logs = await SysLogService.GetSysLogsAsync(
+                minLevel: _minLevelFilter,
+                startDate: _startDate,
+                endDate: _endDate,
+                category: _categoryFilter,
+                correlationId: _correlationIdFilter,
+                pageNumber: _currentPage,
+                pageSize: _pageSize);
+
+            var logsList = logs.ToList();
+            
+            if (append)
+            {
+                _logs.AddRange(logsList);
+            }
+            else
+            {
+                _logs = logsList;
+            }
+
+            _hasMore = logsList.Count == _pageSize;
+
+            // Get total count
+            _totalCount = await SysLogService.GetSysLogCountAsync(
+                minLevel: _minLevelFilter,
+                startDate: _startDate,
+                endDate: _endDate,
+                category: _categoryFilter,
+                correlationId: _correlationIdFilter);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading logs: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task CountLogLevels()
+    {
+        var yesterday = DateTime.UtcNow.AddDays(-1);
+        
+        _errorCount = await SysLogService.GetSysLogCountAsync(
+            minLevel: LogLevel.Error,
+            startDate: yesterday);
+            
+        _warningCount = await SysLogService.GetSysLogCountAsync(
+            minLevel: LogLevel.Warning,
+            startDate: yesterday) - _errorCount;
+    }
+
+    private async Task LoadMore()
+    {
+        if (_isLoading || !_hasMore) return;
+        
+        _currentPage++;
+        await LoadLogs(append: true);
+    }
+
+    private Task OnScroll()
+    {
+        // Removed - no longer using virtual scrolling
+        return Task.CompletedTask;
+    }
+
+    private async Task ApplyFilters()
+    {
+        _currentPage = 1;
+        _logs.Clear();
+        await LoadLogs();
+        
+        // Log search action
+        await EventLogService.LogEventAsync(
+            EventAction.Search, 
+            "SysLog", 
+            null, 
+            "System logs search",
+            additionalData: System.Text.Json.JsonSerializer.Serialize(new 
+            { 
+                StartDate = _startDate,
+                EndDate = _endDate,
+                MinLevelFilter = _minLevelFilter?.ToString(),
+                CategoryFilter = _categoryFilter,
+                CorrelationIdFilter = _correlationIdFilter,
+                SearchFilter = _searchFilter,
+                QuickFilter = _quickFilter,
+                ResultCount = _logs.Count,
+                TotalCount = _totalCount
+            }));
+    }
+
+    private async Task ClearFilters()
+    {
+        _startDate = null;
+        _endDate = null;
+        _minLevelFilter = null;
+        _categoryFilter = string.Empty;
+        _correlationIdFilter = string.Empty;
+        _searchFilter = string.Empty;
+        _quickFilter = "all";
+        
+        await ApplyFilters();
+        
+        // Log clear filters action
+        await EventLogService.LogEventAsync(EventAction.Other, "SysLog", null, "Clear system log filters");
+    }
+
+    private async Task RefreshLogs()
+    {
+        _currentPage = 1;
+        await LoadLogs();
+        await CountLogLevels();
+    }
+
+    private void ToggleFilters()
+    {
+        _showFilters = !_showFilters;
+    }
+
+    private async Task SetQuickFilter(string filter)
+    {
+        _quickFilter = filter;
+        
+        switch (filter)
+        {
+            case "errors":
+                _minLevelFilter = LogLevel.Error;
+                break;
+            case "warnings":
+                _minLevelFilter = LogLevel.Warning;
+                break;
+            case "info":
+                _minLevelFilter = LogLevel.Information;
+                break;
+            default:
+                _minLevelFilter = null;
+                break;
+        }
+        
+        await ApplyFilters();
+        
+        // Log quick filter action
+        await EventLogService.LogEventAsync(
+            EventAction.Search, 
+            "SysLog", 
+            null, 
+            $"Quick filter: {filter}",
+            additionalData: System.Text.Json.JsonSerializer.Serialize(new 
+            { 
+                QuickFilter = filter,
+                MinLevel = _minLevelFilter?.ToString()
+            }));
+    }
+
+    private void ShowDetails(SysLog log)
+    {
+        _selectedLog = log;
+    }
+
+    private void CloseDetails()
+    {
+        _selectedLog = null;
+        _copyButtonText = "Copy";
+    }
+
+    private async Task CopyLogToClipboard()
+    {
+        if (_selectedLog == null) return;
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"ID: {_selectedLog.Id}");
+        sb.AppendLine($"Timestamp: {FormatTimestamp(_selectedLog.Timestamp, "yyyy-MM-dd HH:mm:ss.fff")}");
+        sb.AppendLine($"Level: {_selectedLog.Level}");
+        if (!string.IsNullOrEmpty(_selectedLog.Category))
+            sb.AppendLine($"Category: {_selectedLog.Category}");
+        sb.AppendLine($"Message: {_selectedLog.Message}");
+        if (!string.IsNullOrEmpty(_selectedLog.Source))
+            sb.AppendLine($"Source: {_selectedLog.Source}");
+        if (!string.IsNullOrEmpty(_selectedLog.CorrelationId))
+            sb.AppendLine($"Correlation ID: {_selectedLog.CorrelationId}");
+        if (!string.IsNullOrEmpty(_selectedLog.UserId))
+            sb.AppendLine($"User ID: {_selectedLog.UserId}");
+        if (!string.IsNullOrEmpty(_selectedLog.RequestPath))
+            sb.AppendLine($"Request: {_selectedLog.RequestMethod} {_selectedLog.RequestPath}");
+        if (!string.IsNullOrEmpty(_selectedLog.MachineName))
+            sb.AppendLine($"Machine: {_selectedLog.MachineName}");
+        if (!string.IsNullOrEmpty(_selectedLog.ProcessName))
+        {
+            var thread = _selectedLog.ThreadId.HasValue ? $" (Thread: {_selectedLog.ThreadId})" : "";
+            sb.AppendLine($"Process: {_selectedLog.ProcessName}{thread}");
+        }
+        if (!string.IsNullOrEmpty(_selectedLog.Properties))
+            sb.AppendLine($"Properties:\n{FormatJson(_selectedLog.Properties)}");
+        if (!string.IsNullOrEmpty(_selectedLog.Exception))
+            sb.AppendLine($"Exception:\n{_selectedLog.Exception}");
+        if (!string.IsNullOrEmpty(_selectedLog.StackTrace))
+            sb.AppendLine($"Stack Trace:\n{_selectedLog.StackTrace}");
+
+        await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", sb.ToString());
+        _copyButtonText = "Copied!";
+        StateHasChanged();
+    }
+
+    private void ShowCleanupDialog()
+    {
+        _showCleanupDialog = true;
+    }
+
+    private async Task PerformCleanup()
+    {
+        _isCleaningUp = true;
+        _showCleanupDialog = false;
+        
+        try
+        {
+            var beforeCount = _totalCount;
+            await SysLogService.CleanupOldLogsAsync(_cleanupDays);
+            await RefreshLogs();
+            var deletedCount = beforeCount - _totalCount;
+            
+            // Log the cleanup action
+            await EventLogService.LogEventAsync(
+                EventAction.Delete,
+                "SysLog",
+                null,
+                "Cleanup old system logs",
+                additionalData: System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    CleanupDays = _cleanupDays,
+                    BeforeCount = beforeCount,
+                    AfterCount = _totalCount,
+                    DeletedCount = deletedCount
+                }));
+        }
+        finally
+        {
+            _isCleaningUp = false;
+        }
+    }
+
+    private string GetRowClass(LogLevel level)
+    {
+        return level switch
+        {
+            LogLevel.Error or LogLevel.Critical => "table-danger",
+            LogLevel.Warning => "table-warning",
+            _ => ""
+        };
+    }
+
+    private (string cssClass, string icon) GetLevelClassAndIcon(LogLevel level)
+    {
+        return level switch
+        {
+            LogLevel.Critical => ("danger", "x-octagon-fill"),
+            LogLevel.Error => ("danger", "x-circle-fill"),
+            LogLevel.Warning => ("warning", "exclamation-triangle-fill"),
+            LogLevel.Information => ("info", "info-circle-fill"),
+            LogLevel.Debug => ("secondary", "bug-fill"),
+            LogLevel.Trace => ("light text-dark", "activity"),
+            _ => ("secondary", "question-circle")
+        };
+    }
+
+    private string FormatJson(string? json)
+    {
+        if (string.IsNullOrEmpty(json)) return string.Empty;
+        
+        try
+        {
+            var parsed = System.Text.Json.JsonDocument.Parse(json);
+            return System.Text.Json.JsonSerializer.Serialize(parsed, new System.Text.Json.JsonSerializerOptions 
+            { 
+                WriteIndented = true 
+            });
+        }
+        catch
+        {
+            return json;
+        }
+    }
+
+    private async Task ExportLogs()
+    {
+        _isExporting = true;
+        
+        try
+        {
+            // In a real implementation, this would call an export command
+            await Task.Delay(1000); // Simulate export
+            
+            // Log the export action
+            await EventLogService.LogEventAsync(
+                EventAction.Export,
+                "SysLog",
+                null,
+                "Export system logs",
+                additionalData: System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    TotalCount = _totalCount,
+                    ExportedCount = _logs.Count,
+                    Filters = new
+                    {
+                        StartDate = _startDate,
+                        EndDate = _endDate,
+                        MinLevelFilter = _minLevelFilter?.ToString(),
+                        CategoryFilter = _categoryFilter,
+                        CorrelationIdFilter = _correlationIdFilter,
+                        SearchFilter = _searchFilter
+                    }
+                }));
+            
+            await JSRuntime.InvokeVoidAsync("alert", "Export functionality will be implemented");
+        }
+        finally
+        {
+            _isExporting = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        // Cleanup if needed
+    }
+}

@@ -1,0 +1,68 @@
+@if (ShowImage)
+{
+    <img src="@Src" 
+         alt="@Alt" 
+         class="@($"{Class} {(_isLoading ? "loading" : "")} {(_hasError ? "error" : "")}")"
+         style="@Style"
+         loading="lazy"
+         @onload="OnImageLoad"
+         @onerror="OnImageError" />
+}
+else if (_isLoading)
+{
+    <div class="@($"image-placeholder d-flex flex-column align-items-center justify-content-center bg-light border rounded-1 {PlaceholderClass}")" style="@Style">
+        <Spinner Type="SpinnerType.Dots" Color="SpinnerColor.Secondary" />
+    </div>
+}
+else if (_hasError)
+{
+    <div class="@($"image-error d-flex flex-column align-items-center justify-content-center bg-light border rounded-1 {PlaceholderClass}")" style="@Style">
+        <i class="bi bi-image-alt text-muted" style="font-size: 2rem;"></i>
+        <p class="text-muted small mt-2">Image unavailable</p>
+    </div>
+}
+
+@code {
+    [Parameter] public string? Src { get; set; }
+    [Parameter] public string? Alt { get; set; }
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public string? Style { get; set; }
+    [Parameter] public string? PlaceholderClass { get; set; }
+    [Parameter] public bool ShowPlaceholder { get; set; } = true;
+    
+    private bool _isLoading = true;
+    private bool _hasError = false;
+    
+    private bool ShowImage => !string.IsNullOrEmpty(Src) && (!_hasError || !ShowPlaceholder);
+    
+    protected override void OnParametersSet()
+    {
+        if (string.IsNullOrEmpty(Src))
+        {
+            _isLoading = false;
+            _hasError = true;
+        }
+        else if (Src != _previousSrc)
+        {
+            _isLoading = true;
+            _hasError = false;
+        }
+        _previousSrc = Src;
+    }
+    
+    private string? _previousSrc;
+    
+    private void OnImageLoad()
+    {
+        _isLoading = false;
+        _hasError = false;
+        StateHasChanged();
+    }
+    
+    private void OnImageError()
+    {
+        _isLoading = false;
+        _hasError = true;
+        StateHasChanged();
+    }
+}

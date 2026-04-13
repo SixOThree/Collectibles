@@ -1,0 +1,623 @@
+@using Collectibles.Application.Features.ContentDefinitions.Commands
+@using Collectibles.Domain.Constants
+@using Collectibles.Domain.ValueObjects.Templates
+@using Collectibles.Application.Common.Services
+@using System.Text.Json
+@inject IInflationCalculationService InflationService
+
+<div class="dynamic-field mb-3">
+    <label for="@FieldId" class="form-label">
+        @FieldDefinition.Label
+        @if (FieldDefinition.IsRequired)
+        {
+            <span class="text-danger">*</span>
+        }
+    </label>
+
+    @switch (FieldDefinition.FieldType)
+    {
+        case FieldType.Text:
+            <input type="text"
+                   id="@FieldId"
+                   class="form-control @(_hasError ? "is-invalid" : "")"
+                   @bind="_localStringValue"
+                   @bind:event="oninput"
+                   @bind:after="ValidateLocalTextValue"
+                   @onfocusout="PropagateTextValue"
+                   placeholder="@FieldDefinition.Placeholder"
+                   required="@FieldDefinition.IsRequired" />
+            break;
+
+        case FieldType.MultilineText:
+            <textarea id="@FieldId"
+                      class="form-control @(_hasError ? "is-invalid" : "")"
+                      rows="3"
+                      @bind="_localStringValue"
+                      @bind:event="oninput"
+                      @bind:after="ValidateLocalTextValue"
+                      @onfocusout="PropagateTextValue"
+                      placeholder="@FieldDefinition.Placeholder"
+                      required="@FieldDefinition.IsRequired"></textarea>
+            break;
+
+        case FieldType.LargeText:
+            <textarea id="@FieldId"
+                      class="form-control @(_hasError ? "is-invalid" : "")"
+                      rows="6"
+                      @bind="_localStringValue"
+                      @bind:event="oninput"
+                      @bind:after="ValidateLocalTextValue"
+                      @onfocusout="PropagateTextValue"
+                      placeholder="@FieldDefinition.Placeholder"
+                      required="@FieldDefinition.IsRequired"></textarea>
+            break;
+
+        case FieldType.Number:
+            <input type="number" 
+                   id="@FieldId" 
+                   class="form-control @(_hasError ? "is-invalid" : "")"
+                   value="@GetStringValue()"
+                   @oninput="OnInputChanged"
+                   placeholder="@FieldDefinition.Placeholder"
+                   required="@FieldDefinition.IsRequired"
+                   step="@(FieldDefinition.ValidationRules.AllowDecimals ? "any" : "1")" />
+            break;
+
+        case FieldType.Date:
+            <input type="date" 
+                   id="@FieldId" 
+                   class="form-control @(_hasError ? "is-invalid" : "")"
+                   value="@GetDateValue()"
+                   @oninput="OnInputChanged"
+                   required="@FieldDefinition.IsRequired" />
+            break;
+
+        case FieldType.DateTime:
+            <input type="datetime-local" 
+                   id="@FieldId" 
+                   class="form-control @(_hasError ? "is-invalid" : "")"
+                   value="@GetDateTimeValue()"
+                   @oninput="OnInputChanged"
+                   required="@FieldDefinition.IsRequired" />
+            break;
+
+        case FieldType.Boolean:
+            <div class="form-check pt-1">
+                <input type="checkbox" 
+                       id="@FieldId" 
+                       class="form-check-input @(_hasError ? "is-invalid" : "")"
+                       checked="@GetBooleanValue()"
+                       @onchange="OnCheckboxChanged" />
+                <label class="form-check-label" for="@FieldId">
+                    @(!string.IsNullOrEmpty(FieldDefinition.Placeholder) ? FieldDefinition.Placeholder : "Yes")
+                </label>
+            </div>
+            break;
+
+        case FieldType.Dropdown:
+            var dropdownOptions = GetDropdownOptions();
+            var currentValue = GetStringValue();
+            <select id="@FieldId" 
+                    class="form-select @(_hasError ? "is-invalid" : "")"
+                    @onchange="OnDropdownChanged"
+                    required="@FieldDefinition.IsRequired">
+                <option value="">-- Select an option --</option>
+                @foreach (var option in dropdownOptions)
+                {
+                    <option value="@option" selected="@(currentValue == option)">@option</option>
+                }
+            </select>
+            break;
+
+        case FieldType.InflationAdjustedPrice:
+            @if (ReadOnly)
+            {
+                var priceValue = GetInflationAdjustedPriceValue();
+                if (priceValue != null && priceValue.Price > 0)
+                {
+                    var adjustedPrice = InflationService.CalculateAdjustedPrice(priceValue.Price, priceValue.Year);
+                    <div class="inflation-adjusted-price">
+                        <span class="adjusted-value">${adjustedPrice:N2}</span>
+                        <button type="button" class="btn btn-sm btn-link p-0 ms-1" 
+                                title="Original: @priceValue.ToString()"
+                                data-bs-toggle="tooltip">
+                            <i class="bi bi-info-circle"></i>
+                        </button>
+                    </div>
+                }
+                else
+                {
+                    <span class="text-muted">Not set</span>
+                }
+            }
+            else
+            {
+                var priceValue = GetInflationAdjustedPriceValue() ?? new InflationAdjustedPriceValue();
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <div class="input-group">
+                            <span class="input-group-text text-muted">$</span>
+                            <input type="number"
+                                   id="@($"{FieldId}_price")"
+                                   class="form-control @(_hasError ? "is-invalid" : "")"
+                                   value="@priceValue.Price"
+                                   @oninput="@(e => OnInflationPriceChanged(e, true))"
+                                   placeholder="Price"
+                                   step="0.01"
+                                   min="0"
+                                   required="@FieldDefinition.IsRequired" />
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <input type="number" 
+                               id="@($"{FieldId}_year")" 
+                               class="form-control @(_hasError ? "is-invalid" : "")"
+                               value="@priceValue.Year"
+                               @oninput="@(e => OnInflationPriceChanged(e, false))"
+                               placeholder="Year"
+                               min="@CpiData.MinYear"
+                               max="@CpiData.MaxYear"
+                               required="@FieldDefinition.IsRequired" />
+                    </div>
+                </div>
+                @if (priceValue.Price > 0 && InflationService.IsValidYear(priceValue.Year))
+                {
+                    var adjustedPrice = InflationService.CalculateAdjustedPrice(priceValue.Price, priceValue.Year);
+                }
+            }
+            break;
+
+        default:
+            <input type="text"
+                   id="@FieldId"
+                   class="form-control @(_hasError ? "is-invalid" : "")"
+                   @bind="_localStringValue"
+                   @bind:event="oninput"
+                   @bind:after="ValidateLocalTextValue"
+                   @onfocusout="PropagateTextValue"
+                   placeholder="@FieldDefinition.Placeholder"
+                   required="@FieldDefinition.IsRequired" />
+            break;
+    }
+
+    @if (!string.IsNullOrEmpty(FieldDefinition.HelpText))
+    {
+        <small class="form-text text-muted">@FieldDefinition.HelpText</small>
+    }
+
+    @if (_hasError && !string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="invalid-feedback d-block">
+            @_errorMessage
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public FieldDefinitionDto FieldDefinition { get; set; } = new();
+    [Parameter] public object? Value { get; set; }
+    [Parameter] public EventCallback<object?> ValueChanged { get; set; }
+    [Parameter] public bool ReadOnly { get; set; } = false;
+
+    private string FieldId => $"field_{FieldDefinition.Name}";
+    private bool _hasError = false;
+    private string _errorMessage = string.Empty;
+    private string _localStringValue = string.Empty;
+
+    protected override void OnParametersSet()
+    {
+        _localStringValue = GetStringValue();
+    }
+
+    /// <summary>
+    /// Validates the current field value and updates error state. Returns true if valid.
+    /// </summary>
+    public bool Validate()
+    {
+        if (ReadOnly) return true;
+
+        try
+        {
+            if (FieldDefinition.FieldType == FieldType.InflationAdjustedPrice)
+            {
+                var currentValue = GetInflationAdjustedPriceValue();
+                if (currentValue == null || currentValue.Price <= 0)
+                {
+                    if (FieldDefinition.IsRequired)
+                    {
+                        throw new ValidationException($"{FieldDefinition.Label} price is required.");
+                    }
+                }
+                else if (!InflationService.IsValidYear(currentValue.Year))
+                {
+                    throw new ValidationException($"Year must be between {CpiData.MinYear} and {CpiData.MaxYear}. CPI data is only available through {CpiData.MaxYear}.");
+                }
+            }
+            else if (IsTextFieldType())
+            {
+                var convertedValue = ConvertValue(_localStringValue);
+                ValidateValue(convertedValue);
+                // Propagate pending text value so it's included in the save
+                // even if the field hasn't lost focus yet
+                _ = ValueChanged.InvokeAsync(convertedValue);
+            }
+            else
+            {
+                ValidateValue(Value);
+            }
+
+            _hasError = false;
+            _errorMessage = string.Empty;
+            StateHasChanged();
+            return true;
+        }
+        catch (ValidationException ex)
+        {
+            _hasError = true;
+            _errorMessage = ex.Message;
+            StateHasChanged();
+            return false;
+        }
+    }
+
+    private string GetStringValue()
+    {
+        if (Value == null) return FieldDefinition.DefaultValue ?? string.Empty;
+        return Value.ToString() ?? string.Empty;
+    }
+
+    private string GetDateValue()
+    {
+        if (Value == null) return string.Empty;
+        
+        if (DateTime.TryParse(Value.ToString(), out var date))
+        {
+            return date.ToString("yyyy-MM-dd");
+        }
+        
+        return string.Empty;
+    }
+
+    private string GetDateTimeValue()
+    {
+        if (Value == null) return string.Empty;
+        
+        if (DateTime.TryParse(Value.ToString(), out var dateTime))
+        {
+            return dateTime.ToString("yyyy-MM-ddTHH:mm");
+        }
+        
+        return string.Empty;
+    }
+
+    private bool GetBooleanValue()
+    {
+        if (Value == null) return false;
+        
+        if (bool.TryParse(Value.ToString(), out var boolValue))
+        {
+            return boolValue;
+        }
+        
+        return false;
+    }
+    
+    private InflationAdjustedPriceValue? GetInflationAdjustedPriceValue()
+    {
+        if (Value == null) return null;
+        
+        // If Value is already an InflationAdjustedPriceValue, return it
+        if (Value is InflationAdjustedPriceValue priceValue)
+        {
+            return priceValue;
+        }
+        
+        // If Value is a JSON string, deserialize it
+        if (Value is string jsonString && !string.IsNullOrWhiteSpace(jsonString))
+        {
+            try
+            {
+                return JsonSerializer.Deserialize<InflationAdjustedPriceValue>(jsonString);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+        
+        return null;
+    }
+
+    private async Task OnInputChanged(ChangeEventArgs e)
+    {
+        if (ReadOnly) return;
+
+        var newValue = e.Value?.ToString();
+        object? convertedValue = null;
+
+        try
+        {
+            convertedValue = ConvertValue(newValue);
+            ValidateValue(convertedValue);
+            _hasError = false;
+            _errorMessage = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            _hasError = true;
+            _errorMessage = ex.Message;
+        }
+
+        await ValueChanged.InvokeAsync(convertedValue);
+    }
+
+    private void ValidateLocalTextValue()
+    {
+        if (ReadOnly) return;
+
+        try
+        {
+            var convertedValue = ConvertValue(_localStringValue);
+            ValidateValue(convertedValue);
+            _hasError = false;
+            _errorMessage = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            _hasError = true;
+            _errorMessage = ex.Message;
+        }
+    }
+
+    private async Task PropagateTextValue()
+    {
+        if (ReadOnly) return;
+
+        object? convertedValue = null;
+        try
+        {
+            convertedValue = ConvertValue(_localStringValue);
+        }
+        catch
+        {
+            convertedValue = _localStringValue;
+        }
+
+        await ValueChanged.InvokeAsync(convertedValue);
+    }
+
+    private bool IsTextFieldType()
+    {
+        return FieldDefinition.FieldType is FieldType.Text or FieldType.MultilineText or FieldType.LargeText;
+    }
+
+    private async Task OnCheckboxChanged(ChangeEventArgs e)
+    {
+        if (ReadOnly) return;
+
+        var boolValue = e.Value as bool? ?? false;
+        await ValueChanged.InvokeAsync(boolValue);
+    }
+    
+    private async Task OnDropdownChanged(ChangeEventArgs e)
+    {
+        if (ReadOnly) return;
+
+        var selectedValue = e.Value?.ToString();
+        await ValueChanged.InvokeAsync(string.IsNullOrEmpty(selectedValue) ? null : selectedValue);
+    }
+    
+    private List<string> GetDropdownOptions()
+    {
+        if (FieldDefinition.Options.TryGetValue("dropdownOptions", out var optionsObj))
+        {
+            if (optionsObj is List<string> options)
+            {
+                return options;
+            }
+            
+            // Handle case where options might be stored as JsonElement
+            if (optionsObj is System.Text.Json.JsonElement jsonElement && jsonElement.ValueKind == System.Text.Json.JsonValueKind.Array)
+            {
+                var optionsList = new List<string>();
+                foreach (var item in jsonElement.EnumerateArray())
+                {
+                    if (item.ValueKind == System.Text.Json.JsonValueKind.String)
+                    {
+                        optionsList.Add(item.GetString() ?? string.Empty);
+                    }
+                }
+                return optionsList;
+            }
+        }
+        
+        return new List<string>();
+    }
+    
+    private async Task OnInflationPriceChanged(ChangeEventArgs e, bool isPriceField)
+    {
+        if (ReadOnly) return;
+        
+        var currentValue = GetInflationAdjustedPriceValue() ?? new InflationAdjustedPriceValue();
+        var newValue = e.Value?.ToString();
+        
+        try
+        {
+            if (isPriceField)
+            {
+                if (decimal.TryParse(newValue, out var price))
+                {
+                    currentValue.Price = price;
+                }
+            }
+            else
+            {
+                if (int.TryParse(newValue, out var year))
+                {
+                    currentValue.Year = year;
+                }
+            }
+            
+            // Validate the inflation adjusted price
+            if (FieldDefinition.IsRequired && currentValue.Price <= 0)
+            {
+                throw new ValidationException($"{FieldDefinition.Label} price is required.");
+            }
+            
+            if (!InflationService.IsValidYear(currentValue.Year))
+            {
+                throw new ValidationException($"Year must be between {CpiData.MinYear} and {CpiData.MaxYear}. CPI data is only available through {CpiData.MaxYear}.");
+            }
+            
+            _hasError = false;
+            _errorMessage = string.Empty;
+            
+            // Serialize to JSON for storage
+            var jsonValue = JsonSerializer.Serialize(currentValue);
+            await ValueChanged.InvokeAsync(jsonValue);
+        }
+        catch (ValidationException ex)
+        {
+            _hasError = true;
+            _errorMessage = ex.Message;
+        }
+    }
+
+    private object? ConvertValue(string? stringValue)
+    {
+        if (string.IsNullOrEmpty(stringValue))
+        {
+            return FieldDefinition.FieldType switch
+            {
+                FieldType.Boolean => false,
+                FieldType.Number => (decimal?)null,
+                FieldType.Date => (DateTime?)null,
+                FieldType.DateTime => (DateTime?)null,
+                FieldType.InflationAdjustedPrice => null,
+                FieldType.Dropdown => null,
+                _ => null
+            };
+        }
+
+        return FieldDefinition.FieldType switch
+        {
+            FieldType.Number => decimal.TryParse(stringValue, out var decimalValue) ? decimalValue : throw new FormatException("Invalid number format"),
+            FieldType.Date => DateTime.TryParse(stringValue, out var dateValue) ? dateValue : throw new FormatException("Invalid date format"),
+            FieldType.DateTime => DateTime.TryParse(stringValue, out var dateTimeValue) ? dateTimeValue : throw new FormatException("Invalid date/time format"),
+            FieldType.Boolean => bool.TryParse(stringValue, out var boolValue) ? boolValue : throw new FormatException("Invalid boolean format"),
+            FieldType.InflationAdjustedPrice => stringValue, // Already handled as JSON in OnInflationPriceChanged
+            FieldType.Dropdown => stringValue, // Dropdown values are stored as strings
+            _ => stringValue
+        };
+    }
+
+    private void ValidateValue(object? value)
+    {
+        // Required field validation
+        if (FieldDefinition.IsRequired)
+        {
+            if (value == null || (value is string str && string.IsNullOrWhiteSpace(str)))
+            {
+                throw new ValidationException($"{FieldDefinition.Label} is required.");
+            }
+            
+            // Special handling for InflationAdjustedPrice
+            if (FieldDefinition.FieldType == FieldType.InflationAdjustedPrice && value is string jsonStr)
+            {
+                try
+                {
+                    var priceValue = JsonSerializer.Deserialize<InflationAdjustedPriceValue>(jsonStr);
+                    if (priceValue == null || priceValue.Price <= 0)
+                    {
+                        throw new ValidationException($"{FieldDefinition.Label} is required.");
+                    }
+                }
+                catch (JsonException)
+                {
+                    throw new ValidationException($"{FieldDefinition.Label} has an invalid format.");
+                }
+            }
+        }
+
+        if (value == null) return;
+
+        // Validate dropdown selection
+        if (FieldDefinition.FieldType == FieldType.Dropdown && value is string dropdownValue && !string.IsNullOrEmpty(dropdownValue))
+        {
+            var validOptions = GetDropdownOptions();
+            if (!validOptions.Contains(dropdownValue))
+            {
+                throw new ValidationException($"'{dropdownValue}' is not a valid option for {FieldDefinition.Label}.");
+            }
+        }
+
+        var rules = FieldDefinition.ValidationRules;
+
+        // String validations
+        if (value is string stringValue)
+        {
+            if (rules.MinLength.HasValue && stringValue.Length < rules.MinLength.Value)
+            {
+                throw new ValidationException($"{FieldDefinition.Label} must be at least {rules.MinLength.Value} characters long.");
+            }
+
+            if (rules.MaxLength.HasValue && stringValue.Length > rules.MaxLength.Value)
+            {
+                throw new ValidationException($"{FieldDefinition.Label} must not exceed {rules.MaxLength.Value} characters.");
+            }
+
+            if (!string.IsNullOrEmpty(rules.Pattern))
+            {
+                try
+                {
+                    if (!System.Text.RegularExpressions.Regex.IsMatch(stringValue, rules.Pattern))
+                    {
+                        throw new ValidationException(rules.ErrorMessage ?? $"{FieldDefinition.Label} format is invalid.");
+                    }
+                }
+                catch (ArgumentException)
+                {
+                    // Invalid regex pattern, ignore validation
+                }
+            }
+        }
+
+        // Number validations
+        if (value is decimal decimalValue)
+        {
+            if (rules.MinValue.HasValue && decimalValue < rules.MinValue.Value)
+            {
+                throw new ValidationException($"{FieldDefinition.Label} must be at least {rules.MinValue.Value}.");
+            }
+
+            if (rules.MaxValue.HasValue && decimalValue > rules.MaxValue.Value)
+            {
+                throw new ValidationException($"{FieldDefinition.Label} must not exceed {rules.MaxValue.Value}.");
+            }
+
+            if (!rules.AllowDecimals && decimalValue != Math.Floor(decimalValue))
+            {
+                throw new ValidationException($"{FieldDefinition.Label} must be a whole number.");
+            }
+        }
+
+        // Date validations
+        if (value is DateTime dateTimeValue)
+        {
+            if (rules.MinDate.HasValue && dateTimeValue < rules.MinDate.Value)
+            {
+                throw new ValidationException($"{FieldDefinition.Label} must be after {rules.MinDate.Value:MMM d, yyyy}.");
+            }
+
+            if (rules.MaxDate.HasValue && dateTimeValue > rules.MaxDate.Value)
+            {
+                throw new ValidationException($"{FieldDefinition.Label} must be before {rules.MaxDate.Value:MMM d, yyyy}.");
+            }
+        }
+    }
+
+    public class ValidationException : Exception
+    {
+        public ValidationException(string message) : base(message) { }
+    }
+}

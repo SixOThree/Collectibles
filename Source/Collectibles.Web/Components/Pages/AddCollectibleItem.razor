@@ -1,0 +1,387 @@
+@page "/showcase/{ShowcaseHash}/item/new"
+@rendermode InteractiveServerWithoutPrerender
+@attribute [Authorize]
+@inherits LoggablePageBase
+@using Collectibles.Application.Features.CollectibleItems.Commands
+@using Collectibles.Application.Features.Showcases
+@using Collectibles.Application.Features.Showcases.Queries
+@using Collectibles.Application.Features.Tags
+@using Collectibles.Application.Features.Tags.Queries
+@using Collectibles.Application.Features.ContentDefinitions
+@using Collectibles.Application.Features.ContentDefinitions.Queries
+@using Collectibles.Application.Services
+@using Collectibles.Application.Interfaces
+@using MediatR
+@using Microsoft.AspNetCore.Authorization
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+@inject IHashIdsService HashIds
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Add New Collectible Item</PageTitle>
+
+<div class="add-item-container">
+    <div class="page-header d-flex justify-content-between align-items-center mb-4">
+        <h1>Add New Collectible Item</h1>
+        <button class="btn btn-link" @onclick="NavigateBack">
+            <i class="bi bi-arrow-left"></i> Back to Showcase
+        </button>
+    </div>
+
+    @if (_loading)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else if (_unauthorized)
+    {
+        <div class="alert alert-danger">
+            <h4>Unauthorized</h4>
+            <p>You don't have permission to add items to this showcase. Only the showcase owner can add items.</p>
+            <button class="btn btn-primary" @onclick="NavigateToShowcases">Back to Showcases</button>
+        </div>
+    }
+    else if (_showcase == null)
+    {
+        <div class="alert alert-warning">
+            <h4>Showcase not found</h4>
+            <p>The showcase you're trying to add an item to doesn't exist.</p>
+            <button class="btn btn-primary" @onclick="NavigateToShowcases">Back to Showcases</button>
+        </div>
+    }
+    else
+    {
+        <EditForm Model="_command" OnValidSubmit="HandleValidSubmit">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+
+            <div class="form-section">
+                <h3>Basic Information</h3>
+                
+                <Collectibles.Web.Components.Shared.Templates.TemplateSelector 
+                    SelectedTemplateId="_command.ContentDefinitionId"
+                    SelectedTemplateIdChanged="OnTemplateChanged"
+                    SelectedTemplate="_selectedTemplate"
+                    SelectedTemplateChanged="OnSelectedTemplateObjectChanged" />
+                
+                <div class="mb-3">
+                    <label for="name" class="form-label">Name <span class="text-danger">*</span></label>
+                    <InputText id="name" class="form-control" @bind-Value="_command.Name" />
+                    <ValidationMessage For="@(() => _command.Name)" />
+                </div>
+
+                <div class="mb-3">
+                    <label for="description" class="form-label">Description</label>
+                    <InputTextArea id="description" class="form-control" @bind-Value="_command.Description" rows="4" />
+                    <ValidationMessage For="@(() => _command.Description)" />
+                </div>
+                
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="hasParent" 
+                               checked="@_hasParent"
+                               @onchange="OnHasParentChanged" />
+                        <label class="form-check-label" for="hasParent">
+                            Has Parent Item
+                        </label>
+                    </div>
+                </div>
+                
+                @if (_hasParent)
+                {
+                    <div class="mb-3">
+                        <label class="form-label">Parent Item</label>
+                        <div class="input-group">
+                            @if (_command.ParentId.HasValue && !string.IsNullOrEmpty(_parentName))
+                            {
+                                <input type="text" class="form-control" value="@_parentName" readonly />
+                                <button type="button" class="btn btn-outline-secondary" @onclick="ShowParentSelectionModal">
+                                    <i class="bi bi-pencil"></i> Change
+                                </button>
+                                <button type="button" class="btn btn-outline-danger" @onclick="ClearParent">
+                                    <i class="bi bi-x"></i> Clear
+                                </button>
+                            }
+                            else
+                            {
+                                <input type="text" class="form-control" placeholder="No parent selected" readonly />
+                                <button type="button" class="btn btn-outline-secondary" @onclick="ShowParentSelectionModal">
+                                    <i class="bi bi-search"></i> Select Parent
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+
+            @if (_command.ContentDefinitionId.HasValue)
+            {
+                <div class="form-section">
+                    @if (_isMultiEntry)
+                    {
+                        <Collectibles.Web.Components.Shared.Templates.MultiEntryEditor
+                            @ref="_multiEntryEditor"
+                            TemplateId="_command.ContentDefinitionId"
+                            Entries="_fieldValueEntries"
+                            EntriesChanged="@((entries) => _fieldValueEntries = entries)" />
+                    }
+                    else
+                    {
+                        <Collectibles.Web.Components.Shared.Templates.DynamicFieldsEditor
+                            @ref="_fieldsEditor"
+                            TemplateId="_command.ContentDefinitionId"
+                            FieldValues="_command.FieldValues"
+                            FieldValuesChanged="@((values) => _command.FieldValues = values)" />
+                    }
+                </div>
+            }
+
+
+            <div class="form-section">
+                <h3>Tags</h3>
+                <p class="text-muted">Add tags to help organize and find this item.</p>
+                <Collectibles.Web.Components.Shared.TagSelector SelectedTags="_selectedTags" SelectedTagsChanged="@((tags) => _selectedTags = tags)" MaxTags="10" />
+            </div>
+
+            @if (!string.IsNullOrEmpty(_saveError))
+            {
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    @_saveError
+                    <button type="button" class="btn-close" @onclick="@(() => _saveError = null)"></button>
+                </div>
+            }
+
+            <div class="form-actions d-flex gap-3 justify-content-end">
+                <button type="submit" class="btn btn-primary" disabled="@_submitting">
+                    @if (_submitting)
+                    {
+                        <Spinner Type="SpinnerType.Dots" Size="SpinnerSize.Small" Color="SpinnerColor.Light" Class="me-2" />
+                        <span>Creating...</span>
+                    }
+                    else
+                    {
+                        <span>Create Item</span>
+                    }
+                </button>
+                <button type="button" class="btn btn-secondary" @onclick="NavigateBack">Cancel</button>
+            </div>
+        </EditForm>
+    }
+</div>
+
+<Collectibles.Web.Components.Shared.ParentSelectionModal
+    @ref="_parentSelectionModal"
+    SelectedItemId="_command.ParentId"
+    SelectedItemIdChanged="OnParentSelected"
+    ShowcaseIds="_showcase != null ? new List<long> { _showcase.Id } : null" />
+
+@code {
+    [Parameter] public string ShowcaseHash { get; set; } = string.Empty;
+
+    private ShowcaseDetailDto? _showcase;
+    private List<TagDto> _selectedTags = new();
+    private CreateCollectibleItemCommand _command = new();
+    private ContentDefinitionSelectDto? _selectedTemplate;
+    private bool _loading = true;
+    private bool _submitting = false;
+    private bool _unauthorized = false;
+    private bool _hasParent = false;
+    private string? _parentName;
+    private string? _saveError;
+    private Collectibles.Web.Components.Shared.ParentSelectionModal? _parentSelectionModal;
+    private Collectibles.Web.Components.Shared.Templates.DynamicFieldsEditor? _fieldsEditor;
+    private Collectibles.Web.Components.Shared.Templates.MultiEntryEditor? _multiEntryEditor;
+    private bool _isMultiEntry;
+    private List<Dictionary<string, object?>> _fieldValueEntries = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        
+        try
+        {
+            var showcaseId = HashIds.Decode(ShowcaseHash);
+            _showcase = await Mediator.Send(new GetShowcaseByIdQuery(showcaseId));
+            if (_showcase != null)
+            {
+                // Check if the current user owns this showcase
+                var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+                var currentUserId = authState.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                if (_showcase.UserId != currentUserId)
+                {
+                    _unauthorized = true;
+                    _showcase = null;
+                }
+                else
+                {
+                    _command.ShowcaseId = showcaseId;
+                    
+                    // Check if parent ID is provided in query string
+                    var uri = new Uri(Navigation.Uri);
+                    var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+                    if (query.TryGetValue("parent", out var parentHash))
+                    {
+                        try
+                        {
+                            var parentId = HashIds.Decode(parentHash!);
+                            _command.ParentId = parentId;
+                            _hasParent = true;
+
+                            // Fetch parent name
+                            var parentQuery = new Collectibles.Application.Features.CollectibleItems.Queries.GetCollectibleItemByIdQuery { Id = parentId };
+                            var parent = await Mediator.Send(parentQuery);
+                            _parentName = parent?.Name;
+                        }
+                        catch (Exception ex)
+                        {
+                            await LogErrorToSysLog(ex, "decoding parent item hash from query string");
+                            // Invalid parent hash - ignore
+                        }
+                    }
+                }
+            }
+        }
+        catch (ArgumentException)
+        {
+            // Invalid hash
+            _showcase = null;
+        }
+        
+        _loading = false;
+    }
+
+
+    private async Task HandleValidSubmit()
+    {
+        _saveError = null;
+        _submitting = true;
+
+        // Validate template fields before saving
+        if (_isMultiEntry && _multiEntryEditor != null && !_multiEntryEditor.ValidateAll())
+        {
+            _saveError = "Please fix the errors in the template entries before saving.";
+            _submitting = false;
+            return;
+        }
+        else if (!_isMultiEntry && _fieldsEditor != null && !_fieldsEditor.ValidateAll())
+        {
+            _saveError = "Please fix the errors in the template fields before saving.";
+            _submitting = false;
+            return;
+        }
+
+        try
+        {
+            // Get the current user's ID from the authentication state
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authState.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userId))
+            {
+                // User authentication context not available
+                _submitting = false;
+                return;
+            }
+
+            _command.AttachmentIds = new List<long>();
+
+            _command.TagIds = _selectedTags.Select(t => t.Id).ToList();
+            _command.UserId = userId;
+
+            if (_isMultiEntry)
+            {
+                _command.FieldValueEntries = _fieldValueEntries;
+            }
+
+            var itemId = await Mediator.Send(_command);
+            Navigation.NavigateTo($"/showcase/{ShowcaseHash}");
+        }
+        catch (Exception ex)
+        {
+            await LogErrorToSysLog(ex, "creating new collectible item");
+            _saveError = "An error occurred while creating the item. Please try again.";
+            _submitting = false;
+        }
+    }
+
+    private void NavigateBack()
+    {
+        Navigation.NavigateTo($"/showcase/{ShowcaseHash}");
+    }
+
+    private void NavigateToShowcases()
+    {
+        Navigation.NavigateTo("/showcases");
+    }
+
+    private void OnTemplateChanged(long? templateId)
+    {
+        _command.ContentDefinitionId = templateId;
+        if (!templateId.HasValue)
+        {
+            _command.FieldValues.Clear();
+            _fieldValueEntries.Clear();
+        }
+    }
+
+    private void OnSelectedTemplateObjectChanged(ContentDefinitionSelectDto? template)
+    {
+        _selectedTemplate = template;
+        _isMultiEntry = template?.AllowMultipleEntries ?? false;
+    }
+    
+    private async Task ShowParentSelectionModal()
+    {
+        if (_parentSelectionModal != null)
+        {
+            await _parentSelectionModal.ShowModal();
+        }
+    }
+    
+    private async Task OnParentSelected(long? parentId)
+    {
+        _command.ParentId = parentId;
+        
+        if (parentId.HasValue)
+        {
+            // Fetch parent name
+            try
+            {
+                var query = new Collectibles.Application.Features.CollectibleItems.Queries.GetCollectibleItemByIdQuery { Id = parentId.Value };
+                var parent = await Mediator.Send(query);
+                _parentName = parent?.Name;
+            }
+            catch (Exception ex)
+            {
+                await LogErrorToSysLog(ex, "loading parent item name after selection");
+                _parentName = "Unknown";
+            }
+        }
+        else
+        {
+            _parentName = null;
+        }
+    }
+    
+    private void ClearParent()
+    {
+        _command.ParentId = null;
+        _parentName = null;
+    }
+    
+    private void OnHasParentChanged(ChangeEventArgs e)
+    {
+        _hasParent = (bool)e.Value!;
+        if (!_hasParent)
+        {
+            _command.ParentId = null;
+            _parentName = null;
+        }
+    }
+
+}
+

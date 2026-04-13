@@ -1,0 +1,88 @@
+﻿@page "/Account/Manage"
+
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
+@using Collectibles.Infrastructure.Persistence
+
+@inject UserManager<ApplicationUser> UserManager
+@inject SignInManager<ApplicationUser> SignInManager
+@inject IdentityUserAccessor UserAccessor
+@inject IdentityRedirectManager RedirectManager
+@using Collectibles.Application.Interfaces
+@using Collectibles.Domain.Entities
+@inject IEventLogService EventLogService
+
+<PageTitle>Profile</PageTitle>
+
+<h3>Profile</h3>
+<StatusMessage />
+
+<div class="row">
+    <div class="col-md-6">
+        <EditForm Model="Input" FormName="profile" OnValidSubmit="OnValidSubmitAsync" method="post">
+            <DataAnnotationsValidator />
+            <ValidationSummary class="text-danger" role="alert" />
+            <div class="form-floating mb-3">
+                <input id="email" type="text" value="@username" class="form-control" placeholder="Email" disabled />
+                <label for="email" class="form-label">Email</label>
+            </div>
+            <div class="form-floating mb-3">
+                <InputText id="display-name" @bind-Value="Input.DisplayName" class="form-control" placeholder="Please enter your display name." />
+                <label for="display-name" class="form-label">Display name</label>
+                <ValidationMessage For="() => Input.DisplayName" class="text-danger" />
+            </div>
+            <button type="submit" class="w-100 btn btn-lg btn-primary">Save</button>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    private ApplicationUser user = default!;
+    private string? username;
+    private string? displayName;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        user = await UserAccessor.GetRequiredUserAsync(HttpContext);
+        username = await UserManager.GetUserNameAsync(user);
+        displayName = user.DisplayName;
+
+        Input.DisplayName ??= displayName;
+    }
+
+    private async Task OnValidSubmitAsync()
+    {
+        if (Input.DisplayName != displayName)
+        {
+            user.DisplayName = Input.DisplayName;
+            var updateResult = await UserManager.UpdateAsync(user);
+            if (!updateResult.Succeeded)
+            {
+                RedirectManager.RedirectToCurrentPageWithStatus("Error: Failed to update display name.", HttpContext);
+                return;
+            }
+        }
+
+        await EventLogService.LogEventAsync(
+            EventAction.AccountManagement,
+            entityType: "User",
+            entityId: null,
+            entityName: user.Email,
+            additionalData: System.Text.Json.JsonSerializer.Serialize(new { Page = "ManageProfile", Action = "ProfileUpdated" }));
+        await SignInManager.RefreshSignInAsync(user);
+        RedirectManager.RedirectToCurrentPageWithStatus("Your profile has been updated", HttpContext);
+    }
+
+    private sealed class InputModel
+    {
+        [StringLength(100, ErrorMessage = "The {0} must be at most {1} characters long.")]
+        [Display(Name = "Display name")]
+        public string? DisplayName { get; set; }
+    }
+}

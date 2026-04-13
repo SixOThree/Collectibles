@@ -1,0 +1,216 @@
+@page "/Account/Manage/SyncTool"
+
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.Extensions.Options
+@using Collectibles.Infrastructure.Persistence
+@using Collectibles.Application.Interfaces
+@using Collectibles.Domain.Configuration
+@using Collectibles.Domain.Entities
+
+@inject UserManager<ApplicationUser> UserManager
+@inject IdentityUserAccessor UserAccessor
+@inject IdentityRedirectManager RedirectManager
+@inject NavigationManager NavigationManager
+@inject IApiKeyService ApiKeyService
+@inject IOptions<SyncToolSettings> SyncToolOptions
+@inject ILogger<SyncTool> Logger
+@inject IEventLogService EventLogService
+
+<PageTitle>Sync Tool</PageTitle>
+
+<h3>Sync Tool</h3>
+<StatusMessage />
+
+@if (!_syncToolGloballyEnabled || !_userSyncToolEnabled)
+{
+    <div class="alert alert-warning" role="alert">
+        @if (!_syncToolGloballyEnabled)
+        {
+            <p class="mb-0">The Sync Tool is not currently enabled on this server. Please contact an administrator for access.</p>
+        }
+        else
+        {
+            <p class="mb-0">Your account does not have Sync Tool access enabled. Please contact an administrator to request access.</p>
+        }
+    </div>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-8">
+            @* Connection Details *@
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Connection Details</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Server URL</label>
+                        <input type="text" class="form-control" value="@_serverUrl" readonly />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">API Key</label>
+                        @if (!string.IsNullOrEmpty(_newlyGeneratedKey))
+                        {
+                            <div class="alert alert-success" role="alert">
+                                <strong>Copy this key now — it won't be shown again.</strong>
+                                <div class="mt-2">
+                                    <input type="text" class="form-control font-monospace" value="@_newlyGeneratedKey" readonly />
+                                </div>
+                            </div>
+                        }
+                        else if (_hasApiKey)
+                        {
+                            <div class="d-flex align-items-center">
+                                <span class="font-monospace me-2">&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;</span>
+                                <span class="badge bg-success">Active</span>
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="text-muted mb-0">No API key generated.</p>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            @* Action Buttons *@
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Key Management</h5>
+                </div>
+                <div class="card-body">
+                    @if (!_hasApiKey && string.IsNullOrEmpty(_newlyGeneratedKey))
+                    {
+                        <form @formname="generate-key" @onsubmit="OnGenerateKeyAsync" method="post">
+                            <AntiforgeryToken />
+                            <button type="submit" class="btn btn-primary">Generate API Key</button>
+                        </form>
+                    }
+                    else
+                    {
+                        <div class="d-flex gap-2">
+                            <form @formname="regenerate-key" @onsubmit="OnRegenerateKeyAsync" method="post">
+                                <AntiforgeryToken />
+                                <button type="submit" class="btn btn-warning">Regenerate Key</button>
+                            </form>
+                            <form @formname="revoke-key" @onsubmit="OnRevokeKeyAsync" method="post">
+                                <AntiforgeryToken />
+                                <button type="submit" class="btn btn-danger"
+                                        onclick="return confirm('This will immediately disable sync access. You can generate a new key later. Continue?')">
+                                    Revoke Key
+                                </button>
+                            </form>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            @* Download Panel *@
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Download</h5>
+                </div>
+                <div class="card-body">
+                    <p>
+                        Download the latest version of the Sync Tool from GitHub:
+                    </p>
+                    <a href="https://github.com/SixOThree/Collectibles-SyncTool/releases" target="_blank" rel="noopener noreferrer" class="btn btn-outline-primary">
+                        <i class="bi bi-download me-1"></i> Download from GitHub Releases
+                    </a>
+                    <p class="text-muted mt-2 mb-0">
+                        <small>Requires Windows and .NET 10.</small>
+                    </p>
+                </div>
+            </div>
+
+            @* Quick Start *@
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Quick Start</h5>
+                </div>
+                <div class="card-body">
+                    <ol>
+                        <li>Download and install the Sync Tool from GitHub Releases.</li>
+                        <li>Enter the Server URL shown above into the application.</li>
+                        <li>Paste your API key when prompted.</li>
+                        <li>Select the showcase you want to sync.</li>
+                        <li>Select the local folder for your images.</li>
+                        <li>Click Sync to start synchronizing.</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private ApplicationUser user = default!;
+    private bool _syncToolGloballyEnabled;
+    private bool _userSyncToolEnabled;
+    private bool _hasApiKey;
+    private string _serverUrl = string.Empty;
+    private string? _newlyGeneratedKey;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        user = await UserAccessor.GetRequiredUserAsync(HttpContext);
+        _syncToolGloballyEnabled = SyncToolOptions.Value.Enabled;
+        _userSyncToolEnabled = user.SyncToolEnabled;
+        _hasApiKey = user.ApiKeyHash is not null;
+        _serverUrl = NavigationManager.BaseUri.TrimEnd('/');
+    }
+
+    private async Task OnGenerateKeyAsync()
+    {
+        var result = ApiKeyService.GenerateKey();
+        user.ApiKeyHash = result.KeyHash;
+        await UserManager.UpdateAsync(user);
+        _newlyGeneratedKey = result.RawKey;
+        _hasApiKey = true;
+
+        Logger.LogInformation("User '{UserId}' generated a new API key.", user.Id);
+        await EventLogService.LogEventAsync(
+            EventAction.AccountManagement,
+            entityType: "User",
+            entityId: null,
+            entityName: user.Email,
+            additionalData: System.Text.Json.JsonSerializer.Serialize(new { Page = "SyncTool", Action = "ApiKeyGenerated" }));
+    }
+
+    private async Task OnRegenerateKeyAsync()
+    {
+        var result = ApiKeyService.GenerateKey();
+        user.ApiKeyHash = result.KeyHash;
+        await UserManager.UpdateAsync(user);
+        _newlyGeneratedKey = result.RawKey;
+        _hasApiKey = true;
+
+        Logger.LogInformation("User '{UserId}' regenerated their API key.", user.Id);
+        await EventLogService.LogEventAsync(
+            EventAction.AccountManagement,
+            entityType: "User",
+            entityId: null,
+            entityName: user.Email,
+            additionalData: System.Text.Json.JsonSerializer.Serialize(new { Page = "SyncTool", Action = "ApiKeyRegenerated" }));
+    }
+
+    private async Task OnRevokeKeyAsync()
+    {
+        user.ApiKeyHash = null;
+        await UserManager.UpdateAsync(user);
+
+        Logger.LogInformation("User '{UserId}' revoked their API key.", user.Id);
+        await EventLogService.LogEventAsync(
+            EventAction.AccountManagement,
+            entityType: "User",
+            entityId: null,
+            entityName: user.Email,
+            additionalData: System.Text.Json.JsonSerializer.Serialize(new { Page = "SyncTool", Action = "ApiKeyRevoked" }));
+
+        RedirectManager.RedirectToCurrentPageWithStatus("API key revoked.", HttpContext);
+    }
+}

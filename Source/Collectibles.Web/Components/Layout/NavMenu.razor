@@ -1,0 +1,194 @@
+@implements IDisposable
+@using Collectibles.Application.Interfaces
+@using Collectibles.Domain.Entities
+@using Collectibles.Domain.Configuration
+@using Microsoft.Extensions.Options
+
+@inject NavigationManager NavigationManager
+@inject IEventLogService EventLogService
+@inject IOptions<SiteSettings> SiteSettings
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+    <div class="container-fluid">
+        <a class="navbar-brand p-0" href="">
+            <img src="/logo/Collectibles_Logo.png" alt="@SiteSettings.Value.SiteName" width="120" height="40" style="object-fit: contain;" />
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                <AuthorizeView>
+                    <Authorized>
+                        <li class="nav-item">
+                            <NavLink class="nav-link" href="showcases" Match="NavLinkMatch.All">
+                                <span class="bi bi-collection-nav-menu" aria-hidden="true"></span> My Showcases
+                            </NavLink>
+                        </li>
+                    </Authorized>
+                </AuthorizeView>
+
+                <li class="nav-item">
+                    <NavLink class="nav-link" href="showcases/public">
+                        <span class="bi bi-globe2-nav-menu" aria-hidden="true"></span> Browse Showcases
+                    </NavLink>
+                </li>
+
+                <AuthorizeView Roles="Administrator">
+                    <Authorized>
+                        <li class="nav-item">
+                            <NavLink class="nav-link" href="management">
+                                <span class="bi bi-grid-3x3-gap-nav-menu" aria-hidden="true"></span> Dashboard
+                            </NavLink>
+                        </li>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <span class="bi bi-speedometer2-nav-menu" aria-hidden="true"></span> Management
+                            </a>
+                            <ul class="dropdown-menu">
+                                <li><NavLink class="dropdown-item" href="users">
+                                    <span class="bi bi-people" aria-hidden="true"></span> User Management
+                                </NavLink></li>
+                                <li><NavLink class="dropdown-item" href="templates">
+                                    <span class="bi bi-file-earmark-text" aria-hidden="true"></span> Templates
+                                </NavLink></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><NavLink class="dropdown-item" href="management">
+                                    <span class="bi bi-grid-3x3-gap" aria-hidden="true"></span> Dashboard
+                                </NavLink></li>
+                                <li><NavLink class="dropdown-item" href="management/event-logs">
+                                    <span class="bi bi-calendar-event" aria-hidden="true"></span> Event Logs
+                                </NavLink></li>
+                                <li><NavLink class="dropdown-item" href="management/user-stories">
+                                    <span class="bi bi-book" aria-hidden="true"></span> User Stories
+                                </NavLink></li>
+                                <li><NavLink class="dropdown-item" href="management/sys-logs">
+                                    <span class="bi bi-terminal" aria-hidden="true"></span> System Logs
+                                </NavLink></li>
+                                <li><NavLink class="dropdown-item" href="management/email-logs">
+                                    <span class="bi bi-envelope" aria-hidden="true"></span> Email Logs
+                                </NavLink></li>
+                                <li><NavLink class="dropdown-item" href="management/siteconfiguration">
+                                    <span class="bi bi-gear" aria-hidden="true"></span> Site Configuration
+                                </NavLink></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="/hangfire" target="_blank">
+                                    <span class="bi bi-speedometer" aria-hidden="true"></span> Hangfire Dashboard
+                                </a></li>
+                                <li><NavLink class="dropdown-item" href="admin/showcases">
+                                    <span class="bi bi-collection" aria-hidden="true"></span> All Showcases
+                                </NavLink></li>
+                                <li><NavLink class="dropdown-item" href="admin/maintenance">
+                                    <span class="bi bi-tools" aria-hidden="true"></span> Maintenance
+                                </NavLink></li>
+                                <li><NavLink class="dropdown-item" href="admin/diagnostics">
+                                    <span class="bi bi-heart-pulse" aria-hidden="true"></span> System Diagnostics
+                                </NavLink></li>
+                                <li><NavLink class="dropdown-item" href="admin/theme-settings">
+                                    <span class="bi bi-palette" aria-hidden="true"></span> Theme Settings
+                                </NavLink></li>
+                                <li><NavLink class="dropdown-item" href="admin/ui-examples">
+                                    <span class="bi bi-palette-fill" aria-hidden="true"></span> UI Examples
+                                </NavLink></li>
+                                @if (IsDevelopment)
+                                {
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><NavLink class="dropdown-item" href="test-errors">
+                                        <span class="bi bi-bug" aria-hidden="true"></span> Test Errors
+                                    </NavLink></li>
+                                }
+                            </ul>
+                        </li>
+                    </Authorized>
+                </AuthorizeView>
+
+            </ul>
+            <ul class="navbar-nav ms-auto">
+                <li class="nav-item me-2">
+                    <ThemeSwitcher OnThemeChanged="OnThemeChanged" @rendermode="InteractiveServer" />
+                </li>
+                <AuthorizeView>
+                    <Authorized>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <span class="bi bi-person-fill-nav-menu" aria-hidden="true"></span> @(context.User.FindFirst("DisplayName")?.Value ?? context.User.Identity?.Name)
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><NavLink class="dropdown-item" href="Account/Manage">Manage Account</NavLink></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <form action="Account/Logout" method="post" class="px-3">
+                                        <AntiforgeryToken />
+                                        <input type="hidden" name="ReturnUrl" value="@currentUrl" />
+                                        <button type="submit" class="btn btn-link nav-link text-start p-0">
+                                            <span class="bi bi-arrow-bar-left-nav-menu" aria-hidden="true"></span> Logout
+                                        </button>
+                                    </form>
+                                </li>
+                            </ul>
+                        </li>
+                    </Authorized>
+                    <NotAuthorized>
+                        <li class="nav-item">
+                            <NavLink class="nav-link" href="Account/Register">
+                                <span class="bi bi-person-nav-menu" aria-hidden="true"></span> Register
+                            </NavLink>
+                        </li>
+                        <li class="nav-item">
+                            <NavLink class="nav-link" href="Account/Login">
+                                <span class="bi bi-person-badge-nav-menu" aria-hidden="true"></span> Login
+                            </NavLink>
+                        </li>
+                    </NotAuthorized>
+                </AuthorizeView>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+@code {
+    private string? currentUrl;
+    private bool IsDevelopment => Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development";
+
+    protected override void OnInitialized()
+    {
+        currentUrl = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+        NavigationManager.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        currentUrl = NavigationManager.ToBaseRelativePath(e.Location);
+        StateHasChanged();
+    }
+
+    private async Task OnThemeChanged(string themeName)
+    {
+        try
+        {
+            // Log the theme change event
+            await EventLogService.LogEventAsync(
+                EventAction.ThemeChange,
+                entityType: "UserPreference",
+                entityId: null,
+                entityName: $"Theme: {themeName}",
+                oldValues: null,
+                newValues: null,
+                additionalData: System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    Theme = themeName,
+                    Timestamp = DateTime.UtcNow
+                }));
+        }
+        catch
+        {
+            // Silently fail to avoid disrupting the user experience
+        }
+    }
+
+    public void Dispose()
+    {
+        NavigationManager.LocationChanged -= OnLocationChanged;
+    }
+}
+

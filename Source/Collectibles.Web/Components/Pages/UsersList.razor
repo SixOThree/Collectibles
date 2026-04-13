@@ -1,0 +1,651 @@
+@page "/users"
+@attribute [Authorize(Policy = "CanViewUsers")]
+@inherits LoggablePageBase
+@using Collectibles.Application.Features.Users.Commands
+@using Collectibles.Application.Features.Users.Dtos
+@using Collectibles.Application.Features.Users.Queries
+@using Collectibles.Domain.Entities
+@using Collectibles.Infrastructure.Persistence
+@using Collectibles.Application.Interfaces
+@using Collectibles.Infrastructure.Services
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components
+@using MediatR
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.Extensions.Hosting
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+@inject IAuthorizationService AuthorizationService
+@inject UserManager<ApplicationUser> UserManager
+@inject ISysLogService SysLogService
+@inject IHostEnvironment HostEnvironment
+
+@rendermode InteractiveServer
+
+<PageTitle>User Management</PageTitle>
+
+<div class="page-header">
+    <h1>User Management</h1>
+    <div>
+        @if (_canCreateUsers)
+        {
+            <button class="btn btn-primary" @onclick="ShowCreateUserModal">
+                <i class="bi bi-plus-circle"></i> Create New User
+            </button>
+        }
+        @if (_isDebugMode)
+        {
+            <button class="btn btn-warning" @onclick="HandleCreateTestAdminUser">
+                <i class="bi bi-bug"></i> Create Test Admin User
+            </button>
+            <button class="btn btn-outline-warning" @onclick="HandleCreateTestRegularUser">
+                <i class="bi bi-bug"></i> Create Test User
+            </button>
+        }
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(_statusMessage))
+{
+    <div class="alert alert-warning alert-dismissible fade show" role="alert">
+        @_statusMessage
+        <button type="button" class="btn-close" @onclick="DismissStatusMessage" aria-label="Close"></button>
+    </div>
+}
+
+<div class="filters-section mb-4">
+    <div class="row g-3">
+        <div class="col-md-4">
+            <input type="text" class="form-control" placeholder="Search by name, username, or email..." 
+                   @bind="_searchTerm" @bind:event="oninput" @onkeyup="@(async (e) => { if (e.Key == "Enter") await LoadUsers(); })">
+        </div>
+        <div class="col-md-2">
+            <select class="form-select" @bind="_activeFilter" @bind:after="LoadUsers">
+                <option value="">All Users</option>
+                <option value="true">Active</option>
+                <option value="false">Inactive</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <select class="form-select" @bind="_roleFilter" @bind:after="LoadUsers">
+                <option value="">All Roles</option>
+                @if (_roles != null)
+                {
+                    @foreach (var role in _roles)
+                    {
+                        <option value="@role.Name">@role.Name</option>
+                    }
+                }
+            </select>
+        </div>
+        <div class="col-md-2">
+            <button class="btn btn-secondary w-100" @onclick="LoadUsers">
+                <i class="bi bi-search"></i> Search
+            </button>
+        </div>
+        <div class="col-md-2">
+            <button class="btn btn-outline-secondary w-100" @onclick="ClearFilters">
+                <i class="bi bi-x-circle"></i> Clear
+            </button>
+        </div>
+    </div>
+</div>
+
+@if (_isLoading)
+{
+    <div class="text-center">
+        <Spinner Type="SpinnerType.Dots" Class="me-3" Color="SpinnerColor.Primary" />
+    </div>
+}
+else if (_users != null)
+{
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th @onclick="@(() => SortBy("fullname"))">
+                        Name 
+                        @if (_sortBy == "fullname")
+                        {
+                            <i class="bi bi-chevron-@(_sortDescending ? "down" : "up")"></i>
+                        }
+                    </th>
+                    <th @onclick="@(() => SortBy("username"))">
+                        Username 
+                        @if (_sortBy == "username")
+                        {
+                            <i class="bi bi-chevron-@(_sortDescending ? "down" : "up")"></i>
+                        }
+                    </th>
+                    <th @onclick="@(() => SortBy("email"))">
+                        Email 
+                        @if (_sortBy == "email")
+                        {
+                            <i class="bi bi-chevron-@(_sortDescending ? "down" : "up")"></i>
+                        }
+                    </th>
+                    <th>Roles</th>
+                    <th>Status</th>
+                    <th @onclick="@(() => SortBy("lastlogin"))">
+                        Last Login 
+                        @if (_sortBy == "lastlogin")
+                        {
+                            <i class="bi bi-chevron-@(_sortDescending ? "down" : "up")"></i>
+                        }
+                    </th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var user in _users.Items)
+                {
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                @if (!string.IsNullOrEmpty(user.ProfilePictureUrl))
+                                {
+                                    <img src="@user.ProfilePictureUrl" alt="@(!string.IsNullOrWhiteSpace(user.DisplayName) ? user.DisplayName : user.FullName)" class="rounded-circle me-2" style="width: 32px; height: 32px; object-fit: cover;">
+                                }
+                                else
+                                {
+                                    <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center me-2" style="width: 32px; height: 32px;">
+                                        <i class="bi bi-person-fill"></i>
+                                    </div>
+                                }
+                                @(!string.IsNullOrWhiteSpace(user.DisplayName) ? user.DisplayName : user.FullName)
+                            </div>
+                        </td>
+                        <td>@user.Email</td>
+                        <td>
+                            @user.Email
+                            @if (!user.EmailConfirmed)
+                            {
+                                <span class="badge bg-warning ms-2">Unconfirmed</span>
+                            }
+                        </td>
+                        <td>
+                            @if (user.Roles.Any())
+                            {
+                                @foreach (var role in user.Roles)
+                                {
+                                    <span class="badge bg-primary me-1">@role</span>
+                                }
+                            }
+                            else
+                            {
+                                <span class="text-muted">No roles</span>
+                            }
+                        </td>
+                        <td>
+                            @if (user.IsLockedOut)
+                            {
+                                <span class="badge bg-danger">Locked</span>
+                            }
+                            else if (user.IsActive)
+                            {
+                                <span class="badge bg-success">Active</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">Inactive</span>
+                            }
+                        </td>
+                        <td>
+                            @if (user.LastLoginDate.HasValue)
+                            {
+                                @user.LastLoginDate.Value.ToString("g")
+                            }
+                            else
+                            {
+                                <span class="text-muted">Never</span>
+                            }
+                        </td>
+                        <td class="text-end">
+                            <div class="btn-group" role="group">
+                                <button class="btn btn-sm btn-outline-primary" @onclick="@(() => ViewUserDetails(user.Id))" title="View Details">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                                @if (_canEditUsers)
+                                {
+                                    <button class="btn btn-sm btn-outline-secondary" @onclick="@(() => EditUser(user.Id))" title="Edit">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    @if (user.IsLockedOut)
+                                    {
+                                        <button class="btn btn-sm btn-outline-success" @onclick="@(() => UnlockUser(user.Id))" title="Unlock">
+                                            <i class="bi bi-unlock"></i>
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-sm btn-outline-warning" @onclick="@(() => LockUser(user.Id))" title="Lock">
+                                            <i class="bi bi-lock"></i>
+                                        </button>
+                                    }
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="@(() => ShowDeleteConfirmation(user.Id, user.FullName))" title="Delete">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (_users.TotalPages > 1)
+    {
+        <nav aria-label="User list pagination">
+            <ul class="pagination justify-content-center">
+                <li class="page-item @(_users.PageNumber == 1 ? "disabled" : "")">
+                    <button class="page-link" @onclick="@(() => ChangePage(_users.PageNumber - 1))" disabled="@(_users.PageNumber == 1)">
+                        Previous
+                    </button>
+                </li>
+                @for (int i = 1; i <= _users.TotalPages; i++)
+                {
+                    var pageNumber = i;
+                    <li class="page-item @(_users.PageNumber == pageNumber ? "active" : "")">
+                        <button class="page-link" @onclick="@(() => ChangePage(pageNumber))">
+                            @pageNumber
+                        </button>
+                    </li>
+                }
+                <li class="page-item @(_users.PageNumber == _users.TotalPages ? "disabled" : "")">
+                    <button class="page-link" @onclick="@(() => ChangePage(_users.PageNumber + 1))" disabled="@(_users.PageNumber == _users.TotalPages)">
+                        Next
+                    </button>
+                </li>
+            </ul>
+        </nav>
+    }
+}
+
+<DeleteUserConfirmationModal @ref="_deleteUserModal"
+                             UserName="@(_userToDelete?.FullName ?? string.Empty)"
+                             UserId="@(_userToDelete?.Id ?? string.Empty)"
+                             OnDeleteConfirmed="HandleDeleteConfirmed"
+                             OnCancelled="HandleDeleteCancelled" />
+
+@code {
+    [SupplyParameterFromQuery(Name = "status")]
+    public string? Status { get; set; }
+
+    private Collectibles.Application.Common.Models.PaginatedList<UserListDto>? _users;
+    private List<RoleDto>? _roles;
+    private bool _isLoading = true;
+    private bool _canCreateUsers = false;
+    private bool _canEditUsers = false;
+    private bool _isDebugMode = false;
+    private DeleteUserConfirmationModal? _deleteUserModal;
+    private UserListDto? _userToDelete;
+    private string? _statusMessage;
+
+    // Filters and sorting
+    private string _searchTerm = "";
+    private string? _activeFilter = "";
+    private string? _roleFilter = "";
+    private string _sortBy = "username";
+    private bool _sortDescending = false;
+    private int _pageNumber = 1;
+    private int _pageSize = 10;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _isDebugMode = HostEnvironment.IsDevelopment();
+        _statusMessage = Status;
+        await CheckPermissions();
+        await LoadRoles();
+        await LoadUsers();
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (!string.IsNullOrWhiteSpace(Status))
+        {
+            _statusMessage = Status;
+        }
+    }
+
+    private async Task CheckPermissions()
+    {
+        var authState = await AuthorizationService.AuthorizeAsync(
+            await GetAuthenticationStateAsync(), "UserManager");
+        _canEditUsers = authState.Succeeded;
+
+        authState = await AuthorizationService.AuthorizeAsync(
+            await GetAuthenticationStateAsync(), "AdminOnly");
+        _canCreateUsers = authState.Succeeded;
+    }
+
+    private async Task<System.Security.Claims.ClaimsPrincipal> GetAuthenticationStateAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        return authState.User;
+    }
+
+    private async Task LoadRoles()
+    {
+        try
+        {
+            _roles = await Mediator.Send(new GetRolesListQuery());
+        }
+        catch (Exception)
+        {
+            _roles = new List<RoleDto>();
+        }
+    }
+
+    private async Task LoadUsers()
+    {
+        _isLoading = true;
+        try
+        {
+            _users = await Mediator.Send(new GetUsersListQuery
+            {
+                PageNumber = _pageNumber,
+                PageSize = _pageSize,
+                SearchTerm = _searchTerm,
+                ActiveFilter = string.IsNullOrEmpty(_activeFilter) ? null : bool.Parse(_activeFilter),
+                RoleFilter = string.IsNullOrEmpty(_roleFilter) ? null : _roleFilter,
+                SortBy = _sortBy,
+                SortDescending = _sortDescending
+            });
+            
+            // Log search action
+            await LogAction(EventAction.Search, new 
+            { 
+                SearchTerm = _searchTerm,
+                ActiveFilter = _activeFilter,
+                RoleFilter = _roleFilter,
+                SortBy = _sortBy,
+                SortDescending = _sortDescending,
+                PageNumber = _pageNumber,
+                ResultCount = _users?.Items?.Count ?? 0,
+                TotalCount = _users?.TotalCount ?? 0
+            });
+        }
+        catch (Exception)
+        {
+            // Handle error
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void SortBy(string column)
+    {
+        if (_sortBy == column)
+        {
+            _sortDescending = !_sortDescending;
+        }
+        else
+        {
+            _sortBy = column;
+            _sortDescending = false;
+        }
+        _ = LoadUsers();
+    }
+
+    private void ChangePage(int pageNumber)
+    {
+        _pageNumber = pageNumber;
+        _ = LoadUsers();
+    }
+
+    private async void ClearFilters()
+    {
+        _searchTerm = "";
+        _activeFilter = "";
+        _roleFilter = "";
+        _pageNumber = 1;
+        _ = LoadUsers();
+        
+        // Log clear filters action
+        await LogAction(EventAction.Other, new 
+        { 
+            Action = "ClearFilters"
+        });
+    }
+
+    private void ShowCreateUserModal()
+    {
+        Navigation.NavigateTo("/users/new");
+    }
+
+    private void ViewUserDetails(string userId)
+    {
+        Navigation.NavigateTo($"/users/{userId}");
+    }
+
+    private void EditUser(string userId)
+    {
+        Navigation.NavigateTo($"/users/{userId}/edit");
+    }
+
+    private async Task LockUser(string userId)
+    {
+        try
+        {
+            await Mediator.Send(new LockUnlockUserCommand
+            {
+                UserId = userId,
+                IsLocked = true,
+                LockoutDays = 30
+            });
+            await LoadUsers();
+        }
+        catch (Exception)
+        {
+            // Handle error
+        }
+    }
+
+    private async Task UnlockUser(string userId)
+    {
+        try
+        {
+            await Mediator.Send(new LockUnlockUserCommand
+            {
+                UserId = userId,
+                IsLocked = false
+            });
+            await LoadUsers();
+        }
+        catch (Exception)
+        {
+            // Handle error
+        }
+    }
+
+    private async Task ShowDeleteConfirmation(string userId, string userName)
+    {
+        _userToDelete = _users?.Items?.FirstOrDefault(u => u.Id == userId);
+        if (_userToDelete != null && _deleteUserModal != null)
+        {
+            await _deleteUserModal.ShowModal();
+        }
+    }
+
+    private async Task HandleDeleteConfirmed(string userId)
+    {
+        try
+        {
+            await Mediator.Send(new DeleteUserCommand(userId));
+            _statusMessage = null;
+            await LoadUsers();
+        }
+        catch (Exception ex)
+        {
+            var errorInfo = UserDeletionErrorInfo.FromException(ex);
+            _statusMessage = errorInfo.Message;
+
+            if (errorInfo.UserLikelyMissing)
+            {
+                await LoadUsers();
+            }
+
+            throw new InvalidOperationException(errorInfo.Message);
+        }
+    }
+
+    private Task HandleDeleteCancelled()
+    {
+        _userToDelete = null;
+        return Task.CompletedTask;
+    }
+
+    private void DismissStatusMessage()
+    {
+        _statusMessage = null;
+    }
+
+    private async Task HandleCreateTestAdminUser()
+    {
+        #if DEBUG
+        await CreateTestAdminUser();
+        #else
+        await Task.CompletedTask;
+        #endif
+    }
+
+    private async Task HandleCreateTestRegularUser()
+    {
+        #if DEBUG
+        await CreateTestRegularUser();
+        #else
+        await Task.CompletedTask;
+        #endif
+    }
+
+    #if DEBUG
+    private async Task CreateTestAdminUser()
+    {
+        const string testEmail = "test.admin@collectibles.local";
+        const string testPassword = "xA&%4hTVhTDixSOO";
+
+        try
+        {
+            var testUser = await UserManager.FindByEmailAsync(testEmail);
+
+            if (testUser == null)
+            {
+                testUser = new ApplicationUser
+                {
+                    UserName = testEmail,
+                    Email = testEmail,
+                    EmailConfirmed = true
+                };
+
+                var result = await UserManager.CreateAsync(testUser, testPassword);
+
+                if (result.Succeeded)
+                {
+                    await UserManager.AddToRoleAsync(testUser, "Administrator");
+                    await SysLogService.LogInformationAsync(
+                        $"Created test admin user account: {testEmail}",
+                        "User.Management",
+                        new Dictionary<string, object> { ["Email"] = testEmail, ["Environment"] = "Development" });
+
+                    await LoadUsers();
+                }
+                else
+                {
+                    await SysLogService.LogErrorAsync(
+                        $"Failed to create test admin user: {testEmail}",
+                        null,
+                        "User.Management",
+                        new Dictionary<string, object> { ["Errors"] = string.Join(", ", result.Errors.Select(e => e.Description)) });
+                }
+            }
+            else
+            {
+                if (!await UserManager.IsInRoleAsync(testUser, "Administrator"))
+                {
+                    await UserManager.AddToRoleAsync(testUser, "Administrator");
+                    await SysLogService.LogInformationAsync(
+                        $"Added Administrator role to existing test user: {testEmail}",
+                        "User.Management",
+                        new Dictionary<string, object> { ["Email"] = testEmail });
+                }
+                else
+                {
+                    await SysLogService.LogInformationAsync(
+                        $"Test admin user {testEmail} already exists with Administrator role",
+                        "User.Management",
+                        new Dictionary<string, object> { ["Email"] = testEmail });
+                }
+
+                await LoadUsers();
+            }
+        }
+        catch (Exception ex)
+        {
+            await SysLogService.LogErrorAsync(
+                "Failed to create test admin user",
+                ex,
+                "User.Management");
+        }
+    }
+
+    private async Task CreateTestRegularUser()
+    {
+        const string testEmail = "test.user@collectibles.local";
+        const string testPassword = "xA&%4hTVhTDixSOO";
+
+        try
+        {
+            var testUser = await UserManager.FindByEmailAsync(testEmail);
+
+            if (testUser == null)
+            {
+                testUser = new ApplicationUser
+                {
+                    UserName = testEmail,
+                    Email = testEmail,
+                    EmailConfirmed = true
+                };
+
+                var result = await UserManager.CreateAsync(testUser, testPassword);
+
+                if (result.Succeeded)
+                {
+                    await SysLogService.LogInformationAsync(
+                        $"Created test regular user account: {testEmail}",
+                        "User.Management",
+                        new Dictionary<string, object> { ["Email"] = testEmail, ["Environment"] = "Development" });
+
+                    await LoadUsers();
+                }
+                else
+                {
+                    await SysLogService.LogErrorAsync(
+                        $"Failed to create test regular user: {testEmail}",
+                        null,
+                        "User.Management",
+                        new Dictionary<string, object> { ["Errors"] = string.Join(", ", result.Errors.Select(e => e.Description)) });
+                }
+            }
+            else
+            {
+                await SysLogService.LogInformationAsync(
+                    $"Test regular user {testEmail} already exists",
+                    "User.Management",
+                    new Dictionary<string, object> { ["Email"] = testEmail });
+
+                await LoadUsers();
+            }
+        }
+        catch (Exception ex)
+        {
+            await SysLogService.LogErrorAsync(
+                "Failed to create test regular user",
+                ex,
+                "User.Management");
+        }
+    }
+    #endif
+}

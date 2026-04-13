@@ -1,0 +1,391 @@
+@page "/showcase/{Hash}/edit"
+@rendermode InteractiveServerWithoutPrerender
+@attribute [Authorize]
+@inherits LoggablePageBase
+@using Collectibles.Application.Features.Showcases
+@using Collectibles.Application.Features.Showcases.Commands
+@using Collectibles.Application.Features.Showcases.Queries
+@using Collectibles.Application.Features.Tags
+@using Collectibles.Application.Features.Tags.Queries
+@using Collectibles.Application.Features.Attachments
+@using Collectibles.Application.Features.Attachments.Queries
+@using Collectibles.Application.Services
+@using Collectibles.Application.Interfaces
+@using Collectibles.Web.Components.Shared
+@using MediatR
+@using Microsoft.AspNetCore.Authorization
+@using System.ComponentModel.DataAnnotations
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+@inject IHashIdsService HashIds
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider
+@inject ILogger<EditShowcase> Logger
+
+<PageTitle>Edit Showcase</PageTitle>
+
+<div class="edit-showcase-container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Edit Showcase</h1>
+        <button class="btn btn-link" @onclick="NavigateBack">
+            <i class="bi bi-arrow-left"></i> Back to Showcase
+        </button>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="text-center my-5">
+            <Spinner Type="SpinnerType.Dots" Color="SpinnerColor.Primary" />
+        </div>
+    }
+    else if (_unauthorized)
+    {
+        <div class="alert alert-danger">
+            <h4>Unauthorized</h4>
+            <p>You don't have permission to edit this showcase. Only the showcase owner can edit it.</p>
+            <button class="btn btn-primary" @onclick="NavigateToShowcases">Back to Showcases</button>
+        </div>
+    }
+    else if (_showcase == null)
+    {
+        <div class="alert alert-warning">
+            <h4>Showcase not found</h4>
+            <p>The showcase you're trying to edit doesn't exist.</p>
+            <button class="btn btn-primary" @onclick="NavigateToShowcases">Back to Showcases</button>
+        </div>
+    }
+    else
+    {
+        <EditForm Model="_model" OnValidSubmit="HandleValidSubmit">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+
+            <div class="form-section">
+                <h3>Basic Information</h3>
+                
+                <div class="mb-3">
+                    <label for="name" class="form-label">Name <span class="text-danger">*</span></label>
+                    <InputText id="name" class="form-control" @bind-Value="_model.Name" />
+                    <ValidationMessage For="@(() => _model.Name)" />
+                </div>
+
+                <div class="mb-3">
+                    <label for="description" class="form-label">Description</label>
+                    <InputTextArea id="description" class="form-control" @bind-Value="_model.Description" rows="4" />
+                    <ValidationMessage For="@(() => _model.Description)" />
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3>Privacy Settings</h3>
+                <div class="form-check form-switch">
+                    <InputCheckbox id="isPrivate" class="form-check-input" @bind-Value="_model.IsPrivate" />
+                    <label class="form-check-label" for="isPrivate">
+                        Private showcase
+                        <small class="text-muted d-block">
+                            @if (_model.IsPrivate)
+                            {
+                                <span>Only you can view this showcase</span>
+                            }
+                            else
+                            {
+                                <span>Anyone with the link can view this showcase</span>
+                            }
+                        </small>
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3>Sort Order</h3>
+                <div class="mb-3">
+                    <label for="sortOrder" class="form-label">How items are sorted in this showcase</label>
+                    <InputSelect id="sortOrder" @bind-Value="_model.SortOrder" class="form-select" style="max-width: 300px;">
+                        <option value="@Domain.Enums.ShowcaseSortOrder.Alphabetical">Alphabetical</option>
+                        <option value="@Domain.Enums.ShowcaseSortOrder.NewestFirst">Newest First</option>
+                        <option value="@Domain.Enums.ShowcaseSortOrder.TemplateSort">Group by Template</option>
+                    </InputSelect>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3>Preview Image</h3>
+                <p class="text-muted">Upload an image to use as the showcase preview. Uploading a new image will replace the existing preview.</p>
+                
+                @if (_showcase.PreviewImage != null)
+                {
+                    <div class="current-preview mb-3">
+                        <h5>Current Preview:</h5>
+                        <div class="d-flex align-items-center gap-3">
+                            <img src="@($"data:{_showcase.PreviewImage.FileType};base64,{_showcase.PreviewImage.Base64Content}")" 
+                                 alt="Current preview" 
+                                 class="img-thumbnail"
+                                 style="max-width: 400px; max-height: 400px; object-fit: contain;" />
+                            <button type="button" class="btn btn-sm btn-outline-danger" @onclick="RemovePreviewImage">
+                                <i class="bi bi-trash"></i> Remove Preview
+                            </button>
+                        </div>
+                    </div>
+                }
+                
+                <Collectibles.Web.Components.Shared.AttachmentUpload
+                    @ref="_attachmentUploader"
+                    ShowcaseId="@_model.Id"
+                    AllowMultiple="false"
+                    AutoUpload="true"
+                    ShowResults="false"
+                    AcceptedFileTypes="image/*"
+                    OnUploadCompleted="HandlePreviewImageUploaded" />
+            </div>
+
+            <div class="form-section">
+                <h3>Tags</h3>
+                <p class="text-muted">Add tags to help organize and find this showcase.</p>
+                <Collectibles.Web.Components.Shared.TagSelector 
+                    SelectedTags="_selectedTags" 
+                    SelectedTagsChanged="@((tags) => _selectedTags = tags)" 
+                    MaxTags="10" />
+            </div>
+
+            <div class="form-section">
+                <h3>Management</h3>
+                <div class="management-grid">
+                    <a href="/attachments" class="management-card">
+                        <div class="management-icon">
+                            <i class="bi bi-paperclip"></i>
+                        </div>
+                        <div class="management-content">
+                            <h4>Attachments</h4>
+                            <p>Manage all your attachment files in one place</p>
+                        </div>
+                        <i class="bi bi-chevron-right management-arrow"></i>
+                    </a>
+                </div>
+            </div>
+
+            <div class="form-section danger-zone">
+                <div class="d-flex justify-content-between align-items-center" style="cursor: pointer;" @onclick="ToggleDangerZone">
+                    <div>
+                        <h3 class="text-danger mb-0">Danger Zone</h3>
+                        <p class="text-muted mb-0">Irreversible and destructive actions</p>
+                    </div>
+                    <i class="bi @(_dangerZoneExpanded ? "bi-chevron-up" : "bi-chevron-down") text-danger"></i>
+                </div>
+                @if (_dangerZoneExpanded)
+                {
+                    <div class="mt-3">
+                        <button type="button" class="btn btn-outline-danger" @onclick="ShowDeleteDialog">
+                            <i class="bi bi-trash"></i> Delete Showcase
+                        </button>
+                    </div>
+                }
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary" disabled="@_submitting">
+                    @if (_submitting)
+                    {
+                        <Spinner Type="SpinnerType.Dots" Size="SpinnerSize.Small" Color="SpinnerColor.Light" Class="me-2" />
+                        <span>Saving...</span>
+                    }
+                    else
+                    {
+                        <span>Save Changes</span>
+                    }
+                </button>
+                <button type="button" class="btn btn-secondary" @onclick="NavigateBack">Cancel</button>
+            </div>
+        </EditForm>
+    }
+</div>
+
+@if (_showcase != null)
+{
+    <DeleteShowcaseDialog 
+        IsVisible="_showDeleteDialog"
+        ShowcaseId="_showcase.Id"
+        ShowcaseName="@_showcase.Name"
+        OnDeleted="HandleShowcaseDeleted"
+        OnCancelled="() => _showDeleteDialog = false" />
+}
+
+@code {
+    [Parameter] public string Hash { get; set; } = string.Empty;
+
+    private ShowcaseDetailDto? _showcase;
+    private EditShowcaseModel _model = new();
+    private List<Collectibles.Application.Features.Tags.TagDto> _selectedTags = new();
+    private bool _loading = true;
+    private bool _submitting = false;
+    private bool _unauthorized = false;
+    private bool _showDeleteDialog = false;
+    private bool _dangerZoneExpanded = false;
+    private Collectibles.Web.Components.Shared.AttachmentUpload? _attachmentUploader;
+
+    private class EditShowcaseModel
+    {
+        public long Id { get; set; }
+        
+        [Required(ErrorMessage = "Name is required")]
+        [StringLength(200, ErrorMessage = "Name must not exceed 200 characters")]
+        public string Name { get; set; } = string.Empty;
+        
+        [StringLength(2000, ErrorMessage = "Description must not exceed 2000 characters")]
+        public string? Description { get; set; }
+        
+        public long? PreviewImageId { get; set; }
+        public bool IsPrivate { get; set; } = true;
+        public Domain.Enums.ShowcaseSortOrder SortOrder { get; set; } = Domain.Enums.ShowcaseSortOrder.Alphabetical;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        
+        try
+        {
+            var id = HashIds.Decode(Hash);
+            var query = new GetShowcaseByIdQuery(id);
+            _showcase = await Mediator.Send(query);
+        }
+        catch (ArgumentException)
+        {
+            // Invalid hash
+            _showcase = null;
+        }
+        
+        if (_showcase != null)
+        {
+            // Check if current user is the owner
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var currentUserId = authState.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (_showcase.UserId != currentUserId)
+            {
+                _unauthorized = true;
+                _showcase = null;
+            }
+            else
+            {
+                // Initialize model with current values
+                _model = new EditShowcaseModel
+                {
+                    Id = _showcase.Id,
+                    Name = _showcase.Name,
+                    Description = _showcase.Description,
+                    IsPrivate = _showcase.IsPrivate,
+                    PreviewImageId = _showcase.PreviewImage?.Id,
+                    SortOrder = _showcase.SortOrder
+                };
+                
+                _selectedTags = _showcase.Tags.ToList();
+            }
+        }
+        
+        _loading = false;
+    }
+
+    private async Task HandlePreviewImageUploaded(List<long> attachmentIds)
+    {
+        if (attachmentIds.Any())
+        {
+            // Use the first (and only, since AllowMultiple=false) uploaded attachment as the preview
+            _model.PreviewImageId = attachmentIds.First();
+            
+            // If there was a previous preview image and it's different, we could optionally delete it
+            // For now, we'll just update the reference
+            
+            // Reload the showcase to get the updated preview image data
+            await LoadUpdatedPreviewImage(attachmentIds.First());
+        }
+    }
+    
+    private async Task LoadUpdatedPreviewImage(long attachmentId)
+    {
+        try
+        {
+            var query = new GetAttachmentByIdQuery(attachmentId);
+            var attachment = await Mediator.Send(query);
+            
+            if (_showcase != null && attachment != null)
+            {
+                _showcase.PreviewImage = attachment;
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            // Log error but don't fail the entire operation
+            Logger.LogError(ex, "Failed to load updated preview image");
+        }
+    }
+    
+    private void RemovePreviewImage()
+    {
+        _model.PreviewImageId = null;
+        if (_showcase != null)
+        {
+            _showcase.PreviewImage = null;
+        }
+        
+        // Reset the uploader component if it exists
+        _attachmentUploader?.Reset();
+        StateHasChanged();
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        _submitting = true;
+        
+        try
+        {
+            var command = new UpdateShowcaseCommand
+            {
+                Id = _model.Id,
+                Name = _model.Name,
+                Description = _model.Description,
+                IsPrivate = _model.IsPrivate,
+                SortOrder = _model.SortOrder,
+                PreviewImageId = _model.PreviewImageId,
+                TagIds = _selectedTags.Select(t => t.Id).ToList()
+            };
+
+            await Mediator.Send(command);
+            Navigation.NavigateTo($"/showcase/{Hash}");
+        }
+        catch (Exception ex)
+        {
+            await LogErrorToSysLog(ex, "saving showcase changes");
+            _submitting = false;
+        }
+    }
+
+    private void NavigateBack()
+    {
+        Navigation.NavigateTo($"/showcase/{Hash}");
+    }
+
+    private void NavigateToShowcases()
+    {
+        Navigation.NavigateTo("/showcases");
+    }
+
+    private void ShowDeleteDialog()
+    {
+        _showDeleteDialog = true;
+    }
+
+    private void ToggleDangerZone()
+    {
+        _dangerZoneExpanded = !_dangerZoneExpanded;
+    }
+
+    private void HandleShowcaseDeleted()
+    {
+        _showDeleteDialog = false;
+        Navigation.NavigateTo("/showcases");
+    }
+}

@@ -1,0 +1,379 @@
+.page-header {
+    margin-bottom: 2rem;
+}
+
+/* Empty State Styles */
+.empty-state-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.empty-state-header {
+    text-align: center;
+    margin-bottom: 3rem;
+}
+
+.empty-state-icon {
+    font-size: 5rem;
+    color: #6366f1;
+    margin-bottom: 1rem;
+    opacity: 0.8;
+}
+
+.empty-state-header h2 {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+    color: #1f2937;
+}
+
+.empty-state-header .lead {
+    font-size: 1.25rem;
+    color: #6b7280;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+/* Feature Grid */
+.feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 2rem;
+    margin-bottom: 3rem;
+}
+
+.feature-card {
+    background: #f9fafb;
+    border-radius: 12px;
+    padding: 2rem;
+    text-align: center;
+    transition: transform 0.2s, box-shadow 0.2s;
+    border: 1px solid #e5e7eb;
+}
+
+.feature-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    background: white;
+}
+
+.feature-icon {
+    font-size: 2.5rem;
+    color: #6366f1;
+    margin-bottom: 1rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 60px;
+    height: 60px;
+    margin: 0 auto 1rem;
+    background: rgba(99, 102, 241, 0.1);
+    border-radius: 12px;
+}
+
+.feature-card h3 {
+    font-size: 1.25rem;
+    margin-bottom: 0.75rem;
+    color: #1f2937;
+}
+
+/* Getting Started Section */
+.getting-started {
+    text-align: center;
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    color: white;
+    padding: 3rem;
+    border-radius: 16px;
+    margin-bottom: 2rem;
+}
+
+.getting-started h3 {
+    font-size: 1.75rem;
+    margin-bottom: 1rem;
+}
+
+.getting-started p {
+    font-size: 1.125rem;
+    margin-bottom: 2rem;
+    opacity: 0.95;
+}
+
+.getting-started .btn-lg {
+    font-size: 1.125rem;
+    padding: 0.75rem 2rem;
+    background: white;
+    color: #6366f1;
+    border: none;
+    font-weight: 600;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.getting-started .btn-lg:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+    background: #f9fafb;
+}
+
+/* Pro Tips Section */
+.pro-tips {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 12px;
+    padding: 2rem;
+    margin-top: 2rem;
+}
+
+.pro-tips h4 {
+    color: #166534;
+    margin-bottom: 1rem;
+    font-size: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.pro-tips h4 i {
+    color: #22c55e;
+}
+
+.pro-tips ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.pro-tips li {
+    color: #166534;
+    padding: 0.5rem 0;
+    padding-left: 1.5rem;
+    position: relative;
+}
+
+.pro-tips li::before {
+    content: "✓";
+    position: absolute;
+    left: 0;
+    color: #22c55e;
+    font-weight: bold;
+}
+
+/* Hero Layout Styles */
+.showcase-hero {
+    margin-top: 2rem;
+}
+
+.hero-card {
+    cursor: pointer;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s, box-shadow 0.2s;
+    background: white;
+    position: relative;
+}
+
+.hero-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 12px rgba(0, 0, 0, 0.15);
+}
+
+.hero-image {
+    width: 100%;
+    height: 400px;
+    object-fit: cover;
+}
+
+.hero-placeholder {
+    width: 100%;
+    height: 400px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #f3f4f6;
+    font-size: 6rem;
+    color: #9ca3af;
+}
+
+.hero-content {
+    padding: 2rem;
+}
+
+.hero-content h2 {
+    margin: 0 0 1rem 0;
+    font-size: 2.5rem;
+}
+
+.hero-description {
+    font-size: 1.125rem;
+    color: #6b7280;
+    margin-bottom: 1.5rem;
+}
+
+.hero-stats {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    font-size: 1.125rem;
+}
+
+.hero-tags {
+    display: flex;
+    gap: 0.5rem;
+}
+
+/* Grid Layout Styles */
+.showcase-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 2rem;
+    margin-top: 2rem;
+}
+
+.showcase-card {
+    cursor: pointer;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s, box-shadow 0.2s;
+    background: white;
+    position: relative;
+}
+
+.showcase-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.card-image {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+}
+
+.card-placeholder {
+    width: 100%;
+    height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #f3f4f6;
+    font-size: 3rem;
+    color: #9ca3af;
+}
+
+.card-content {
+    padding: 1.25rem;
+}
+
+.card-content h3 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.25rem;
+}
+
+.card-description {
+    margin-bottom: 1rem;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+.card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.item-count {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: #6b7280;
+    font-size: 0.875rem;
+}
+
+.card-tags {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.tag {
+    background-color: #e5e7eb;
+    color: #4b5563;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .showcase-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    .hero-image, .hero-placeholder {
+        height: 250px;
+    }
+
+    .hero-content h2 {
+        font-size: 2rem;
+    }
+
+    .hero-stats {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    /* Empty State Mobile Adjustments */
+    .empty-state-container {
+        padding: 1rem;
+    }
+
+    .empty-state-icon {
+        font-size: 3.5rem;
+    }
+
+    .empty-state-header h2 {
+        font-size: 1.75rem;
+    }
+
+    .empty-state-header .lead {
+        font-size: 1.1rem;
+    }
+
+    .feature-grid {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+
+    .feature-card {
+        padding: 1.5rem;
+    }
+
+    .getting-started {
+        padding: 2rem 1.5rem;
+    }
+
+    .getting-started h3 {
+        font-size: 1.5rem;
+    }
+
+    .getting-started p {
+        font-size: 1rem;
+    }
+
+    .getting-started .btn-lg {
+        font-size: 1rem;
+        padding: 0.625rem 1.5rem;
+    }
+
+    .pro-tips {
+        padding: 1.5rem;
+    }
+
+    .pro-tips h4 {
+        font-size: 1.125rem;
+    }
+}

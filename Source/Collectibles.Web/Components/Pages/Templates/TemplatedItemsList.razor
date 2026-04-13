@@ -1,0 +1,886 @@
+@page "/showcase/{Hash}/templates/items"
+@page "/showcase/{Hash}/templates/{TemplateIdParam:long}/items"
+@rendermode InteractiveServerWithoutPrerender
+@attribute [Authorize]
+@inherits LoggablePageBase
+@using Collectibles.Application.Features.CollectibleItems.Queries
+@using Collectibles.Application.Features.ContentDefinitions
+@using Collectibles.Application.Features.ContentDefinitions.Queries
+@using Collectibles.Application.Features.Showcases.Queries
+@using Collectibles.Application.Services
+@using Collectibles.Domain.ValueObjects.Templates
+@using System.Text.Json
+@using MediatR
+@using Microsoft.AspNetCore.Authorization
+@using Collectibles.Application.Common.Services
+@inject IMediator Mediator
+@inject IInflationCalculationService InflationService
+@inject IHashIdsService HashIdsService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>Template Items - @(_showcaseName ?? "Showcase")</PageTitle>
+
+@if (_accessDenied)
+{
+    <div class="alert alert-danger m-4">
+        <h4>Access Denied</h4>
+        <p>You don't have permission to view template items for this showcase.</p>
+        <button class="btn btn-primary" @onclick="NavigateBack">Back to Showcases</button>
+    </div>
+}
+else if (_showcaseNotFound)
+{
+    <div class="alert alert-warning m-4">
+        <h4>Showcase Not Found</h4>
+        <p>The showcase you're looking for doesn't exist or has been removed.</p>
+        <button class="btn btn-primary" @onclick="NavigateBack">Back to Showcases</button>
+    </div>
+}
+else
+{
+<div class="templated-items-container">
+    <div class="page-header d-flex justify-content-between align-items-center mb-4 border-bottom pb-3 gap-3">
+        <div>
+            <h1>Template Items</h1>
+            @if (!string.IsNullOrEmpty(_showcaseName))
+            {
+                <small class="text-muted">@_showcaseName</small>
+            }
+        </div>
+        <a href="/showcase/@Hash" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Back to Showcase
+        </a>
+    </div>
+
+    <div class="filters-section mb-4">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Template</label>
+                <select class="form-select" value="@_selectedTemplateId" @onchange="OnTemplateChanged">
+                    <option value="0">-- Select a template --</option>
+                    @foreach (var template in _templates)
+                    {
+                        <option value="@template.Id">
+                            @template.Name (@template.ItemCount items)
+                        </option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Search</label>
+                <input type="text" class="form-control" placeholder="Search items..."
+                       @bind="_searchTerm" @bind:event="oninput"
+                       @onkeyup="@(async (e) => { if (e.Key == "Enter") await LoadItems(); })" />
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-secondary w-100" @onclick="LoadItems" disabled="@(_selectedTemplateId == 0)">
+                    <i class="bi bi-search"></i> Search
+                </button>
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-outline-secondary w-100" @onclick="ClearFilters">
+                    <i class="bi bi-x-circle"></i> Clear
+                </button>
+            </div>
+        </div>
+    </div>
+
+    @if (_loadingTemplates)
+    {
+        <div class="text-center py-5">
+            <Spinner Type="SpinnerType.Dots" Color="SpinnerColor.Primary" />
+        </div>
+    }
+    else if (_selectedTemplateId == 0)
+    {
+        <div class="empty-state text-center p-5">
+            <div class="empty-state-icon">
+                <i class="bi bi-table"></i>
+            </div>
+            <h3 class="text-secondary">Select a Template</h3>
+            <p>Choose a template above to view all items using that template in a table format.</p>
+        </div>
+    }
+    else if (_loadingItems)
+    {
+        <div class="text-center py-5">
+            <Spinner Type="SpinnerType.Dots" Color="SpinnerColor.Primary" />
+        </div>
+    }
+    else if (_result != null)
+    {
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">
+                @_result.TemplateName
+                <span class="badge bg-secondary ms-2">@_result.Items.TotalCount items</span>
+            </h5>
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-outline-primary btn-sm" @onclick="ExportCsv" disabled="@_exporting">
+                    @if (_exporting)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-download me-1"></i>
+                    }
+                    Export CSV
+                </button>
+                <label class="form-label mb-0 text-nowrap">Per page:</label>
+                <select class="form-select form-select-sm" style="width: auto;" @bind="_pageSize" @bind:after="LoadItems">
+                    <option value="25">25</option>
+                    <option value="100">100</option>
+                    <option value="1000">1000</option>
+                </select>
+            </div>
+        </div>
+
+        @if (_result.Items.TotalCount == 0)
+        {
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i>
+                @if (!string.IsNullOrWhiteSpace(_searchTerm))
+                {
+                    <span>No items match your search.</span>
+                }
+                else
+                {
+                    <span>No items are using this template yet.</span>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-hover table-sm">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="sortable-header" @onclick="@(() => SortBy("name"))">
+                                Name
+                                @RenderSortIcon("name")
+                            </th>
+                            @foreach (var field in _result.Fields)
+                            {
+                                @if (IsSortableField(field.FieldType))
+                                {
+                                    <th class="sortable-header" @onclick="@(() => SortBy(field.Name))">
+                                        @field.Label
+                                        @RenderSortIcon(field.Name)
+                                    </th>
+                                }
+                                else
+                                {
+                                    <th>@field.Label</th>
+                                }
+                            }
+                            @if (_result.Items.Items.Any(i => i.EntryCount > 1))
+                            {
+                                <th class="text-center">Entry #</th>
+                            }
+                            <th class="sortable-header text-center" @onclick="@(() => SortBy("entryCount"))">
+                                <i class="bi bi-list-ol" title="Entries"></i>
+                                @RenderSortIcon("entryCount")
+                            </th>
+                            <th class="sortable-header text-center" @onclick="@(() => SortBy("childCount"))">
+                                <i class="bi bi-diagram-3" title="Sub-items"></i>
+                                @RenderSortIcon("childCount")
+                            </th>
+                            <th class="sortable-header text-center" @onclick="@(() => SortBy("attachmentCount"))">
+                                <i class="bi bi-paperclip" title="Attachments"></i>
+                                @RenderSortIcon("attachmentCount")
+                            </th>
+                            <th class="sortable-header" @onclick="@(() => SortBy("created"))">
+                                Created
+                                @RenderSortIcon("created")
+                            </th>
+                            <th class="sortable-header" @onclick="@(() => SortBy("lastModified"))">
+                                Modified
+                                @RenderSortIcon("lastModified")
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{
+                            var hasMultiEntry = _result.Items.Items.Any(i => i.EntryCount > 1);
+                        }
+                        @foreach (var item in _result.Items.Items)
+                        {
+                            if (item.AllEntries.Count > 1)
+                            {
+                                // Multi-entry: one row per entry
+                                for (var entryIdx = 0; entryIdx < item.AllEntries.Count; entryIdx++)
+                                {
+                                    var entryValues = item.AllEntries[entryIdx];
+                                    var idx = entryIdx; // capture for lambda
+                                    <tr class="item-row" @onclick="@(() => NavigateToItem(item.Id))">
+                                        <td class="fw-medium">@item.Name</td>
+                                        @foreach (var field in _result.Fields)
+                                        {
+                                            <td>@RenderFieldValue(field, entryValues)</td>
+                                        }
+                                        <td class="text-center"><span class="badge bg-secondary">@(idx + 1)</span></td>
+                                        <td class="text-center"><span class="badge bg-primary">@item.EntryCount</span></td>
+                                        <td class="text-center">
+                                            @if (item.ChildCount > 0)
+                                            {
+                                                <span class="badge bg-info">@item.ChildCount</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">-</span>
+                                            }
+                                        </td>
+                                        <td class="text-center">
+                                            @if (item.AttachmentCount > 0)
+                                            {
+                                                <span class="badge bg-info">@item.AttachmentCount</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">-</span>
+                                            }
+                                        </td>
+                                        <td class="text-nowrap">
+                                            <small>@FormatTimestamp(item.Created, "MMM d, yyyy")</small>
+                                        </td>
+                                        <td class="text-nowrap">
+                                            @if (item.LastModified.HasValue)
+                                            {
+                                                <small>@FormatTimestamp(item.LastModified.Value, "MMM d, yyyy")</small>
+                                            }
+                                            else
+                                            {
+                                                <small class="text-muted">-</small>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                // Single entry or no entries: one row
+                                <tr class="item-row" @onclick="@(() => NavigateToItem(item.Id))">
+                                    <td class="fw-medium">@item.Name</td>
+                                    @foreach (var field in _result.Fields)
+                                    {
+                                        <td>@RenderFieldValue(field, item.FieldValues)</td>
+                                    }
+                                    @if (hasMultiEntry)
+                                    {
+                                        <td class="text-center"><span class="text-muted">-</span></td>
+                                    }
+                                    <td class="text-center">
+                                        @if (item.EntryCount > 0)
+                                        {
+                                            <span class="badge bg-primary">@item.EntryCount</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+                                    <td class="text-center">
+                                        @if (item.ChildCount > 0)
+                                        {
+                                            <span class="badge bg-info">@item.ChildCount</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+                                    <td class="text-center">
+                                        @if (item.AttachmentCount > 0)
+                                        {
+                                            <span class="badge bg-info">@item.AttachmentCount</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+                                    <td class="text-nowrap">
+                                        <small>@FormatTimestamp(item.Created, "MMM d, yyyy")</small>
+                                    </td>
+                                    <td class="text-nowrap">
+                                        @if (item.LastModified.HasValue)
+                                        {
+                                            <small>@FormatTimestamp(item.LastModified.Value, "MMM d, yyyy")</small>
+                                        }
+                                        else
+                                        {
+                                            <small class="text-muted">-</small>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (_result.Items.TotalPages > 1)
+            {
+                <nav aria-label="Items pagination">
+                    <ul class="pagination justify-content-center">
+                        <li class="page-item @(_result.Items.PageNumber == 1 ? "disabled" : "")">
+                            <button class="page-link" @onclick="@(() => ChangePage(_result.Items.PageNumber - 1))"
+                                    disabled="@(_result.Items.PageNumber == 1)">
+                                Previous
+                            </button>
+                        </li>
+                        @{
+                            var (startPage, endPage) = GetPageRange(_result.Items.PageNumber, _result.Items.TotalPages);
+                        }
+                        @if (startPage > 1)
+                        {
+                            <li class="page-item">
+                                <button class="page-link" @onclick="@(() => ChangePage(1))">1</button>
+                            </li>
+                            @if (startPage > 2)
+                            {
+                                <li class="page-item disabled"><span class="page-link">...</span></li>
+                            }
+                        }
+                        @for (int i = startPage; i <= endPage; i++)
+                        {
+                            var pageNumber = i;
+                            <li class="page-item @(_result.Items.PageNumber == pageNumber ? "active" : "")">
+                                <button class="page-link" @onclick="@(() => ChangePage(pageNumber))">@pageNumber</button>
+                            </li>
+                        }
+                        @if (endPage < _result.Items.TotalPages)
+                        {
+                            @if (endPage < _result.Items.TotalPages - 1)
+                            {
+                                <li class="page-item disabled"><span class="page-link">...</span></li>
+                            }
+                            <li class="page-item">
+                                <button class="page-link" @onclick="@(() => ChangePage(_result.Items.TotalPages))">
+                                    @_result.Items.TotalPages
+                                </button>
+                            </li>
+                        }
+                        <li class="page-item @(_result.Items.PageNumber == _result.Items.TotalPages ? "disabled" : "")">
+                            <button class="page-link" @onclick="@(() => ChangePage(_result.Items.PageNumber + 1))"
+                                    disabled="@(_result.Items.PageNumber == _result.Items.TotalPages)">
+                                Next
+                            </button>
+                        </li>
+                    </ul>
+                </nav>
+            }
+        }
+    }
+</div>
+}
+
+@code {
+    [Parameter] public string Hash { get; set; } = string.Empty;
+    [Parameter] public long TemplateIdParam { get; set; }
+
+    private long _showcaseId;
+    private string? _showcaseName;
+    private bool _accessDenied;
+    private bool _showcaseNotFound;
+
+    private List<ContentDefinitionListDto> _templates = new();
+    private GetItemsByTemplateResult? _result;
+    private bool _loadingTemplates = true;
+    private bool _loadingItems;
+
+    private long _selectedTemplateId;
+    private string _searchTerm = "";
+    private string _sortBy = "name";
+    private bool _sortDescending;
+    private int _pageNumber = 1;
+    private int _pageSize = 100;
+    private bool _exporting;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 1. Decode showcase hash
+        try
+        {
+            _showcaseId = HashIdsService.Decode(Hash);
+        }
+        catch (ArgumentException)
+        {
+            _showcaseNotFound = true;
+            return;
+        }
+
+        // 2. Load showcase and verify it exists
+        var showcase = await Mediator.Send(new GetShowcaseByIdQuery(_showcaseId));
+        if (showcase == null)
+        {
+            _showcaseNotFound = true;
+            return;
+        }
+
+        _showcaseName = showcase.Name;
+
+        // 3. Authorize: must be owner or administrator
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        var userId = user?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var isAdmin = user?.IsInRole("Administrator") ?? false;
+
+        if (showcase.UserId != userId && !isAdmin)
+        {
+            _accessDenied = true;
+            return;
+        }
+
+        // 4. Load templates scoped to this showcase
+        await LoadTemplates();
+
+        if (TemplateIdParam > 0)
+        {
+            _selectedTemplateId = TemplateIdParam;
+            await LoadItems();
+        }
+    }
+
+    private async Task LoadTemplates()
+    {
+        _loadingTemplates = true;
+        try
+        {
+            var allTemplates = await Mediator.Send(new GetContentDefinitionsQuery
+            {
+                ShowcaseId = _showcaseId
+            });
+            _templates = allTemplates.Where(t => t.ItemCount > 0).ToList();
+        }
+        catch (Exception ex)
+        {
+            await LogErrorToSysLog(ex, "TemplatedItemsList: Error loading templates");
+        }
+        finally
+        {
+            _loadingTemplates = false;
+        }
+    }
+
+    private async Task OnTemplateChanged(ChangeEventArgs e)
+    {
+        if (long.TryParse(e.Value?.ToString(), out var templateId))
+        {
+            _selectedTemplateId = templateId;
+            _pageNumber = 1;
+            _searchTerm = "";
+            _sortBy = "name";
+            _sortDescending = false;
+
+            if (_selectedTemplateId > 0)
+            {
+                await LoadItems();
+            }
+            else
+            {
+                _result = null;
+            }
+        }
+    }
+
+    private async Task LoadItems()
+    {
+        if (_selectedTemplateId == 0) return;
+
+        _loadingItems = true;
+        try
+        {
+            _result = await Mediator.Send(new GetItemsByTemplateQuery
+            {
+                ContentDefinitionId = _selectedTemplateId,
+                ShowcaseId = _showcaseId,
+                SearchTerm = _searchTerm,
+                SortBy = _sortBy,
+                SortDescending = _sortDescending,
+                PageNumber = _pageNumber,
+                PageSize = _pageSize,
+            });
+        }
+        catch (Exception ex)
+        {
+            await LogErrorToSysLog(ex, "TemplatedItemsList: Error loading template items");
+        }
+        finally
+        {
+            _loadingItems = false;
+        }
+    }
+
+    private void SortBy(string column)
+    {
+        if (_sortBy == column)
+        {
+            _sortDescending = !_sortDescending;
+        }
+        else
+        {
+            _sortBy = column;
+            _sortDescending = false;
+        }
+        _pageNumber = 1;
+        _ = LoadItems();
+    }
+
+    private void ChangePage(int pageNumber)
+    {
+        _pageNumber = pageNumber;
+        _ = LoadItems();
+    }
+
+    private async Task ClearFilters()
+    {
+        _searchTerm = "";
+        _sortBy = "name";
+        _sortDescending = false;
+        _pageNumber = 1;
+        if (_selectedTemplateId > 0)
+        {
+            await LoadItems();
+        }
+    }
+
+    private void NavigateToItem(long itemId)
+    {
+        var hash = HashIdsService.Encode(itemId);
+        Navigation.NavigateTo($"/item/{hash}?showcase={Hash}");
+    }
+
+    private void NavigateBack()
+    {
+        Navigation.NavigateTo("/showcases");
+    }
+
+    private static bool IsSortableField(FieldType fieldType)
+    {
+        return fieldType switch
+        {
+            FieldType.MultilineText or FieldType.LargeText => false,
+            _ => true,
+        };
+    }
+
+    private RenderFragment RenderSortIcon(string column) => builder =>
+    {
+        if (_sortBy == column)
+        {
+            builder.OpenElement(0, "i");
+            builder.AddAttribute(1, "class", $"bi bi-chevron-{(_sortDescending ? "down" : "up")} ms-1");
+            builder.CloseElement();
+        }
+    };
+
+    private RenderFragment RenderFieldValue(FieldDefinition field, Dictionary<string, object?> fieldValues) => builder =>
+    {
+        if (!fieldValues.TryGetValue(field.Name, out var value) || value == null)
+        {
+            builder.OpenElement(0, "span");
+            builder.AddAttribute(1, "class", "text-muted");
+            builder.AddContent(2, "-");
+            builder.CloseElement();
+            return;
+        }
+
+        switch (field.FieldType)
+        {
+            case FieldType.Boolean:
+                builder.OpenElement(0, "i");
+                var boolVal = value is bool b ? b : bool.TryParse(value.ToString(), out var parsed) && parsed;
+                builder.AddAttribute(1, "class", boolVal
+                    ? "bi bi-check-circle-fill text-success"
+                    : "bi bi-x-circle text-muted");
+                builder.CloseElement();
+                break;
+
+            case FieldType.Date:
+                if (DateTime.TryParse(value.ToString(), out var dateVal))
+                {
+                    builder.AddContent(0, dateVal.ToString("MMM d, yyyy"));
+                }
+                else
+                {
+                    builder.AddContent(0, value.ToString());
+                }
+                break;
+
+            case FieldType.DateTime:
+                if (DateTime.TryParse(value.ToString(), out var dtVal))
+                {
+                    builder.AddContent(0, dtVal.ToString("MMM d, yyyy h:mm tt"));
+                }
+                else
+                {
+                    builder.AddContent(0, value.ToString());
+                }
+                break;
+
+            case FieldType.Number:
+                if (decimal.TryParse(value.ToString(), out var numVal))
+                {
+                    builder.AddContent(0, numVal % 1 == 0 ? numVal.ToString("N0") : numVal.ToString("N2"));
+                }
+                else
+                {
+                    builder.AddContent(0, value.ToString());
+                }
+                break;
+
+            case FieldType.InflationAdjustedPrice:
+                try
+                {
+                    var jsonString = value.ToString();
+                    if (!string.IsNullOrEmpty(jsonString))
+                    {
+                        using var doc = JsonDocument.Parse(jsonString);
+                        var root = doc.RootElement;
+
+                        decimal price = 0;
+                        int year = 0;
+
+                        if (root.TryGetProperty("Price", out var pe))
+                            price = pe.GetDecimal();
+                        else if (root.TryGetProperty("price", out pe))
+                            price = pe.GetDecimal();
+
+                        if (root.TryGetProperty("Year", out var ye))
+                            year = ye.GetInt32();
+                        else if (root.TryGetProperty("year", out ye))
+                            year = ye.GetInt32();
+
+                        if (price >= 0 && year > 0)
+                        {
+                            decimal adjustedPrice = 0;
+                            try { adjustedPrice = InflationService.CalculateAdjustedPrice(price, year); } catch { }
+                            if (adjustedPrice > 0)
+                            {
+                                builder.AddContent(0, $"${adjustedPrice:N2}");
+                                builder.OpenElement(1, "small");
+                                builder.AddAttribute(2, "class", "text-muted ms-1");
+                                builder.AddContent(3, $"(${price:N2} {year})");
+                                builder.CloseElement();
+                            }
+                            else
+                            {
+                                builder.AddContent(0, $"${price:N2}");
+                                builder.OpenElement(1, "small");
+                                builder.AddAttribute(2, "class", "text-muted ms-1");
+                                builder.AddContent(3, $"({year})");
+                                builder.CloseElement();
+                            }
+                        }
+                        else if (price >= 0)
+                        {
+                            builder.AddContent(0, $"${price:N2}");
+                        }
+                        else
+                        {
+                            builder.AddContent(0, value.ToString());
+                        }
+                    }
+                }
+                catch
+                {
+                    builder.AddContent(0, value.ToString());
+                }
+                break;
+
+            case FieldType.MultilineText:
+            case FieldType.LargeText:
+                var text = value.ToString() ?? "";
+                var truncated = text.Length > 80 ? text[..80] + "..." : text;
+                builder.OpenElement(0, "span");
+                builder.AddAttribute(1, "title", text);
+                builder.AddContent(2, truncated);
+                builder.CloseElement();
+                break;
+
+            default:
+                builder.AddContent(0, value.ToString());
+                break;
+        }
+    };
+
+    private async Task ExportCsv()
+    {
+        if (_selectedTemplateId == 0) return;
+
+        _exporting = true;
+        StateHasChanged();
+
+        try
+        {
+            // Fetch all items (no pagination)
+            var allResult = await Mediator.Send(new GetItemsByTemplateQuery
+            {
+                ContentDefinitionId = _selectedTemplateId,
+                ShowcaseId = _showcaseId,
+                SearchTerm = _searchTerm,
+                SortBy = _sortBy,
+                SortDescending = _sortDescending,
+                PageNumber = 1,
+                PageSize = int.MaxValue,
+            });
+
+            if (allResult == null) return;
+
+            var sb = new System.Text.StringBuilder();
+
+            // Header row — include Entry # column for multi-entry items
+            var hasMultiEntry = allResult.Items.Items.Any(i => i.EntryCount > 1);
+            var headers = new List<string> { "Name" };
+            if (hasMultiEntry)
+            {
+                headers.Add("Entry #");
+            }
+            headers.AddRange(allResult.Fields.Select(f => f.Label));
+            headers.AddRange(["Entries", "Sub-items", "Attachments", "Created", "Modified"]);
+            sb.AppendLine(string.Join(",", headers.Select(CsvEscape)));
+
+            // Data rows — expand multi-entry items into one row per entry
+            foreach (var item in allResult.Items.Items)
+            {
+                if (item.AllEntries.Count > 1)
+                {
+                    // Multi-entry: one row per entry
+                    for (var entryIdx = 0; entryIdx < item.AllEntries.Count; entryIdx++)
+                    {
+                        var entryValues = item.AllEntries[entryIdx];
+                        var row = new List<string> { item.Name };
+                        if (hasMultiEntry)
+                        {
+                            row.Add((entryIdx + 1).ToString());
+                        }
+                        foreach (var field in allResult.Fields)
+                        {
+                            row.Add(FormatFieldValueForCsv(field, entryValues));
+                        }
+                        row.Add(item.EntryCount.ToString());
+                        row.Add(item.ChildCount.ToString());
+                        row.Add(item.AttachmentCount.ToString());
+                        row.Add(item.Created.ToString("yyyy-MM-dd"));
+                        row.Add(item.LastModified?.ToString("yyyy-MM-dd") ?? "");
+                        sb.AppendLine(string.Join(",", row.Select(CsvEscape)));
+                    }
+                }
+                else
+                {
+                    // Single entry or no entries: one row
+                    var row = new List<string> { item.Name };
+                    if (hasMultiEntry)
+                    {
+                        row.Add("");
+                    }
+                    foreach (var field in allResult.Fields)
+                    {
+                        row.Add(FormatFieldValueForCsv(field, item.FieldValues));
+                    }
+                    row.Add(item.EntryCount.ToString());
+                    row.Add(item.ChildCount.ToString());
+                    row.Add(item.AttachmentCount.ToString());
+                    row.Add(item.Created.ToString("yyyy-MM-dd"));
+                    row.Add(item.LastModified?.ToString("yyyy-MM-dd") ?? "");
+                    sb.AppendLine(string.Join(",", row.Select(CsvEscape)));
+                }
+            }
+
+            var csvContent = sb.ToString();
+            var dataUrl = $"data:text/csv;charset=utf-8,{Uri.EscapeDataString(csvContent)}";
+            var fileName = $"{allResult.TemplateName.Replace(" ", "_")}_items_{DateTime.Now:yyyyMMdd}.csv";
+            await JS.InvokeVoidAsync("downloadFile", dataUrl, fileName);
+        }
+        catch (Exception ex)
+        {
+            await LogErrorToSysLog(ex, "TemplatedItemsList: Error exporting CSV");
+        }
+        finally
+        {
+            _exporting = false;
+            StateHasChanged();
+        }
+    }
+
+    private static string CsvEscape(string value)
+    {
+        if (string.IsNullOrEmpty(value)) return "";
+        if (value.Contains('"') || value.Contains(',') || value.Contains('\n') || value.Contains('\r'))
+        {
+            return $"\"{value.Replace("\"", "\"\"")}\"";
+        }
+        return value;
+    }
+
+    private string FormatFieldValueForCsv(FieldDefinition field, Dictionary<string, object?> fieldValues)
+    {
+        if (!fieldValues.TryGetValue(field.Name, out var value) || value == null)
+            return "";
+
+        switch (field.FieldType)
+        {
+            case FieldType.Boolean:
+                var boolVal = value is bool b ? b : bool.TryParse(value.ToString(), out var parsed) && parsed;
+                return boolVal ? "Yes" : "No";
+
+            case FieldType.Date:
+                return DateTime.TryParse(value.ToString(), out var dateVal)
+                    ? dateVal.ToString("yyyy-MM-dd")
+                    : value.ToString() ?? "";
+
+            case FieldType.DateTime:
+                return DateTime.TryParse(value.ToString(), out var dtVal)
+                    ? dtVal.ToString("yyyy-MM-dd HH:mm")
+                    : value.ToString() ?? "";
+
+            case FieldType.Number:
+                if (decimal.TryParse(value.ToString(), out var numVal))
+                    return numVal % 1 == 0 ? numVal.ToString("N0") : numVal.ToString("N2");
+                return value.ToString() ?? "";
+
+            case FieldType.InflationAdjustedPrice:
+                try
+                {
+                    var jsonString = value.ToString();
+                    if (!string.IsNullOrEmpty(jsonString))
+                    {
+                        using var doc = JsonDocument.Parse(jsonString);
+                        var root = doc.RootElement;
+                        decimal price = 0;
+                        int year = 0;
+                        if (root.TryGetProperty("Price", out var pe)) price = pe.GetDecimal();
+                        else if (root.TryGetProperty("price", out pe)) price = pe.GetDecimal();
+                        if (root.TryGetProperty("Year", out var ye)) year = ye.GetInt32();
+                        else if (root.TryGetProperty("year", out ye)) year = ye.GetInt32();
+                        if (year > 0)
+                        {
+                            decimal adjustedPrice = 0;
+                            try { adjustedPrice = InflationService.CalculateAdjustedPrice(price, year); } catch { }
+                            return adjustedPrice > 0
+                                ? $"${adjustedPrice:N2} (${price:N2} {year})"
+                                : $"${price:N2} ({year})";
+                        }
+                        return $"${price:N2}";
+                    }
+                }
+                catch { }
+                return value.ToString() ?? "";
+
+            default:
+                return value.ToString() ?? "";
+        }
+    }
+
+    private static (int start, int end) GetPageRange(int current, int total)
+    {
+        const int maxVisible = 5;
+        var start = Math.Max(1, current - maxVisible / 2);
+        var end = Math.Min(total, start + maxVisible - 1);
+        start = Math.Max(1, end - maxVisible + 1);
+        return (start, end);
+    }
+}
+

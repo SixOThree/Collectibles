@@ -1,0 +1,65 @@
+THIRD-PARTY NOTICES
+===================
+
+This project includes or depends on the following third-party software. Their
+licenses and copyright notices are reproduced below as required.
+
+-------------------------------------------------------------------------------
+
+## Hangfire
+
+Copyright (c) Hangfire OÜ. All rights reserved.
+
+License: GNU Lesser General Public License v3.0 (LGPL-3.0)
+Homepage: https://www.hangfire.io/
+Source: https://github.com/HangfireIO/Hangfire
+
+Collectibles uses Hangfire as a NuGet package dependency for background job
+processing. Hangfire is licensed under the LGPL v3.
+
+The LGPL v3 grants you the right to use Hangfire in your own application
+(including proprietary applications) without being required to release your
+application's source code, provided that:
+
+  - You do not modify the Hangfire source code itself, OR
+  - If you do modify Hangfire source code and redistribute those modifications,
+    you make the modified Hangfire source available under the LGPL v3.
+
+Because this project uses Hangfire only as an unmodified NuGet dependency and
+does not redistribute Hangfire source code, no LGPL obligations apply to this
+project's own code.
+
+A commercial license for Hangfire is also available at:
+https://www.hangfire.io/pricing/
+
+The full text of the LGPL v3 is available at:
+https://www.gnu.org/licenses/lgpl-3.0.txt
+
+-------------------------------------------------------------------------------
+
+## SixLabors.ImageSharp
+
+Copyright (c) Six Labors. All rights reserved.
+
+License: Six Labors Split License v1.0
+Homepage: https://sixlabors.com/products/imagesharp/
+Source: https://github.com/SixLabors/ImageSharp
+
+Collectibles uses ImageSharp for image processing. ImageSharp is published
+under the Six Labors Split License v1.0, which works as follows:
+
+  - Open Source projects: ImageSharp may be used under the terms of the
+    Apache License 2.0.
+  - Closed-source / proprietary projects: A commercial license is required.
+    See https://sixlabors.com/pricing/ for pricing and terms.
+
+The full text of the Six Labors Split License v1.0 is available at:
+https://github.com/SixLabors/ImageSharp/blob/main/LICENSE
+
+The full text of the Apache License 2.0 is available at:
+https://www.apache.org/licenses/LICENSE-2.0
+
+For commercial licensing inquiries, visit:
+https://sixlabors.com/pricing/
+
+-------------------------------------------------------------------------------

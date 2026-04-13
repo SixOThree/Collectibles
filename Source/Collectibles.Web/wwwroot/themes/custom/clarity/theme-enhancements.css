@@ -1,0 +1,525 @@
+/* Clarity Theme Enhancements for Collectibles Application */
+/* This file contains additional classes that can be applied to enhance specific components */
+
+/* Photos Grid Enhancement Class */
+/* Apply .photos-grid to any container to get the Clarity-style photo grid */
+.attachments-container .row.photos-grid,
+.row.photos-grid,
+#attachments-grid.photos-grid {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)) !important;
+    gap: 0.75rem !important;
+    padding: 1rem 0;
+}
+
+.photos-grid > div {
+    width: 100% !important;
+    max-width: none !important;
+}
+
+.photos-grid .attachment-thumbnail,
+.photos-grid .card {
+    height: 100%;
+    aspect-ratio: 1;
+    overflow: hidden;
+    border-radius: 12px !important;
+    transition: transform 0.2s;
+}
+
+.photos-grid .attachment-thumbnail:hover,
+.photos-grid .card:hover {
+    transform: scale(1.05);
+    z-index: 10;
+}
+
+/* Enhanced attachment preview in photos grid */
+.photos-grid .attachment-preview {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.photos-grid .attachment-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Responsive photos grid */
+@media (max-width: 768px) {
+    .attachments-container .row.photos-grid,
+    .row.photos-grid,
+    #attachments-grid.photos-grid {
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)) !important;
+        gap: 0.5rem !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .attachments-container .row.photos-grid,
+    .row.photos-grid,
+    #attachments-grid.photos-grid {
+        grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)) !important;
+        gap: 0.4rem !important;
+    }
+}
+
+/* App Grid Enhancement Class */
+/* Apply .app-grid to create a Clarity-style app launcher grid */
+.app-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    gap: 1.5rem;
+    padding: 1.5rem;
+}
+
+.app-grid .app-icon {
+    text-align: center;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.app-grid .app-icon:hover {
+    transform: scale(1.1);
+}
+
+/* Showcase Grid with Glass Cards */
+.showcase-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+    padding: 1rem 0;
+}
+
+.showcase-grid .showcase-card {
+    background: rgba(255, 255, 255, 0.15) !important;
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    border-radius: 20px !important;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.showcase-grid .showcase-card:hover {
+    transform: translateY(-5px) scale(1.02);
+    box-shadow: 0 15px 40px rgba(31, 38, 135, 0.25) !important;
+}
+
+/* Collection Items Grid */
+.collection-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1.25rem;
+    padding: 1rem 0;
+}
+
+.collection-grid .collection-item {
+    background: rgba(255, 255, 255, 0.15) !important;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 16px !important;
+    padding: 1rem;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.collection-grid .collection-item:hover {
+    transform: translateY(-5px) scale(1.02);
+    box-shadow: 0 10px 30px rgba(31, 38, 135, 0.2) !important;
+}
+
+/* Enhanced Table View for List Mode */
+.glass-table {
+    background: rgba(255, 255, 255, 0.15) !important;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 16px !important;
+    overflow: hidden;
+}
+
+.glass-table thead {
+    background: rgba(255, 255, 255, 0.2) !important;
+}
+
+.glass-table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Floating Action Buttons with Glass Effect */
+.fab-glass {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: rgba(102, 126, 234, 0.9) !important;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 8px 32px rgba(31, 38, 135, 0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.5rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    z-index: 1000;
+}
+
+.fab-glass:hover {
+    transform: scale(1.1);
+    box-shadow: 0 12px 40px rgba(31, 38, 135, 0.35);
+}
+
+/* Glass Panel for Sidebars */
+.glass-panel {
+    background: rgba(255, 255, 255, 0.15) !important;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 20px;
+    padding: 1.5rem;
+    height: 100%;
+}
+
+/* Enhanced Search Bar */
+.search-glass {
+    background: rgba(255, 255, 255, 0.2) !important;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.3) !important;
+    border-radius: 50px !important;
+    padding: 0.75rem 1.5rem;
+    width: 100%;
+    transition: all 0.3s ease;
+}
+
+.search-glass:focus {
+    background: rgba(255, 255, 255, 0.3) !important;
+    box-shadow: 0 4px 20px rgba(0, 122, 255, 0.25) !important;
+}
+
+/* Tags with Glass Effect */
+.tag-glass {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 20px;
+    font-size: 0.85rem;
+    margin: 0.25rem;
+    transition: all 0.2s ease;
+}
+
+.tag-glass:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-2px);
+}
+
+/* Stats Cards with Gradient Numbers */
+.stats-glass {
+    background: rgba(255, 255, 255, 0.15) !important;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 16px !important;
+    padding: 1.5rem;
+    text-align: center;
+}
+
+.stats-glass .stats-number {
+    font-size: 2.5rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.stats-glass .stats-label {
+    color: rgba(44, 62, 80, 0.8);
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+}
+
+/* Enhanced Loading States */
+.skeleton-glass {
+    background: linear-gradient(90deg, 
+        rgba(255, 255, 255, 0.1) 0%, 
+        rgba(255, 255, 255, 0.3) 50%, 
+        rgba(255, 255, 255, 0.1) 100%);
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite;
+    border-radius: 12px;
+}
+
+@keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+
+/* Notification Badge with Pulse */
+.notification-badge {
+    position: relative;
+}
+
+.notification-badge::after {
+    content: '';
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    width: 12px;
+    height: 12px;
+    background: #FF3B30;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(255, 59, 48, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(255, 59, 48, 0);
+    }
+}
+
+/* Smooth Transitions for All Interactive Elements */
+.glass-card *,
+.photos-grid *,
+.app-grid *,
+.showcase-grid *,
+.collection-grid * {
+    transition: all 0.3s ease;
+}
+
+/* Ensure proper z-index stacking */
+.glass-card {
+    position: relative;
+    z-index: 1;
+}
+
+.glass-card:hover {
+    z-index: 10;
+}
+
+/* Enhanced glassmorphism variables - Apple-style subtle effect */
+:root {
+    --enhanced-glass-bg: rgba(248, 248, 248, 0.72);
+    --enhanced-glass-bg-hover: rgba(248, 248, 248, 0.82);
+    --enhanced-glass-border: rgba(255, 255, 255, 0.18);
+    --enhanced-glass-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+    --enhanced-glass-blur: 20px;
+    --enhanced-glass-saturation: 150%;
+}
+
+/* Enhanced card with Apple-style glassmorphism */
+.card {
+    background: rgba(248, 248, 248, 0.72) !important;
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    border: 1px solid rgba(255, 255, 255, 0.18) !important;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12) !important;
+}
+
+/* Enhanced card-body with glassmorphism */
+.card-body {
+    background: rgba(248, 248, 248, 0.65) !important;
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    border-radius: 16px;
+}
+
+/* Form controls with enhanced glass effect */
+.form-control,
+.form-select,
+.form-control[readonly],
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="date"],
+input[type="datetime-local"],
+input[type="search"],
+textarea {
+    background: rgba(248, 248, 248, 0.7) !important;
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    border: 1px solid rgba(255, 255, 255, 0.18) !important;
+    color: inherit !important;
+    transition: all 0.3s ease;
+}
+
+.form-control:focus,
+.form-select:focus,
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="number"]:focus,
+input[type="date"]:focus,
+input[type="datetime-local"]:focus,
+input[type="search"]:focus,
+textarea:focus {
+    background: rgba(248, 248, 248, 0.8) !important;
+    border-color: rgba(255, 255, 255, 0.3) !important;
+    box-shadow: 0 4px 16px rgba(0, 122, 255, 0.15) !important;
+}
+
+/* Input groups with glass effect */
+.input-group-text {
+    background: rgba(248, 248, 248, 0.7) !important;
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    border: 1px solid rgba(255, 255, 255, 0.18) !important;
+}
+
+/* Dropdown menus with glass effect */
+.dropdown-menu {
+    background: rgba(248, 248, 248, 0.75) !important;
+    backdrop-filter: blur(25px) saturate(150%);
+    -webkit-backdrop-filter: blur(25px) saturate(150%);
+    border: 1px solid rgba(255, 255, 255, 0.18) !important;
+    border-radius: 16px !important;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.15) !important;
+}
+
+.dropdown-item:hover {
+    background: rgba(255, 255, 255, 0.5) !important;
+}
+
+/* Modal with glass effect */
+.modal-content {
+    background: rgba(248, 248, 248, 0.8) !important;
+    backdrop-filter: blur(30px) saturate(150%);
+    -webkit-backdrop-filter: blur(30px) saturate(150%);
+    border: 1px solid rgba(255, 255, 255, 0.18) !important;
+    border-radius: 20px !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2) !important;
+}
+
+.modal-header,
+.modal-footer {
+    background: transparent !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Alerts with glass effect */
+.alert {
+    background: rgba(248, 248, 248, 0.7) !important;
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    border: 1px solid rgba(255, 255, 255, 0.18) !important;
+}
+
+/* Buttons with subtle glass effect */
+.btn {
+    backdrop-filter: blur(5px) saturate(150%);
+    -webkit-backdrop-filter: blur(5px) saturate(150%);
+    transition: all 0.3s ease;
+}
+
+.btn:hover {
+    backdrop-filter: blur(8px) saturate(180%);
+    -webkit-backdrop-filter: blur(8px) saturate(180%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* List groups with glass effect */
+.list-group-item {
+    background: rgba(248, 248, 248, 0.65) !important;
+    backdrop-filter: blur(15px) saturate(150%);
+    -webkit-backdrop-filter: blur(15px) saturate(150%);
+    border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+.list-group-item:hover {
+    background: rgba(248, 248, 248, 0.75) !important;
+}
+
+/* Tables with glass effect */
+.table {
+    background: transparent !important;
+}
+
+.table thead th {
+    background: rgba(248, 248, 248, 0.7) !important;
+    backdrop-filter: blur(15px) saturate(150%);
+    -webkit-backdrop-filter: blur(15px) saturate(150%);
+    border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+.table tbody tr {
+    background: rgba(248, 248, 248, 0.6) !important;
+}
+
+.table tbody tr:hover {
+    background: rgba(248, 248, 248, 0.7) !important;
+}
+
+/* Pagination with glass effect */
+.pagination .page-link {
+    background: rgba(248, 248, 248, 0.7) !important;
+    backdrop-filter: blur(15px) saturate(150%);
+    -webkit-backdrop-filter: blur(15px) saturate(150%);
+    border-color: rgba(255, 255, 255, 0.18) !important;
+}
+
+.pagination .page-link:hover {
+    background: rgba(248, 248, 248, 0.8) !important;
+}
+
+.pagination .page-item.active .page-link {
+    background: rgba(248, 248, 248, 0.85) !important;
+    border-color: rgba(255, 255, 255, 0.25) !important;
+}
+
+/* Update existing glass components with saturation */
+.showcase-grid .showcase-card,
+.collection-grid .collection-item,
+.glass-table,
+.glass-panel,
+.search-glass,
+.tag-glass,
+.stats-glass,
+.fab-glass {
+    backdrop-filter: blur(var(--enhanced-glass-blur, 12px)) saturate(var(--enhanced-glass-saturation, 180%));
+    -webkit-backdrop-filter: blur(var(--enhanced-glass-blur, 12px)) saturate(var(--enhanced-glass-saturation, 180%));
+}
+
+/* Print styles - remove glass effects for printing */
+@media print {
+    .glass-card,
+    .card,
+    .glass-panel,
+    .glass-table,
+    .form-control,
+    .form-select,
+    .dropdown-menu,
+    .modal-content,
+    .alert,
+    .btn,
+    .list-group-item {
+        background: white !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        border: 1px solid #dee2e6 !important;
+        box-shadow: none !important;
+    }
+
+    body {
+        background: white !important;
+        animation: none !important;
+    }
+
+    body::before {
+        display: none !important;
+    }
+}

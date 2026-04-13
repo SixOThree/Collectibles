@@ -1,0 +1,330 @@
+@using Collectibles.Application.Features.ContentDefinitions.Commands
+@using Collectibles.Domain.ValueObjects.Templates
+
+<div class="modal fade @(_showModal ? "show d-block" : "")" tabindex="-1" role="dialog"
+     style="@(_showModal ? "background: rgba(0,0,0,0.5);" : "")">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Import Entries from CSV</h5>
+                <button type="button" class="btn-close" @onclick="CloseModal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning mb-3">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                    <strong>Columns are matched by position, not by name.</strong>
+                    Your CSV columns must appear in this order:
+                    <ol class="mb-0 mt-1">
+                        @foreach (var field in FieldDefinitions)
+                        {
+                            <li>@field.Label</li>
+                        }
+                    </ol>
+                </div>
+
+                <div class="form-check mb-3">
+                    <input type="checkbox" class="form-check-input" id="hasHeaders" @bind="_hasHeaders" />
+                    <label class="form-check-label" for="hasHeaders">Data contains headers (skip first row)</label>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Select CSV file</label>
+                    <InputFile OnChange="OnFileSelected" accept=".csv" class="form-control" />
+                </div>
+
+                @if (!string.IsNullOrEmpty(_errorMessage))
+                {
+                    <div class="alert alert-danger">@_errorMessage</div>
+                }
+
+                @if (!string.IsNullOrEmpty(_successMessage))
+                {
+                    <div class="alert alert-success">@_successMessage</div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
+                <button type="button" class="btn btn-primary" @onclick="ImportFile" disabled="@(_selectedFile == null || _isProcessing)">
+                    @if (_isProcessing)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                    }
+                    Import
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public List<FieldDefinitionDto> FieldDefinitions { get; set; } = new();
+    [Parameter] public List<Dictionary<string, object?>> ExistingEntries { get; set; } = new();
+    [Parameter] public EventCallback<List<Dictionary<string, object?>>> OnImport { get; set; }
+
+    private bool _showModal;
+    private bool _hasHeaders = true;
+    private bool _isProcessing;
+    private IBrowserFile? _selectedFile;
+    private string? _errorMessage;
+    private string? _successMessage;
+
+    public void Show()
+    {
+        _showModal = true;
+        _selectedFile = null;
+        _errorMessage = null;
+        _successMessage = null;
+        _isProcessing = false;
+        StateHasChanged();
+    }
+
+    private void CloseModal()
+    {
+        _showModal = false;
+        StateHasChanged();
+    }
+
+    private void OnFileSelected(InputFileChangeEventArgs e)
+    {
+        _selectedFile = e.File;
+        _errorMessage = null;
+        _successMessage = null;
+    }
+
+    private async Task ImportFile()
+    {
+        if (_selectedFile == null) return;
+
+        _isProcessing = true;
+        _errorMessage = null;
+        _successMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            using var reader = new StreamReader(_selectedFile.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024));
+            var content = await reader.ReadToEndAsync();
+
+            var rows = ParseCsv(content);
+
+            if (_hasHeaders && rows.Count > 0)
+            {
+                rows.RemoveAt(0);
+            }
+
+            if (rows.Count == 0)
+            {
+                _errorMessage = "The file contains no data rows.";
+                return;
+            }
+
+            var expectedCount = FieldDefinitions.Count;
+            for (var i = 0; i < rows.Count; i++)
+            {
+                if (rows[i].Count != expectedCount)
+                {
+                    var rowNum = _hasHeaders ? i + 2 : i + 1;
+                    _errorMessage = $"Row {rowNum} has {rows[i].Count} column(s), but the template expects {expectedCount}. Import aborted.";
+                    return;
+                }
+            }
+
+            var entries = new List<Dictionary<string, object?>>();
+            foreach (var row in rows)
+            {
+                var entry = new Dictionary<string, object?>();
+                for (var i = 0; i < FieldDefinitions.Count; i++)
+                {
+                    var field = FieldDefinitions[i];
+                    var rawValue = row[i].Trim();
+                    entry[field.Name] = CoerceValue(field, rawValue);
+                }
+                entries.Add(entry);
+            }
+
+            var duplicateCount = 0;
+            var uniqueEntries = new List<Dictionary<string, object?>>();
+            foreach (var entry in entries)
+            {
+                if (IsDuplicate(entry) || IsDuplicateWithin(entry, uniqueEntries))
+                {
+                    duplicateCount++;
+                }
+                else
+                {
+                    uniqueEntries.Add(entry);
+                }
+            }
+
+            if (uniqueEntries.Count == 0)
+            {
+                _errorMessage = duplicateCount > 0
+                    ? $"All {duplicateCount} row(s) are duplicates of existing entries. Nothing was imported."
+                    : "No entries to import.";
+                return;
+            }
+
+            await OnImport.InvokeAsync(uniqueEntries);
+
+            if (duplicateCount > 0)
+            {
+                _successMessage = $"Imported {uniqueEntries.Count} entry(ies). {duplicateCount} duplicate(s) were skipped.";
+            }
+
+            if (duplicateCount == 0)
+            {
+                CloseModal();
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Error reading file: {ex.Message}";
+        }
+        finally
+        {
+            _isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private object? CoerceValue(FieldDefinitionDto field, string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        switch (field.FieldType)
+        {
+            case FieldType.Number:
+                return decimal.TryParse(value, System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out var num) ? num : null;
+
+            case FieldType.Boolean:
+                var lower = value.ToLowerInvariant();
+                if (lower is "true" or "yes" or "1") return true;
+                if (lower is "false" or "no" or "0") return false;
+                return null;
+
+            case FieldType.Date:
+            case FieldType.DateTime:
+                return DateTime.TryParse(value, System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.None, out var dt) ? dt.ToString("yyyy-MM-dd") : null;
+
+            case FieldType.Text:
+            case FieldType.MultilineText:
+            case FieldType.LargeText:
+            case FieldType.Dropdown:
+            case FieldType.InflationAdjustedPrice:
+            default:
+                return value;
+        }
+    }
+
+    private bool IsDuplicate(Dictionary<string, object?> newEntry)
+    {
+        return IsDuplicateWithin(newEntry, ExistingEntries);
+    }
+
+    private bool IsDuplicateWithin(Dictionary<string, object?> newEntry, List<Dictionary<string, object?>> entries)
+    {
+        foreach (var existing in entries)
+        {
+            var allMatch = true;
+            foreach (var field in FieldDefinitions)
+            {
+                var newVal = (newEntry.GetValueOrDefault(field.Name)?.ToString() ?? "").Trim();
+                var existingVal = (existing.GetValueOrDefault(field.Name)?.ToString() ?? "").Trim();
+                if (!string.Equals(newVal, existingVal, StringComparison.OrdinalIgnoreCase))
+                {
+                    allMatch = false;
+                    break;
+                }
+            }
+            if (allMatch) return true;
+        }
+        return false;
+    }
+
+    private List<List<string>> ParseCsv(string content)
+    {
+        var rows = new List<List<string>>();
+        var currentField = new System.Text.StringBuilder();
+        var currentRow = new List<string>();
+        var inQuotes = false;
+        var i = 0;
+
+        while (i < content.Length)
+        {
+            var c = content[i];
+
+            if (inQuotes)
+            {
+                if (c == '"')
+                {
+                    if (i + 1 < content.Length && content[i + 1] == '"')
+                    {
+                        currentField.Append('"');
+                        i += 2;
+                    }
+                    else
+                    {
+                        inQuotes = false;
+                        i++;
+                    }
+                }
+                else
+                {
+                    currentField.Append(c);
+                    i++;
+                }
+            }
+            else
+            {
+                if (c == '"')
+                {
+                    inQuotes = true;
+                    i++;
+                }
+                else if (c == ',')
+                {
+                    currentRow.Add(currentField.ToString());
+                    currentField.Clear();
+                    i++;
+                }
+                else if (c == '\r' || c == '\n')
+                {
+                    currentRow.Add(currentField.ToString());
+                    currentField.Clear();
+                    if (currentRow.Any(f => !string.IsNullOrEmpty(f)) || currentRow.Count > 1)
+                    {
+                        rows.Add(currentRow);
+                    }
+                    currentRow = new List<string>();
+                    if (c == '\r' && i + 1 < content.Length && content[i + 1] == '\n')
+                    {
+                        i += 2;
+                    }
+                    else
+                    {
+                        i++;
+                    }
+                }
+                else
+                {
+                    currentField.Append(c);
+                    i++;
+                }
+            }
+        }
+
+        if (currentField.Length > 0 || currentRow.Count > 0)
+        {
+            currentRow.Add(currentField.ToString());
+            if (currentRow.Any(f => !string.IsNullOrEmpty(f)) || currentRow.Count > 1)
+            {
+                rows.Add(currentRow);
+            }
+        }
+
+        return rows;
+    }
+}

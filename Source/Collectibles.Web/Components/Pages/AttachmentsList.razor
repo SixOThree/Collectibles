@@ -1,0 +1,339 @@
+@page "/attachments"
+@rendermode InteractiveServerWithoutPrerender
+@inherits LoggablePageBase
+@using Collectibles.Application.Features.Attachments
+@using Collectibles.Application.Features.Attachments.Queries
+@using Collectibles.Domain.Common.Enums
+@using Collectibles.Domain.Entities
+@using Microsoft.AspNetCore.Components.Web.Virtualization
+@using Microsoft.JSInterop
+@using MediatR
+@using Collectibles.Web.Components.Shared
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inject Collectibles.Application.Services.IHashIdsService HashIds
+@implements IAsyncDisposable
+
+<PageTitle>Attachments</PageTitle>
+
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col">
+            <h1>Attachments</h1>
+            <p class="text-muted">To upload attachments, navigate to a specific collectible item and use the upload feature there.</p>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Search</label>
+                    <input type="text" class="form-control" placeholder="Search by name or filename..." 
+                           @bind="searchTerm" @bind:event="oninput" @onkeyup="@((e) => OnSearchKeyUp(e))" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Attachment Type</label>
+                    <select class="form-select" @bind="selectedAttachmentType" @bind:event="onchange" @bind:after="OnFilterChanged">
+                        <option value="">All Types</option>
+                        @foreach (var type in Enum.GetValues<AttachmentType>())
+                        {
+                            <option value="@type">@type</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Created From</label>
+                    <input type="date" class="form-control" @bind="createdFrom" @bind:event="onchange" @bind:after="OnFilterChanged" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Created To</label>
+                    <input type="date" class="form-control" @bind="createdTo" @bind:event="onchange" @bind:after="OnFilterChanged" />
+                </div>
+                <div class="col-md-1 d-flex align-items-end">
+                    <button class="btn btn-outline-secondary w-100" @onclick="ClearFilters">
+                        <i class="bi bi-x-circle"></i> Clear
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- View Switcher -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <span class="text-muted">@totalCount attachments found</span>
+        </div>
+        <div class="btn-group" role="group">
+            <button type="button" class="btn @(viewMode == ViewMode.Thumbnail ? "btn-primary" : "btn-outline-primary")" 
+                    @onclick="() => SetViewMode(ViewMode.Thumbnail)">
+                <i class="bi bi-grid-3x3-gap"></i> Thumbnails
+            </button>
+            <button type="button" class="btn @(viewMode == ViewMode.Detail ? "btn-primary" : "btn-outline-primary")" 
+                    @onclick="() => SetViewMode(ViewMode.Detail)">
+                <i class="bi bi-list-ul"></i> Details
+            </button>
+        </div>
+    </div>
+
+    <!-- Content -->
+    @if (isLoading && attachments.Count == 0)
+    {
+        <div class="text-center p-5">
+            <Spinner Type="SpinnerType.Dots" Color="SpinnerColor.Primary" />
+            <p class="mt-2">Loading attachments...</p>
+        </div>
+    }
+    else if (attachments.Count == 0)
+    {
+        <div class="text-center p-5">
+            <i class="bi bi-inbox display-1 text-muted"></i>
+            <p class="mt-2 text-muted">No attachments found</p>
+        </div>
+    }
+    else
+    {
+        <div class="attachments-container">
+            @if (viewMode == ViewMode.Thumbnail)
+            {
+                <div class="row g-3" id="attachments-grid">
+                    @foreach (var attachment in attachments)
+                    {
+                        <div class="col-md-3 col-lg-2 attachment-item">
+                            <AttachmentThumbnailView Attachment="attachment" 
+                                                    OnViewDetails="ShowAttachmentModal" />
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="list-group" id="attachments-list">
+                    @foreach (var attachment in attachments)
+                    {
+                        <div class="attachment-item">
+                            <AttachmentDetailView Attachment="attachment" 
+                                                OnViewDetails="ShowAttachmentModal"
+                                                OnEditAttachment="EditAttachment" />
+                        </div>
+                    }
+                </div>
+            }
+            
+            @if (isLoadingMore)
+            {
+                <div class="text-center p-3">
+                    <Spinner Type="SpinnerType.Dots" Size="SpinnerSize.Small" Color="SpinnerColor.Primary" />
+                </div>
+            }
+            else if (hasMorePages)
+            {
+                <div class="text-center p-3" id="load-more-trigger">
+                    <button class="btn btn-outline-primary" @onclick="LoadMore">Load More</button>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<AttachmentDetailModal @bind-IsOpen="showDetailModal" AttachmentId="selectedAttachmentId" />
+
+<style>
+    .attachments-container {
+        overflow-y: visible;
+    }
+</style>
+
+@code {
+    private enum ViewMode { Thumbnail, Detail }
+    
+    private ViewMode viewMode = ViewMode.Thumbnail;
+    private List<AttachmentBriefDto> attachments = new();
+    private bool isLoading = true;
+    private bool isLoadingMore = false;
+    private int currentPage = 1;
+    private int totalCount = 0;
+    private int totalPages = 0;
+    private bool hasMorePages => currentPage < totalPages;
+    
+    // Filters
+    private string searchTerm = string.Empty;
+    private AttachmentType? selectedAttachmentType;
+    private DateTime? createdFrom;
+    private DateTime? createdTo;
+    
+    // Debouncing
+    private CancellationTokenSource? searchCancellationTokenSource;
+    private System.Timers.Timer? searchTimer;
+    
+    // JavaScript interop
+    private DotNetObjectReference<AttachmentsList>? dotNetRef;
+    
+    // Modal states
+    private bool showDetailModal = false;
+    private long selectedAttachmentId = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAttachments();
+    }
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            dotNetRef = DotNetObjectReference.Create(this);
+        }
+        
+        if (attachments.Count > 0 && hasMorePages && !isLoadingMore)
+        {
+            await SetupInfiniteScroll();
+        }
+    }
+    
+    private async Task SetupInfiniteScroll()
+    {
+        
+        await Task.Delay(100); // Small delay to ensure DOM is updated
+        await JS.InvokeVoidAsync("infiniteScroll.observeLastElement", dotNetRef, ".attachment-item:last-child");
+    }
+
+    private async Task LoadAttachments(bool append = false)
+    {
+        if (!append)
+        {
+            isLoading = true;
+            currentPage = 1;
+            attachments.Clear();
+        }
+        else
+        {
+            isLoadingMore = true;
+        }
+
+        try
+        {
+            var query = new GetAttachmentsListQuery
+            {
+                SearchTerm = searchTerm,
+                AttachmentType = selectedAttachmentType,
+                CreatedFrom = createdFrom,
+                CreatedTo = createdTo,
+                PageNumber = currentPage,
+                PageSize = 20
+            };
+
+            var result = await Mediator.Send(query);
+            
+            if (append)
+            {
+                attachments.AddRange(result.Items);
+            }
+            else
+            {
+                attachments = result.Items.ToList();
+            }
+            
+            totalCount = result.TotalCount;
+            totalPages = result.TotalPages;
+            
+            // Log search/filter action if filters are applied and not just loading more
+            if (!append && (!string.IsNullOrEmpty(searchTerm) || selectedAttachmentType.HasValue || createdFrom.HasValue || createdTo.HasValue))
+            {
+                await LogAction(EventAction.Search, new
+                {
+                    SearchTerm = searchTerm,
+                    AttachmentType = selectedAttachmentType,
+                    CreatedFrom = createdFrom,
+                    CreatedTo = createdTo,
+                    ResultCount = result.TotalCount,
+                    PageNumber = currentPage
+                });
+            }
+        }
+        finally
+        {
+            isLoading = false;
+            isLoadingMore = false;
+        }
+    }
+
+    private void OnSearchKeyUp(KeyboardEventArgs e)
+    {
+        searchCancellationTokenSource?.Cancel();
+        searchCancellationTokenSource = new CancellationTokenSource();
+        
+        searchTimer?.Stop();
+        searchTimer = new System.Timers.Timer(300);
+        searchTimer.Elapsed += async (sender, args) =>
+        {
+            searchTimer?.Dispose();
+            await InvokeAsync(async () =>
+            {
+                await LoadAttachments();
+                StateHasChanged();
+            });
+        };
+        searchTimer.Start();
+    }
+
+    private async Task OnFilterChanged()
+    {
+        await LoadAttachments();
+    }
+
+    private async Task ClearFilters()
+    {
+        searchTerm = string.Empty;
+        selectedAttachmentType = null;
+        createdFrom = null;
+        createdTo = null;
+        
+        // Log clear filters action
+        await LogAction(EventAction.Other, new { Action = "ClearFilters", Page = "AttachmentsList" });
+        
+        await LoadAttachments();
+    }
+
+    private void SetViewMode(ViewMode mode)
+    {
+        viewMode = mode;
+    }
+
+    [JSInvokable]
+    public async Task LoadMore()
+    {
+        if (hasMorePages && !isLoadingMore)
+        {
+            currentPage++;
+            await LoadAttachments(append: true);
+            StateHasChanged();
+        }
+    }
+
+    private void ShowAttachmentModal(long attachmentId)
+    {
+        selectedAttachmentId = attachmentId;
+        showDetailModal = true;
+        StateHasChanged();
+    }
+    
+    private void EditAttachment(long attachmentId)
+    {
+        var attachmentHash = HashIds.Encode(attachmentId);
+        Navigation.NavigateTo($"/attachments/{attachmentHash}/edit");
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        searchTimer?.Dispose();
+        searchCancellationTokenSource?.Cancel();
+        searchCancellationTokenSource?.Dispose();
+        
+        
+        dotNetRef?.Dispose();
+        return ValueTask.CompletedTask;
+    }
+}

@@ -1,0 +1,85 @@
+@* Example component showing how to use HttpContextDataService in Interactive Server components *@
+@using Collectibles.Web.Services
+
+@* Option 1: Inject the service directly *@
+@inject HttpContextDataService HttpContextData
+
+@* Option 2: Use as cascading parameter (already provided by MainLayout) *@
+<h3>HTTP Context Information</h3>
+
+@if (HttpContextData.IsInitialized)
+{
+    <div class="card">
+        <div class="card-body">
+            <h5 class="card-title">Request Information</h5>
+            <dl class="row">
+                <dt class="col-sm-3">User Agent:</dt>
+                <dd class="col-sm-9">@(HttpContextData.UserAgent ?? "N/A")</dd>
+                
+                <dt class="col-sm-3">Client IP:</dt>
+                <dd class="col-sm-9">@(HttpContextData.ClientIpAddress ?? "N/A")</dd>
+                
+                <dt class="col-sm-3">Request Path:</dt>
+                <dd class="col-sm-9">@(HttpContextData.RequestPath ?? "N/A")</dd>
+                
+                <dt class="col-sm-3">Query String:</dt>
+                <dd class="col-sm-9">@(HttpContextData.QueryString ?? "N/A")</dd>
+                
+                <dt class="col-sm-3">Host:</dt>
+                <dd class="col-sm-9">@(HttpContextData.Host ?? "N/A")</dd>
+                
+                @if (HttpContextData.IsAuthenticated)
+                {
+                    <dt class="col-sm-3">User:</dt>
+                    <dd class="col-sm-9">@HttpContextData.UserName</dd>
+                    
+                    <dt class="col-sm-3">User ID:</dt>
+                    <dd class="col-sm-9">@HttpContextData.UserId</dd>
+                    
+                    <dt class="col-sm-3">Roles:</dt>
+                    <dd class="col-sm-9">@string.Join(", ", HttpContextData.UserRoles)</dd>
+                }
+            </dl>
+            
+            @if (HttpContextData.Headers.Any())
+            {
+                <h6>Custom Headers:</h6>
+                <ul>
+                    @foreach (var header in HttpContextData.Headers)
+                    {
+                        <li><strong>@header.Key:</strong> @header.Value</li>
+                    }
+                </ul>
+            }
+        </div>
+    </div>
+}
+else
+{
+    <div class="alert alert-info">
+        HTTP context data not available. This typically happens when:
+        <ul>
+            <li>The component is being prerendered</li>
+            <li>The middleware hasn't captured the context yet</li>
+            <li>You're accessing this in a background service</li>
+        </ul>
+    </div>
+}
+
+@code {
+    // Alternative: Accept as cascading parameter
+    // [CascadingParameter] 
+    // private HttpContextDataService HttpContextData { get; set; } = default!;
+    
+    protected override void OnInitialized()
+    {
+        // Access HTTP context data during initialization
+        if (HttpContextData.IsInitialized)
+        {
+            // Use the captured HTTP context data
+            var userAgent = HttpContextData.UserAgent;
+            var isAuthenticated = HttpContextData.IsAuthenticated;
+            // etc.
+        }
+    }
+}

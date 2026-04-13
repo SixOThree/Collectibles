@@ -1,0 +1,462 @@
+<Window x:Class="Collectibles.SyncTool.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:Collectibles.SyncTool.ViewModels"
+        Title="Collectibles Sync Tool"
+        Height="750" Width="1200"
+        MinHeight="500" MinWidth="800"
+        Background="#1E1E2E"
+        WindowStartupLocation="CenterScreen">
+
+    <Window.Resources>
+        <ContextMenu x:Key="LocalItemContextMenu" x:Shared="False">
+            <MenuItem Header="Open File" Click="OpenFile_Click" />
+            <MenuItem Header="Open Containing Folder" Click="OpenContainingFolder_Click" />
+        </ContextMenu>
+
+        <!-- Dark theme styles -->
+        <Style x:Key="LabelStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#A6ADC8" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+        <Style x:Key="InputStyle" TargetType="TextBox">
+            <Setter Property="Background" Value="#313244" />
+            <Setter Property="Foreground" Value="#CDD6F4" />
+            <Setter Property="BorderBrush" Value="#45475A" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="6,4" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="CaretBrush" Value="#CDD6F4" />
+        </Style>
+        <Style x:Key="PasswordStyle" TargetType="PasswordBox">
+            <Setter Property="Background" Value="#313244" />
+            <Setter Property="Foreground" Value="#CDD6F4" />
+            <Setter Property="BorderBrush" Value="#45475A" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="6,4" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="CaretBrush" Value="#CDD6F4" />
+        </Style>
+        <Style x:Key="PrimaryButton" TargetType="Button">
+            <Setter Property="Background" Value="#89B4FA" />
+            <Setter Property="Foreground" Value="#1E1E2E" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Padding" Value="16,6" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+        <Style x:Key="SuccessButton" TargetType="Button">
+            <Setter Property="Background" Value="#A6E3A1" />
+            <Setter Property="Foreground" Value="#1E1E2E" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Padding" Value="12,6" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+        <Style x:Key="DangerButton" TargetType="Button">
+            <Setter Property="Background" Value="#F38BA8" />
+            <Setter Property="Foreground" Value="#1E1E2E" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Padding" Value="12,6" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+        <Style x:Key="FilterButton" TargetType="ToggleButton">
+            <Setter Property="Background" Value="#313244" />
+            <Setter Property="Foreground" Value="#CDD6F4" />
+            <Setter Property="BorderBrush" Value="#45475A" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="10,3" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="12"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter Property="Background" Value="#89B4FA" />
+                    <Setter Property="Foreground" Value="#1E1E2E" />
+                    <Setter Property="FontWeight" Value="SemiBold" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="SmallActionButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Padding" Value="4,2" />
+        </Style>
+    </Window.Resources>
+
+    <DockPanel>
+        <!-- Top Bar: Connection Settings -->
+        <Border DockPanel.Dock="Top" Background="#313244" Padding="12,8" BorderBrush="#45475A" BorderThickness="0,0,0,1">
+            <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" Margin="0,0,12,4">
+                    <TextBlock Text="Server:" Style="{StaticResource LabelStyle}" Margin="0,0,6,0" />
+                    <TextBox Text="{Binding ServerUrl, UpdateSourceTrigger=PropertyChanged}"
+                             Style="{StaticResource InputStyle}" Width="220" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,0,12,4">
+                    <TextBlock Text="API Key:" Style="{StaticResource LabelStyle}" Margin="0,0,6,0" />
+                    <PasswordBox x:Name="ApiKeyBox" Style="{StaticResource PasswordStyle}" Width="140"
+                                 PasswordChanged="ApiKeyBox_PasswordChanged" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,0,12,4">
+                    <TextBlock Text="Showcase:" Style="{StaticResource LabelStyle}" Margin="0,0,6,0" />
+                    <TextBox Text="{Binding ShowcaseHashId, UpdateSourceTrigger=PropertyChanged}"
+                             Style="{StaticResource InputStyle}" Width="120" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,0,12,4">
+                    <TextBlock Text="Local:" Style="{StaticResource LabelStyle}" Margin="0,0,6,0" />
+                    <TextBox Text="{Binding LocalFolder, UpdateSourceTrigger=PropertyChanged}"
+                             Style="{StaticResource InputStyle}" Width="220" />
+                    <Button Content="..." Command="{Binding BrowseFolderCommand}"
+                            Margin="4,0,0,0" Padding="8,4" Background="#45475A" Foreground="#CDD6F4"
+                            BorderThickness="0" Cursor="Hand" />
+                </StackPanel>
+                <Button Content="Compare" Command="{Binding CompareCommand}"
+                        Style="{StaticResource PrimaryButton}" Margin="0,0,0,4" />
+            </WrapPanel>
+        </Border>
+
+        <!-- Filter Bar -->
+        <Border DockPanel.Dock="Top" Background="#181825" Padding="12,6" BorderBrush="#45475A" BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal">
+                <ToggleButton Style="{StaticResource FilterButton}" Margin="0,0,4,0"
+                              IsChecked="{Binding ActiveFilter, Converter={StaticResource FilterActive}, ConverterParameter={x:Null}, Mode=OneWay}"
+                              Command="{Binding SetFilterCommand}" CommandParameter="{x:Null}">
+                    <TextBlock>
+                        <Run Text="All (" /><Run Text="{Binding TotalCount, Mode=OneWay}" /><Run Text=")" />
+                    </TextBlock>
+                </ToggleButton>
+                <ToggleButton Style="{StaticResource FilterButton}" Margin="0,0,4,0"
+                              IsChecked="{Binding ActiveFilter, Converter={StaticResource FilterActive}, ConverterParameter=ToUpload, Mode=OneWay}"
+                              Command="{Binding SetFilterCommand}" CommandParameter="ToUpload">
+                    <TextBlock>
+                        <Run Text="&#x2191; To Upload (" /><Run Text="{Binding ToUploadCount, Mode=OneWay}" /><Run Text=")" />
+                    </TextBlock>
+                </ToggleButton>
+                <ToggleButton Style="{StaticResource FilterButton}" Margin="0,0,4,0"
+                              IsChecked="{Binding ActiveFilter, Converter={StaticResource FilterActive}, ConverterParameter=ServerOnly, Mode=OneWay}"
+                              Command="{Binding SetFilterCommand}" CommandParameter="ServerOnly">
+                    <TextBlock>
+                        <Run Text="&#x2716; Server Only (" /><Run Text="{Binding ServerOnlyCount, Mode=OneWay}" /><Run Text=")" />
+                    </TextBlock>
+                </ToggleButton>
+                <ToggleButton Style="{StaticResource FilterButton}" Margin="0,0,4,0"
+                              IsChecked="{Binding ActiveFilter, Converter={StaticResource FilterActive}, ConverterParameter=MovedCopied, Mode=OneWay}"
+                              Command="{Binding SetFilterCommand}" CommandParameter="MovedCopied">
+                    <TextBlock>
+                        <Run Text="&#x2194; Moved/Copied (" /><Run Text="{Binding MovedCopiedCount, Mode=OneWay}" /><Run Text=")" />
+                    </TextBlock>
+                </ToggleButton>
+                <ToggleButton Style="{StaticResource FilterButton}" Margin="0,0,16,0"
+                              IsChecked="{Binding ActiveFilter, Converter={StaticResource FilterActive}, ConverterParameter=Matched, Mode=OneWay}"
+                              Command="{Binding SetFilterCommand}" CommandParameter="Matched">
+                    <TextBlock>
+                        <Run Text="&#x2713; Matched (" /><Run Text="{Binding MatchedCount, Mode=OneWay}" /><Run Text=")" />
+                    </TextBlock>
+                </ToggleButton>
+                <CheckBox Content="Hide Matched" IsChecked="{Binding HideMatched}"
+                          Foreground="#A6ADC8" VerticalAlignment="Center" Margin="0,0,12,0" FontSize="11" />
+                <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                         Style="{StaticResource InputStyle}" Width="180" />
+                <ToggleButton Style="{StaticResource FilterButton}" Margin="8,0,0,0"
+                              IsChecked="{Binding IsPreviewPanelVisible}"
+                              ToolTip="Toggle preview panel">
+                    <TextBlock Text="&#x1F50D; Preview" />
+                </ToggleButton>
+            </StackPanel>
+        </Border>
+
+        <!-- Bottom Action Bar -->
+        <Border DockPanel.Dock="Bottom" Background="#313244" Padding="12,8" BorderBrush="#45475A" BorderThickness="0,1,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Button Grid.Column="0" Style="{StaticResource SuccessButton}" Margin="0,0,8,0"
+                        Command="{Binding UploadSelectedCommand}">
+                    <TextBlock>
+                        <Run Text="&#x2191; Upload (" /><Run Text="{Binding SelectedUploadCount, Mode=OneWay}" /><Run Text=")" />
+                    </TextBlock>
+                </Button>
+
+                <Button Grid.Column="1" Style="{StaticResource PrimaryButton}" Margin="0,0,8,0"
+                        Command="{Binding DownloadSelectedCommand}">
+                    <TextBlock>
+                        <Run Text="&#x2193; Download (" /><Run Text="{Binding SelectedDownloadCount, Mode=OneWay}" /><Run Text=")" />
+                    </TextBlock>
+                </Button>
+
+                <Button Grid.Column="2" Style="{StaticResource DangerButton}" Margin="0,0,8,0"
+                        Command="{Binding DeleteSelectedCommand}">
+                    <TextBlock>
+                        <Run Text="&#x2716; Delete (" /><Run Text="{Binding SelectedDeleteCount, Mode=OneWay}" /><Run Text=")" />
+                    </TextBlock>
+                </Button>
+
+                <Button Grid.Column="3" Style="{StaticResource PrimaryButton}" Margin="0,0,8,0"
+                        Command="{Binding CopySelectedCommand}">
+                    <TextBlock>
+                        <Run Text="&#x2398; Copy (" /><Run Text="{Binding SelectedMovedCopiedCount, Mode=OneWay}" /><Run Text=")" />
+                    </TextBlock>
+                </Button>
+
+                <Button Grid.Column="4" Style="{StaticResource PrimaryButton}" Margin="0,0,0,0"
+                        Command="{Binding MoveSelectedCommand}">
+                    <TextBlock>
+                        <Run Text="&#x2194; Move (" /><Run Text="{Binding SelectedMovedCopiedCount, Mode=OneWay}" /><Run Text=")" />
+                    </TextBlock>
+                </Button>
+
+                <Grid Grid.Column="5" Width="280" HorizontalAlignment="Right">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <ProgressBar Grid.Row="0" Value="{Binding ProgressValue}" Minimum="0" Maximum="100"
+                                 Height="4" Background="#45475A" Foreground="#89B4FA" BorderThickness="0" />
+                    <TextBlock Grid.Row="1" Text="{Binding StatusText}" Foreground="#585B70"
+                               FontSize="11" Margin="0,2,0,0" TextTrimming="CharacterEllipsis" />
+                </Grid>
+            </Grid>
+        </Border>
+
+        <!-- File List + Preview Panel -->
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition x:Name="PreviewColumn" Width="0" />
+            </Grid.ColumnDefinitions>
+
+            <!-- File List -->
+            <DataGrid x:Name="FileGrid"
+                      Grid.Column="0"
+                      ItemsSource="{Binding Items}"
+                      AutoGenerateColumns="False"
+                      PreviewKeyDown="FileGrid_PreviewKeyDown"
+                      MouseDoubleClick="FileGrid_MouseDoubleClick"
+                      SelectionChanged="FileGrid_SelectionChanged"
+                      CanUserAddRows="False"
+                      CanUserDeleteRows="False"
+                      IsReadOnly="False"
+                      SelectionMode="Extended"
+                      Background="#1E1E2E"
+                      Foreground="#CDD6F4"
+                      BorderThickness="0"
+                      GridLinesVisibility="Horizontal"
+                      HorizontalGridLinesBrush="#313244"
+                      RowBackground="#1E1E2E"
+                      AlternatingRowBackground="#181825"
+                      HeadersVisibility="Column"
+                      FontSize="12"
+                      RowHeaderWidth="0">
+
+                <DataGrid.ColumnHeaderStyle>
+                    <Style TargetType="DataGridColumnHeader">
+                        <Setter Property="Background" Value="#313244" />
+                        <Setter Property="Foreground" Value="#A6ADC8" />
+                        <Setter Property="FontWeight" Value="SemiBold" />
+                        <Setter Property="Padding" Value="8,6" />
+                        <Setter Property="BorderBrush" Value="#45475A" />
+                        <Setter Property="BorderThickness" Value="0,0,0,1" />
+                    </Style>
+                </DataGrid.ColumnHeaderStyle>
+
+                <DataGrid.RowStyle>
+                    <Style TargetType="DataGridRow">
+                        <Setter Property="Opacity" Value="{Binding RowOpacity}" />
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#313244" />
+                            </Trigger>
+                            <DataTrigger Binding="{Binding HasLocalFile}" Value="True">
+                                <Setter Property="ContextMenu" Value="{StaticResource LocalItemContextMenu}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </DataGrid.RowStyle>
+
+                <DataGrid.CellStyle>
+                    <Style TargetType="DataGridCell">
+                        <Setter Property="BorderThickness" Value="0" />
+                        <Setter Property="Padding" Value="4,2" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="DataGridCell">
+                                    <Border Background="{TemplateBinding Background}"
+                                            Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter VerticalAlignment="Center" />
+                                    </Border>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                        <Style.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="#313244" />
+                                <Setter Property="Foreground" Value="#CDD6F4" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </DataGrid.CellStyle>
+
+                <DataGrid.Columns>
+                    <!-- Checkbox -->
+                    <DataGridTemplateColumn Header="" Width="36">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <CheckBox IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <!-- Status Icon -->
+                    <DataGridTemplateColumn Header="" Width="32" IsReadOnly="True">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding StatusIcon}"
+                                           Foreground="{Binding StatusBrush}"
+                                           FontSize="14" HorizontalAlignment="Center" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <!-- Filename -->
+                    <DataGridTemplateColumn Header="Filename" Width="*" IsReadOnly="True" SortMemberPath="Filename">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding Filename}" Foreground="{Binding StatusBrush}" />
+                                    <TextBlock Text="{Binding MovedCopiedInfo}" Foreground="#585B70"
+                                               Margin="8,0,0,0" FontSize="10"
+                                               Visibility="{Binding MovedCopiedInfo, Converter={StaticResource StringNotEmptyToVisibility}}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <!-- Item Path -->
+                    <DataGridTextColumn Header="Item Path" Binding="{Binding ItemPath}" Width="200" IsReadOnly="True"
+                                        Foreground="#A6ADC8" FontSize="11" />
+
+                    <!-- File Size -->
+                    <DataGridTextColumn Header="Size" Binding="{Binding FileSizeDisplay}" Width="80" IsReadOnly="True"
+                                        Foreground="#A6ADC8" />
+
+                    <!-- Action -->
+                    <DataGridTemplateColumn Header="" Width="140" IsReadOnly="True">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Content="{Binding ActionLabel}"
+                                            Visibility="{Binding HasAction, Converter={StaticResource BoolToVisibility}}"
+                                            FontSize="11" Cursor="Hand" Foreground="#89B4FA"
+                                            Background="Transparent" BorderThickness="0" Padding="4,2"
+                                            Click="ActionButton_Click" />
+                                    <Button Content="Download"
+                                            Visibility="{Binding HasServerOnlyActions, Converter={StaticResource BoolToVisibility}}"
+                                            FontSize="11" Cursor="Hand" Foreground="#89B4FA"
+                                            Background="Transparent" BorderThickness="0" Padding="4,2"
+                                            Click="DownloadButton_Click" />
+                                    <Button Content="Delete"
+                                            Visibility="{Binding HasServerOnlyActions, Converter={StaticResource BoolToVisibility}}"
+                                            FontSize="11" Cursor="Hand" Foreground="#F38BA8"
+                                            Background="Transparent" BorderThickness="0" Padding="4,2" Margin="6,0,0,0"
+                                            Click="ServerDeleteButton_Click" />
+                                    <Button Content="Copy"
+                                            Visibility="{Binding HasCopyMoveActions, Converter={StaticResource BoolToVisibility}}"
+                                            FontSize="11" Cursor="Hand" Foreground="#A6E3A1"
+                                            Background="Transparent" BorderThickness="0" Padding="4,2"
+                                            Click="CopyButton_Click" />
+                                    <Button Content="Move"
+                                            Visibility="{Binding HasCopyMoveActions, Converter={StaticResource BoolToVisibility}}"
+                                            FontSize="11" Cursor="Hand" Foreground="#89B4FA"
+                                            Background="Transparent" BorderThickness="0" Padding="4,2" Margin="6,0,0,0"
+                                            Click="MoveButton_Click" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <!-- Grid Splitter -->
+            <GridSplitter Grid.Column="1" Width="4" Background="#45475A"
+                          HorizontalAlignment="Center" VerticalAlignment="Stretch"
+                          Cursor="SizeWE"
+                          Visibility="{Binding IsPreviewPanelVisible, Converter={StaticResource BoolToVisibility}}" />
+
+            <!-- Preview Panel -->
+            <Border Grid.Column="2" Background="#181825" BorderBrush="#45475A" BorderThickness="1,0,0,0"
+                    Visibility="{Binding IsPreviewPanelVisible, Converter={StaticResource BoolToVisibility}}">
+                <DockPanel>
+                    <!-- Preview Header -->
+                    <Border DockPanel.Dock="Top" Background="#313244" Padding="10,8"
+                            BorderBrush="#45475A" BorderThickness="0,0,0,1">
+                        <StackPanel>
+                            <TextBlock Text="{Binding PreviewFileName}" Foreground="#CDD6F4"
+                                       FontSize="12" FontWeight="SemiBold"
+                                       TextTrimming="CharacterEllipsis"
+                                       Visibility="{Binding PreviewFileName, Converter={StaticResource StringNotEmptyToVisibility}}" />
+                            <TextBlock Text="{Binding PreviewFileSize}" Foreground="#585B70"
+                                       FontSize="11" Margin="0,2,0,0"
+                                       Visibility="{Binding PreviewFileSize, Converter={StaticResource StringNotEmptyToVisibility}}" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Preview Content -->
+                    <Grid>
+                        <!-- Loading indicator -->
+                        <TextBlock Text="Loading..." Foreground="#585B70" FontSize="12"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   Visibility="{Binding IsPreviewLoading, Converter={StaticResource BoolToVisibility}}" />
+
+                        <!-- Placeholder text -->
+                        <TextBlock Text="{Binding PreviewPlaceholderText}" Foreground="#585B70" FontSize="12"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   TextWrapping="Wrap" TextAlignment="Center" Margin="20"
+                                   Visibility="{Binding PreviewImage, Converter={StaticResource NullToVisibility}}" />
+
+                        <!-- Image preview -->
+                        <ScrollViewer x:Name="PreviewScrollViewer"
+                                      HorizontalScrollBarVisibility="{Binding IsActualSize, Converter={StaticResource BoolToScrollBarVisibility}}"
+                                      VerticalScrollBarVisibility="{Binding IsActualSize, Converter={StaticResource BoolToScrollBarVisibility}}"
+                                      Background="Transparent">
+                            <Image Source="{Binding PreviewImage}"
+                                   Stretch="{Binding IsActualSize, Converter={StaticResource BoolToStretch}}"
+                                   Cursor="{Binding IsActualSize, Converter={StaticResource BoolToZoomCursor}}"
+                                   MouseLeftButtonDown="PreviewImage_MouseLeftButtonDown"
+                                   Visibility="{Binding PreviewImage, Converter={StaticResource NotNullToVisibility}}"
+                                   RenderOptions.BitmapScalingMode="HighQuality" />
+                        </ScrollViewer>
+                    </Grid>
+                </DockPanel>
+            </Border>
+        </Grid>
+    </DockPanel>
+</Window>

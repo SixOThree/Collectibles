@@ -1,0 +1,115 @@
+@page "/admin/ui-examples"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Administrator")]
+@rendermode InteractiveServer
+
+<PageTitle>UI Examples</PageTitle>
+
+<div class="container-fluid">
+    <div class="page-header mb-4">
+        <h1><i class="bi bi-palette-fill me-2"></i>UI Examples</h1>
+        <p class="text-muted">A living style guide showcasing all UI controls and components used in this application.</p>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-4 col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-hand-index me-2"></i>Buttons</h5>
+                    <p class="card-text">Color variants, sizes, outline styles, icon buttons, button groups, and loading states.</p>
+                    <a href="admin/ui-examples/buttons" class="btn btn-primary btn-sm">View Examples</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4 col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-card-heading me-2"></i>Cards &amp; Panels</h5>
+                    <p class="card-text">Card layouts, colored borders and headers, nested tables, forms, and list groups.</p>
+                    <a href="admin/ui-examples/cards" class="btn btn-primary btn-sm">View Examples</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4 col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-bell me-2"></i>Alerts &amp; Notifications</h5>
+                    <p class="card-text">Standard and dismissible alerts, alert headings, validation messages, and badges.</p>
+                    <a href="admin/ui-examples/alerts" class="btn btn-primary btn-sm">View Examples</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4 col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-fonts me-2"></i>Typography</h5>
+                    <p class="card-text">Headings, body text, inline styles, blockquotes, lists, and text color utilities.</p>
+                    <a href="admin/ui-examples/typography" class="btn btn-primary btn-sm">View Examples</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4 col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-input-cursor-text me-2"></i>Forms</h5>
+                    <p class="card-text">Text inputs, floating labels, selects, checkboxes, radios, and validation states.</p>
+                    <a href="admin/ui-examples/forms" class="btn btn-primary btn-sm">View Examples</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4 col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-sliders me-2"></i>Extended Forms</h5>
+                    <p class="card-text">Date/time pickers, color picker, file upload, tag selector, and dynamic field types.</p>
+                    <a href="admin/ui-examples/forms-extended" class="btn btn-primary btn-sm">View Examples</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4 col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-table me-2"></i>Tables</h5>
+                    <p class="card-text">Plain, striped, hover, responsive tables with action buttons, badges, and sortable headers.</p>
+                    <a href="admin/ui-examples/tables" class="btn btn-primary btn-sm">View Examples</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4 col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-window-stack me-2"></i>Modals &amp; Dialogs</h5>
+                    <p class="card-text">All application modal dialogs with sample data — delete confirmations, image preview, share, QR scanner.</p>
+                    <a href="admin/ui-examples/modals" class="btn btn-primary btn-sm">View Examples</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4 col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-arrow-repeat me-2"></i>Spinners &amp; Progress</h5>
+                    <p class="card-text">BlazorBootstrap spinners, HTML spinners, and progress bars in all colors and sizes.</p>
+                    <a href="admin/ui-examples/spinners" class="btn btn-primary btn-sm">View Examples</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4 col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-grid-3x3 me-2"></i>Icons</h5>
+                    <p class="card-text">All 2,050 Bootstrap Icons v1.11.3 in a dense grid with class names.</p>
+                    <a href="admin/ui-examples/icons" class="btn btn-primary btn-sm">View Examples</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4 col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-eye me-2"></i>Theme Preview</h5>
+                    <p class="card-text">Compact sampler of all component types to see how the current theme renders them together.</p>
+                    <a href="admin/ui-examples/theme-preview" class="btn btn-primary btn-sm">View Examples</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

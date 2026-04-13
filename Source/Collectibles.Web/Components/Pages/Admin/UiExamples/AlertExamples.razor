@@ -1,0 +1,259 @@
+@page "/admin/ui-examples/alerts"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Administrator")]
+@rendermode InteractiveServer
+
+<PageTitle>Alerts &amp; Notifications — UI Examples</PageTitle>
+
+<div class="container-fluid">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="admin/ui-examples">UI Examples</a></li>
+            <li class="breadcrumb-item active">Alerts &amp; Notifications</li>
+        </ol>
+    </nav>
+
+    <h1 class="mb-4"><i class="bi bi-bell me-2"></i>Alerts &amp; Notifications</h1>
+
+    @* Section 1: Standard Alerts *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Standard Alerts</h5>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-primary" role="alert">
+                <i class="bi bi-info-circle me-2"></i>This is a <strong>primary</strong> alert — use it for general informational messages.
+            </div>
+            <div class="alert alert-secondary" role="alert">
+                <i class="bi bi-chat-left-text me-2"></i>This is a <strong>secondary</strong> alert — use it for supplementary context.
+            </div>
+            <div class="alert alert-success" role="alert">
+                <i class="bi bi-check-circle me-2"></i>This is a <strong>success</strong> alert — the operation completed successfully.
+            </div>
+            <div class="alert alert-danger" role="alert">
+                <i class="bi bi-exclamation-triangle me-2"></i>This is a <strong>danger</strong> alert — something went wrong.
+            </div>
+            <div class="alert alert-warning" role="alert">
+                <i class="bi bi-exclamation-circle me-2"></i>This is a <strong>warning</strong> alert — please proceed with caution.
+            </div>
+            <div class="alert alert-info" role="alert">
+                <i class="bi bi-lightbulb me-2"></i>This is an <strong>info</strong> alert — here is some helpful information.
+            </div>
+            <div class="alert alert-light" role="alert">
+                <i class="bi bi-brightness-high me-2"></i>This is a <strong>light</strong> alert — a subtle, low-emphasis message.
+            </div>
+            <div class="alert alert-dark" role="alert">
+                <i class="bi bi-moon me-2"></i>This is a <strong>dark</strong> alert — a high-contrast message.
+            </div>
+        </div>
+    </div>
+
+    @* Section 2: Dismissible Alerts *@
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Dismissible Alerts</h5>
+            <button class="btn btn-outline-secondary btn-sm" @onclick="ResetAllAlerts">
+                <i class="bi bi-arrow-counterclockwise me-1"></i>Reset All
+            </button>
+        </div>
+        <div class="card-body">
+            @if (_showDismissiblePrimary)
+            {
+                <div class="alert alert-primary alert-dismissible fade show" role="alert">
+                    <i class="bi bi-info-circle me-2"></i>Dismissible <strong>primary</strong> alert — click the close button to dismiss.
+                    <button type="button" class="btn-close" @onclick="() => _showDismissiblePrimary = false"></button>
+                </div>
+            }
+            @if (_showDismissibleSecondary)
+            {
+                <div class="alert alert-secondary alert-dismissible fade show" role="alert">
+                    <i class="bi bi-chat-left-text me-2"></i>Dismissible <strong>secondary</strong> alert — click the close button to dismiss.
+                    <button type="button" class="btn-close" @onclick="() => _showDismissibleSecondary = false"></button>
+                </div>
+            }
+            @if (_showDismissibleSuccess)
+            {
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    <i class="bi bi-check-circle me-2"></i>Dismissible <strong>success</strong> alert — click the close button to dismiss.
+                    <button type="button" class="btn-close" @onclick="() => _showDismissibleSuccess = false"></button>
+                </div>
+            }
+            @if (_showDismissibleDanger)
+            {
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <i class="bi bi-exclamation-triangle me-2"></i>Dismissible <strong>danger</strong> alert — click the close button to dismiss.
+                    <button type="button" class="btn-close" @onclick="() => _showDismissibleDanger = false"></button>
+                </div>
+            }
+            @if (_showDismissibleWarning)
+            {
+                <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                    <i class="bi bi-exclamation-circle me-2"></i>Dismissible <strong>warning</strong> alert — click the close button to dismiss.
+                    <button type="button" class="btn-close" @onclick="() => _showDismissibleWarning = false"></button>
+                </div>
+            }
+            @if (_showDismissibleInfo)
+            {
+                <div class="alert alert-info alert-dismissible fade show" role="alert">
+                    <i class="bi bi-lightbulb me-2"></i>Dismissible <strong>info</strong> alert — click the close button to dismiss.
+                    <button type="button" class="btn-close" @onclick="() => _showDismissibleInfo = false"></button>
+                </div>
+            }
+            @if (_showDismissibleLight)
+            {
+                <div class="alert alert-light alert-dismissible fade show" role="alert">
+                    <i class="bi bi-brightness-high me-2"></i>Dismissible <strong>light</strong> alert — click the close button to dismiss.
+                    <button type="button" class="btn-close" @onclick="() => _showDismissibleLight = false"></button>
+                </div>
+            }
+            @if (_showDismissibleDark)
+            {
+                <div class="alert alert-dark alert-dismissible fade show" role="alert">
+                    <i class="bi bi-moon me-2"></i>Dismissible <strong>dark</strong> alert — click the close button to dismiss.
+                    <button type="button" class="btn-close" @onclick="() => _showDismissibleDark = false"></button>
+                </div>
+            }
+        </div>
+    </div>
+
+    @* Section 3: Alerts with Headings *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Alerts with Headings</h5>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-success" role="alert">
+                <h4 class="alert-heading">Well done!</h4>
+                <p>You successfully completed the import process. All 42 items were added to your collection without any errors.</p>
+                <hr>
+                <p class="mb-0">You can now view your updated collection on the dashboard or continue adding more items.</p>
+            </div>
+            <div class="alert alert-danger" role="alert">
+                <h4 class="alert-heading">Something went wrong!</h4>
+                <p>The file upload failed because the selected file exceeds the maximum allowed size of 10 MB. Please choose a smaller file.</p>
+                <hr>
+                <p class="mb-0">If this problem persists, contact your administrator for assistance.</p>
+            </div>
+            <div class="alert alert-warning" role="alert">
+                <h4 class="alert-heading">Heads up!</h4>
+                <p>Your subscription will expire in 7 days. Please renew it before the deadline to avoid any interruption in service.</p>
+                <hr>
+                <p class="mb-0">Visit the billing page to update your payment information and renew your plan.</p>
+            </div>
+        </div>
+    </div>
+
+    @* Section 4: Validation Messages *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Validation Messages</h5>
+        </div>
+        <div class="card-body">
+            <form>
+                <div class="mb-3">
+                    <label class="form-label" for="validInput">Valid input</label>
+                    <input type="text" class="form-control is-valid" id="validInput" value="Correct value" readonly>
+                    <div class="valid-feedback">Looks good!</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="invalidInput">Invalid input</label>
+                    <input type="text" class="form-control is-invalid" id="invalidInput" value="" readonly>
+                    <div class="invalid-feedback">Please provide a valid value.</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="invalidSelect">Invalid select</label>
+                    <select class="form-select is-invalid" id="invalidSelect" disabled>
+                        <option value="">Choose...</option>
+                        <option value="1">Option One</option>
+                        <option value="2">Option Two</option>
+                    </select>
+                    <div class="invalid-feedback">Please select a valid option.</div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    @* Section 5: Badges — Default *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Badges — Default</h5>
+        </div>
+        <div class="card-body">
+            <span class="badge bg-primary me-2 mb-2">Primary</span>
+            <span class="badge bg-secondary me-2 mb-2">Secondary</span>
+            <span class="badge bg-success me-2 mb-2">Success</span>
+            <span class="badge bg-danger me-2 mb-2">Danger</span>
+            <span class="badge bg-warning me-2 mb-2">Warning</span>
+            <span class="badge bg-info me-2 mb-2">Info</span>
+            <span class="badge bg-light text-dark me-2 mb-2">Light</span>
+            <span class="badge bg-dark me-2 mb-2">Dark</span>
+        </div>
+    </div>
+
+    @* Section 6: Badges — Pill *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Badges — Pill</h5>
+        </div>
+        <div class="card-body">
+            <span class="badge rounded-pill bg-primary me-2 mb-2">Primary</span>
+            <span class="badge rounded-pill bg-secondary me-2 mb-2">Secondary</span>
+            <span class="badge rounded-pill bg-success me-2 mb-2">Success</span>
+            <span class="badge rounded-pill bg-danger me-2 mb-2">Danger</span>
+            <span class="badge rounded-pill bg-warning me-2 mb-2">Warning</span>
+            <span class="badge rounded-pill bg-info me-2 mb-2">Info</span>
+            <span class="badge rounded-pill bg-light text-dark me-2 mb-2">Light</span>
+            <span class="badge rounded-pill bg-dark me-2 mb-2">Dark</span>
+        </div>
+    </div>
+
+    @* Section 7: Badges in Context *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Badges in Context</h5>
+        </div>
+        <div class="card-body">
+            <h6 class="text-muted mb-3">Headings with Badges</h6>
+            <h1>Heading 1 <span class="badge bg-secondary">New</span></h1>
+            <h2>Heading 2 <span class="badge bg-secondary">New</span></h2>
+            <h3>Heading 3 <span class="badge bg-secondary">New</span></h3>
+            <h4>Heading 4 <span class="badge bg-secondary">New</span></h4>
+
+            <hr>
+
+            <h6 class="text-muted mb-3">Buttons with Notification Counts</h6>
+            <button type="button" class="btn btn-primary me-2 mb-2">
+                Notifications <span class="badge bg-light text-dark ms-2">4</span>
+            </button>
+            <button type="button" class="btn btn-success me-2 mb-2">
+                Messages <span class="badge bg-light text-dark ms-2">12</span>
+            </button>
+            <button type="button" class="btn btn-danger me-2 mb-2">
+                Errors <span class="badge bg-light text-dark ms-2">99+</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool _showDismissiblePrimary = true;
+    private bool _showDismissibleSecondary = true;
+    private bool _showDismissibleSuccess = true;
+    private bool _showDismissibleDanger = true;
+    private bool _showDismissibleWarning = true;
+    private bool _showDismissibleInfo = true;
+    private bool _showDismissibleLight = true;
+    private bool _showDismissibleDark = true;
+
+    private void ResetAllAlerts()
+    {
+        _showDismissiblePrimary = true;
+        _showDismissibleSecondary = true;
+        _showDismissibleSuccess = true;
+        _showDismissibleDanger = true;
+        _showDismissibleWarning = true;
+        _showDismissibleInfo = true;
+        _showDismissibleLight = true;
+        _showDismissibleDark = true;
+    }
+}

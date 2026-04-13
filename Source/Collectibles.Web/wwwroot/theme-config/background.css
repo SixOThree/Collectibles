@@ -1,0 +1,74 @@
+/* Auto-generated background configuration - Enhanced with dark mode support */
+
+/* Background Image - Light Mode */
+body {
+    background-size: cover;
+    background-position: center center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    transition: filter 0.3s ease;
+}
+
+/* Dark Mode Background - Darken the gradient significantly */
+[data-bs-theme="dark"] body {
+    filter: brightness(0.5) contrast(1.1);
+}
+
+/* Reset filter for content to prevent double-darkening */
+[data-bs-theme="dark"] body > * {
+    filter: none;
+}
+
+/* Ensure content remains readable over background - exclude navbar */
+.container:not(.navbar .container):not(.navbar .container-fluid),
+.container-fluid:not(.navbar .container):not(.navbar .container-fluid) {
+    background-color: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: 12px;
+    padding: 1rem;
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Main content area specific styling */
+main .container,
+main .container-fluid,
+.page-content .container,
+.page-content .container-fluid {
+    background-color: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* Dark theme adjustments for content areas */
+[data-bs-theme="dark"] .container:not(.navbar .container):not(.navbar .container-fluid),
+[data-bs-theme="dark"] .container-fluid:not(.navbar .container):not(.navbar .container-fluid) {
+    background-color: rgba(30, 30, 30, 0.92);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+
+[data-bs-theme="dark"] main .container,
+[data-bs-theme="dark"] main .container-fluid,
+[data-bs-theme="dark"] .page-content .container,
+[data-bs-theme="dark"] .page-content .container-fluid {
+    background-color: rgba(30, 30, 30, 0.92);
+    box-shadow: 0 10px 15px rgba(0, 0, 0, 0.3);
+}
+
+/* Ensure navbar maintains its original styling */
+.navbar {
+    background-color: inherit !important;
+}
+
+.navbar .container,
+.navbar .container-fluid {
+    background-color: transparent !important;
+    border-radius: 0 !important;
+    padding: 0 1rem !important;
+    margin: 0 !important;
+}

@@ -1,0 +1,107 @@
+@using Collectibles.Application.Features.CollectibleItems
+@using Collectibles.Web.Components.Shared
+
+<div class="item-card" style="@GetCardBorderStyle()" @onclick="OnClick">
+    @if (!string.IsNullOrEmpty(Item.PreviewImageUrl))
+    {
+        <LazyImage Src="@Item.PreviewImageUrl"
+                   Alt="@Item.Name"
+                   Class="item-image"
+                   PlaceholderClass="item-placeholder"
+                   Style="@($"height: {ImageHeight}px")" />
+    }
+    else
+    {
+        <div class="item-placeholder" style="height: @(ImageHeight)px">
+            <i class="bi bi-image"></i>
+        </div>
+    }
+
+    <div class="item-content">
+        <h4>@Item.Name</h4>
+        @if (!string.IsNullOrEmpty(Item.Description))
+        {
+            <p class="item-description">@Item.Description</p>
+        }
+
+        @if (Item.Tags.Any())
+        {
+            <div class="item-tags">
+                @foreach (var tag in Item.Tags.Take(MaxTagsToShow))
+                {
+                    <span class="item-tag" style="@GetTagStyle(tag)">@tag.Name</span>
+                }
+                @if (Item.Tags.Count > MaxTagsToShow)
+                {
+                    <span class="item-tag">+@(Item.Tags.Count - MaxTagsToShow)</span>
+                }
+            </div>
+        }
+
+        @if (Item.AttachmentCount > 0 || Item.ChildItemCount > 0 || !string.IsNullOrEmpty(Item.TemplateIcon))
+        {
+            <div class="item-stats">
+                @if (!string.IsNullOrEmpty(Item.TemplateIcon))
+                {
+                    <span class="stat-item template-icon" style="@GetTemplateIconStyle()">
+                        <i class="bi @Item.TemplateIcon"></i>
+                    </span>
+                }
+                @if (Item.AttachmentCount > 0)
+                {
+                    <span class="stat-item">
+                        <i class="bi bi-paperclip"></i> @Item.AttachmentCount @(Item.AttachmentCount == 1 ? "file" : "files")
+                    </span>
+                }
+                @if (Item.ChildItemCount > 0)
+                {
+                    <span class="stat-item">
+                        <i class="bi bi-folder"></i> @Item.ChildItemCount @(Item.ChildItemCount == 1 ? "item" : "items")
+                    </span>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public CollectibleItemCardDto Item { get; set; } = null!;
+    [Parameter] public EventCallback<CollectibleItemCardDto> OnItemClick { get; set; }
+    [Parameter] public int MaxTagsToShow { get; set; } = 3;
+    [Parameter] public int ImageHeight { get; set; } = 200;
+
+    private async Task OnClick()
+    {
+        if (OnItemClick.HasDelegate)
+        {
+            await OnItemClick.InvokeAsync(Item);
+        }
+    }
+
+    private string GetTagStyle(TagSummaryDto tag)
+    {
+        if (!string.IsNullOrEmpty(tag.Color))
+        {
+            return $"background-color: {tag.Color}; color: white;";
+        }
+        return string.Empty;
+    }
+
+    private string GetCardBorderStyle()
+    {
+        if (!string.IsNullOrEmpty(Item.TemplateBorderColor))
+        {
+            return $"border-color: {Item.TemplateBorderColor}; border-width: 2px;";
+        }
+        return string.Empty;
+    }
+
+    private string GetTemplateIconStyle()
+    {
+        if (!string.IsNullOrEmpty(Item.TemplateBorderColor))
+        {
+            return $"color: {Item.TemplateBorderColor};";
+        }
+        return string.Empty;
+    }
+}

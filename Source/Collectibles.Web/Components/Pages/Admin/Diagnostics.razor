@@ -1,0 +1,413 @@
+@page "/admin/diagnostics"
+@using Collectibles.Domain.Entities
+@using Collectibles.Infrastructure.Persistence
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Authorization
+@using System.IO
+@using System.Text
+@attribute [Authorize(Roles = "Administrator")]
+@inject ApplicationDbContext DbContext
+@inject IConfiguration Configuration
+@inject IWebHostEnvironment Environment
+@rendermode InteractiveServer
+
+<PageTitle>System Diagnostics</PageTitle>
+
+<div class="container-fluid">
+    <h1>System Diagnostics</h1>
+    
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5>Environment Information</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <td><strong>Environment:</strong></td>
+                            <td>@Environment.EnvironmentName</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Application Path:</strong></td>
+                            <td>@Environment.ContentRootPath</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Web Root Path:</strong></td>
+                            <td>@Environment.WebRootPath</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Machine Name:</strong></td>
+                            <td>@System.Environment.MachineName</td>
+                        </tr>
+                        <tr>
+                            <td><strong>OS Version:</strong></td>
+                            <td>@System.Environment.OSVersion</td>
+                        </tr>
+                        <tr>
+                            <td><strong>CLR Version:</strong></td>
+                            <td>@System.Environment.Version</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Process ID:</strong></td>
+                            <td>@System.Diagnostics.Process.GetCurrentProcess().Id</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5>Log Files</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-2">
+                        <button class="btn btn-sm btn-primary" @onclick="RefreshLogFiles">Refresh</button>
+                    </div>
+                    @if (logFiles.Any())
+                    {
+                        <div class="list-group">
+                            @foreach (var file in logFiles.OrderByDescending(f => f.LastWriteTime))
+                            {
+                                <a href="#" class="list-group-item list-group-item-action" @onclick="() => ViewLogFile(file.Name)" @onclick:preventDefault="true">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h6 class="mb-1">@file.Name</h6>
+                                        <small>@FormatFileSize(file.Length)</small>
+                                    </div>
+                                    <small>Modified: @file.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss")</small>
+                                </a>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <p>No log files found in Logs directory.</p>
+                    }
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5>Database Logs Summary</h5>
+                </div>
+                <div class="card-body">
+                    @if (logSummary != null)
+                    {
+                        <table class="table table-sm">
+                            <tr>
+                                <td><strong>Total Logs:</strong></td>
+                                <td>@logSummary.TotalLogs</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Errors (Last 24h):</strong></td>
+                                <td class="text-danger">@logSummary.ErrorsLast24Hours</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Warnings (Last 24h):</strong></td>
+                                <td class="text-warning">@logSummary.WarningsLast24Hours</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Info (Last 24h):</strong></td>
+                                <td class="text-info">@logSummary.InfoLast24Hours</td>
+                            </tr>
+                        </table>
+                        <button class="btn btn-sm btn-primary" @onclick="ViewDatabaseLogs">View Recent Logs</button>
+                        <button class="btn btn-sm btn-warning" @onclick="ClearOldLogs">Clear Old Logs (>30 days)</button>
+                    }
+                    else
+                    {
+                        <p>Loading summary...</p>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (selectedLogContent != null)
+    {
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Log File: @selectedLogFile</h5>
+                        <button class="btn btn-sm btn-secondary float-end" @onclick="ClearLogContent">Close</button>
+                    </div>
+                    <div class="card-body">
+                        <pre style="max-height: 500px; overflow-y: auto; font-size: 0.85rem;">@selectedLogContent</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (showDatabaseLogs)
+    {
+        <div class="row mt-3">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Recent Database Logs</h5>
+                        <button class="btn btn-sm btn-secondary float-end" @onclick="() => showDatabaseLogs = false">Close</button>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Timestamp</th>
+                                        <th>Level</th>
+                                        <th>Source</th>
+                                        <th>Message</th>
+                                        <th>User</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var log in recentDatabaseLogs)
+                                    {
+                                        <tr class="@GetLogRowClass(log.Level)">
+                                            <td>@log.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                            <td>@log.Level</td>
+                                            <td>@(log.Source?.Split('.').LastOrDefault() ?? "-")</td>
+                                            <td>@TruncateMessage(log.Message, 100)</td>
+                                            <td>@(log.UserId ?? "-")</td>
+                                            <td>
+                                                <button class="btn btn-sm btn-link" @onclick="() => ViewLogDetails(log)">Details</button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (selectedDatabaseLog != null)
+    {
+        <div class="modal" style="display: block; background: rgba(0,0,0,0.5);">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Log Details</h5>
+                        <button type="button" class="btn-close" @onclick="() => selectedDatabaseLog = null"></button>
+                    </div>
+                    <div class="modal-body">
+                        <table class="table table-sm">
+                            <tr>
+                                <td><strong>Timestamp:</strong></td>
+                                <td>@selectedDatabaseLog.Timestamp</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Level:</strong></td>
+                                <td>@selectedDatabaseLog.Level</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Source:</strong></td>
+                                <td>@selectedDatabaseLog.Source</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Message:</strong></td>
+                                <td>@selectedDatabaseLog.Message</td>
+                            </tr>
+                            @if (!string.IsNullOrEmpty(selectedDatabaseLog.Exception))
+                            {
+                                <tr>
+                                    <td><strong>Exception:</strong></td>
+                                    <td><pre>@selectedDatabaseLog.Exception</pre></td>
+                                </tr>
+                            }
+                            @if (!string.IsNullOrEmpty(selectedDatabaseLog.StackTrace))
+                            {
+                                <tr>
+                                    <td><strong>Stack Trace:</strong></td>
+                                    <td><pre>@selectedDatabaseLog.StackTrace</pre></td>
+                                </tr>
+                            }
+                            @if (!string.IsNullOrEmpty(selectedDatabaseLog.Properties))
+                            {
+                                <tr>
+                                    <td><strong>Properties:</strong></td>
+                                    <td><pre>@selectedDatabaseLog.Properties</pre></td>
+                                </tr>
+                            }
+                        </table>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="() => selectedDatabaseLog = null">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<FileInfo> logFiles = new();
+    private string? selectedLogFile;
+    private string? selectedLogContent;
+    private LogSummary? logSummary;
+    private bool showDatabaseLogs;
+    private List<SysLog> recentDatabaseLogs = new();
+    private SysLog? selectedDatabaseLog;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshLogFiles();
+        await LoadLogSummary();
+    }
+
+    private async Task RefreshLogFiles()
+    {
+        var logsPath = Path.Combine(Environment.ContentRootPath, "Logs");
+        if (Directory.Exists(logsPath))
+        {
+            var directory = new DirectoryInfo(logsPath);
+            logFiles = directory.GetFiles("*.txt").ToList();
+        }
+    }
+
+    private async Task ViewLogFile(string fileName)
+    {
+        try
+        {
+            var filePath = Path.Combine(Environment.ContentRootPath, "Logs", fileName);
+            if (File.Exists(filePath))
+            {
+                // Read last 1000 lines to avoid loading huge files
+                var lines = new List<string>();
+                using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                using (var reader = new StreamReader(stream))
+                {
+                    string? line;
+                    while ((line = await reader.ReadLineAsync()) != null)
+                    {
+                        lines.Add(line);
+                        if (lines.Count > 1000)
+                        {
+                            lines.RemoveAt(0);
+                        }
+                    }
+                }
+                
+                selectedLogFile = fileName;
+                selectedLogContent = string.Join(System.Environment.NewLine, lines);
+                
+                if (lines.Count == 1000)
+                {
+                    selectedLogContent = "... (showing last 1000 lines)" + System.Environment.NewLine + selectedLogContent;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            selectedLogContent = $"Error reading log file: {ex.Message}";
+        }
+    }
+
+    private void ClearLogContent()
+    {
+        selectedLogFile = null;
+        selectedLogContent = null;
+    }
+
+    private async Task LoadLogSummary()
+    {
+        var yesterday = DateTime.UtcNow.AddDays(-1);
+        
+        logSummary = new LogSummary
+        {
+            TotalLogs = await DbContext.SysLogs.CountAsync(),
+            ErrorsLast24Hours = await DbContext.SysLogs
+                .Where(l => l.Timestamp >= yesterday && l.Level == Domain.Entities.LogLevel.Error)
+                .CountAsync(),
+            WarningsLast24Hours = await DbContext.SysLogs
+                .Where(l => l.Timestamp >= yesterday && l.Level == Domain.Entities.LogLevel.Warning)
+                .CountAsync(),
+            InfoLast24Hours = await DbContext.SysLogs
+                .Where(l => l.Timestamp >= yesterday && l.Level == Domain.Entities.LogLevel.Information)
+                .CountAsync()
+        };
+    }
+
+    private async Task ViewDatabaseLogs()
+    {
+        recentDatabaseLogs = await DbContext.SysLogs
+            .OrderByDescending(l => l.Timestamp)
+            .Take(100)
+            .ToListAsync();
+        
+        showDatabaseLogs = true;
+    }
+
+    private async Task ClearOldLogs()
+    {
+        var cutoffDate = DateTime.UtcNow.AddDays(-30);
+        var logsToDelete = await DbContext.SysLogs
+            .Where(l => l.Timestamp < cutoffDate)
+            .ToListAsync();
+        
+        DbContext.SysLogs.RemoveRange(logsToDelete);
+        await DbContext.SaveChangesAsync();
+        
+        await LoadLogSummary();
+    }
+
+    private void ViewLogDetails(SysLog log)
+    {
+        selectedDatabaseLog = log;
+    }
+
+    private string FormatFileSize(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB" };
+        int order = 0;
+        double size = bytes;
+        
+        while (size >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            size = size / 1024;
+        }
+        
+        return $"{size:0.##} {sizes[order]}";
+    }
+
+    private string GetLogRowClass(Domain.Entities.LogLevel level)
+    {
+        return level switch
+        {
+            Domain.Entities.LogLevel.Error or Domain.Entities.LogLevel.Critical => "table-danger",
+            Domain.Entities.LogLevel.Warning => "table-warning",
+            Domain.Entities.LogLevel.Debug or Domain.Entities.LogLevel.Trace => "table-secondary",
+            _ => ""
+        };
+    }
+
+    private string TruncateMessage(string message, int maxLength)
+    {
+        if (string.IsNullOrEmpty(message))
+            return "-";
+            
+        if (message.Length <= maxLength)
+            return message;
+            
+        return message.Substring(0, maxLength) + "...";
+    }
+
+    private class LogSummary
+    {
+        public int TotalLogs { get; set; }
+        public int ErrorsLast24Hours { get; set; }
+        public int WarningsLast24Hours { get; set; }
+        public int InfoLast24Hours { get; set; }
+    }
+}

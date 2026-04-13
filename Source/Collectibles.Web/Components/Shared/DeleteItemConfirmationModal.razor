@@ -1,0 +1,154 @@
+@using Collectibles.Application.Features.CollectibleItems.Commands
+
+<div class="modal fade @(_showModal ? "show d-block" : "")" tabindex="-1" role="dialog" style="@(_showModal ? "background: rgba(0,0,0,0.5);" : "")">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    Delete Collectible Item
+                </h5>
+                <button type="button" class="btn-close btn-close-white" @onclick="CloseModal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <h6 class="alert-heading">Warning: This action cannot be undone!</h6>
+                    <p>Are you sure you want to delete <strong>@ItemName</strong>?</p>
+                </div>
+
+                <div class="mb-3">
+                    <p class="text-muted">Deleting this item will permanently remove:</p>
+                    <ul class="text-muted">
+                        <li>All metadata and custom field values</li>
+                        <li>All tag associations</li>
+                        <li>External links and references</li>
+                        <li>QR code assignments</li>
+                        @if (AttachmentCount > 0)
+                        {
+                            <li>@AttachmentCount attachment(s) (if not used by other items)</li>
+                        }
+                    </ul>
+                </div>
+
+                @if (HasChildren)
+                {
+                    <div class="alert alert-warning">
+                        <h6 class="alert-heading">This item has @ChildCount child item(s)</h6>
+                        <p>What would you like to do with the child items?</p>
+                        
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="childAction" id="orphanChildren" 
+                                   checked="@(_childItemAction == ChildItemAction.Orphan)"
+                                   @onchange="@(() => _childItemAction = ChildItemAction.Orphan)">
+                            <label class="form-check-label" for="orphanChildren">
+                                <strong>Keep child items</strong> - Child items will become independent (no parent)
+                            </label>
+                        </div>
+                        
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="childAction" id="deleteChildren"
+                                   checked="@(_childItemAction == ChildItemAction.Delete)"
+                                   @onchange="@(() => _childItemAction = ChildItemAction.Delete)">
+                            <label class="form-check-label text-danger" for="deleteChildren">
+                                <strong>Delete child items</strong> - All child items and their descendants will be permanently deleted
+                            </label>
+                        </div>
+                    </div>
+                }
+
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="confirmDelete" @bind="_confirmed">
+                    <label class="form-check-label" for="confirmDelete">
+                        I understand that this action is permanent and cannot be undone
+                    </label>
+                </div>
+
+                @if (!string.IsNullOrEmpty(_errorMessage))
+                {
+                    <div class="alert alert-danger mt-3">
+                        <i class="bi bi-exclamation-circle me-2"></i>
+                        @_errorMessage
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="CloseModal" disabled="@_isDeleting">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-danger" @onclick="ConfirmDelete" disabled="@(!_confirmed || _isDeleting)">
+                    @if (_isDeleting)
+                    {
+                        <Spinner Type="SpinnerType.Dots" Size="SpinnerSize.Small" Color="SpinnerColor.Light" Class="me-2" />
+                        <span>Deleting...</span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-trash me-2"></i>
+                        <span>Delete Item</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string ItemName { get; set; } = string.Empty;
+    [Parameter] public long ItemId { get; set; }
+    [Parameter] public bool HasChildren { get; set; }
+    [Parameter] public int ChildCount { get; set; }
+    [Parameter] public int AttachmentCount { get; set; }
+    [Parameter] public EventCallback<ChildItemAction> OnDeleteConfirmed { get; set; }
+    [Parameter] public EventCallback OnCancelled { get; set; }
+
+    private bool _showModal = false;
+    private bool _confirmed = false;
+    private bool _isDeleting = false;
+    private string? _errorMessage;
+    private ChildItemAction _childItemAction = ChildItemAction.Orphan;
+
+    public async Task ShowModal()
+    {
+        _showModal = true;
+        _confirmed = false;
+        _isDeleting = false;
+        _errorMessage = null;
+        _childItemAction = ChildItemAction.Orphan;
+        StateHasChanged();
+    }
+
+    private async Task CloseModal()
+    {
+        _showModal = false;
+        _confirmed = false;
+        _isDeleting = false;
+        _errorMessage = null;
+        await OnCancelled.InvokeAsync();
+        StateHasChanged();
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (!_confirmed)
+        {
+            return;
+        }
+
+        _isDeleting = true;
+        _errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            await OnDeleteConfirmed.InvokeAsync(_childItemAction);
+            _showModal = false;
+        }
+        catch
+        {
+            _errorMessage = "An error occurred while deleting the item. Please try again.";
+            _isDeleting = false;
+        }
+
+        StateHasChanged();
+    }
+}

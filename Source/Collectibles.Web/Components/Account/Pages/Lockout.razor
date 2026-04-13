@@ -1,0 +1,26 @@
+﻿@page "/Account/Lockout"
+
+@using Collectibles.Application.Interfaces
+@using Collectibles.Domain.Entities
+
+@inject IEventLogService EventLogService
+
+<PageTitle>Locked out</PageTitle>
+
+<header>
+    <h1 class="text-danger">Locked out</h1>
+    <p class="text-danger">This account has been locked out, please try again later.</p>
+</header>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await EventLogService.LogEventAsync(
+                EventAction.View,
+                additionalData: System.Text.Json.JsonSerializer.Serialize(new { Page = "Lockout" }));
+        }
+        catch { }
+    }
+}

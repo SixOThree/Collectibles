@@ -1,0 +1,259 @@
+@using Collectibles.Application.Features.ContentDefinitions
+@using Collectibles.Application.Features.ContentDefinitions.Queries
+@using Collectibles.Domain.ValueObjects.Templates
+@using Collectibles.Application.Common.Services
+@using System.Text.Json
+@using MediatR
+@inject IMediator Mediator
+@inject IInflationCalculationService InflationService
+
+@if (_loading)
+{
+    <div class="text-center">
+        <Spinner Type="SpinnerType.Dots" Size="SpinnerSize.Small" Color="SpinnerColor.Primary" />
+        <span class="visually-hidden">Loading template fields...</span>
+    </div>
+}
+else if (_templateDefinition != null && _templateDefinition.Fields.Any())
+{
+    <div class="template-fields bg-light rounded p-3">
+        @foreach (var field in _templateDefinition.Fields.OrderBy(f => f.DisplayOrder))
+        {
+            var fieldValue = FieldValues.TryGetValue(field.Name, out var value) ? value : null;
+            
+            @if (fieldValue != null || ShowEmptyFields)
+            {
+                <div class="field-display pb-2 border-bottom mb-3">
+                    <dt class="field-label mb-1 text-muted">@field.Label</dt>
+                    <dd class="field-value">
+                        @if (fieldValue == null)
+                        {
+                            <span class="text-muted fst-italic">Not specified</span>
+                        }
+                        else
+                        {
+                            @switch (field.FieldType)
+                            {
+                                case FieldType.Boolean:
+                                    <span>
+                                        @if (Convert.ToBoolean(fieldValue))
+                                        {
+                                            <i class="bi bi-check-circle-fill text-success"></i>
+                                            <span>Yes</span>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-x-circle text-muted"></i>
+                                            <span>No</span>
+                                        }
+                                    </span>
+                                    break;
+                                    
+                                case FieldType.Date:
+                                    @if (DateTime.TryParse(fieldValue.ToString(), out var dateValue))
+                                    {
+                                        <span>@dateValue.ToString("MMMM d, yyyy")</span>
+                                    }
+                                    else
+                                    {
+                                        <span>@fieldValue</span>
+                                    }
+                                    break;
+                                    
+                                case FieldType.DateTime:
+                                    @if (DateTime.TryParse(fieldValue.ToString(), out var dateTimeValue))
+                                    {
+                                        <span>@dateTimeValue.ToString("MMMM d, yyyy h:mm tt")</span>
+                                    }
+                                    else
+                                    {
+                                        <span>@fieldValue</span>
+                                    }
+                                    break;
+                                    
+                                case FieldType.Number:
+                                    <span>@fieldValue</span>
+                                    break;
+                                    
+                                case FieldType.MultilineText:
+                                case FieldType.LargeText:
+                                    <div class="preserve-whitespace">@fieldValue</div>
+                                    break;
+                                    
+                                case FieldType.InflationAdjustedPrice:
+                                    @if (fieldValue != null)
+                                    {
+                                        try
+                                        {
+                                            // Parse the JSON string
+                                            var jsonString = fieldValue.ToString();
+                                            if (!string.IsNullOrEmpty(jsonString))
+                                            {
+                                                using var doc = JsonDocument.Parse(jsonString);
+                                                var root = doc.RootElement;
+                                                
+                                                // Try both uppercase and lowercase property names for compatibility
+                                                decimal price = 0;
+                                                int year = 0;
+                                                
+                                                if (root.TryGetProperty("Price", out var priceElement))
+                                                {
+                                                    price = priceElement.GetDecimal();
+                                                }
+                                                else if (root.TryGetProperty("price", out priceElement))
+                                                {
+                                                    price = priceElement.GetDecimal();
+                                                }
+                                                
+                                                if (root.TryGetProperty("Year", out var yearElement))
+                                                {
+                                                    year = yearElement.GetInt32();
+                                                }
+                                                else if (root.TryGetProperty("year", out yearElement))
+                                                {
+                                                    year = yearElement.GetInt32();
+                                                }
+                                                
+                                                if (price >= 0 && year > 0)
+                                                {
+                                                    // Calculate the inflation-adjusted price
+                                                    decimal adjustedPrice = 0;
+                                                    try
+                                                    {
+                                                        adjustedPrice = InflationService.CalculateAdjustedPrice(price, year);
+                                                    }
+                                                    catch
+                                                    {
+                                                        // If inflation calculation fails, just show the original price
+                                                    }
+                                                    
+                                                    <div>
+                                                        <span class="text-muted">$@price.ToString("N2") (@year)</span>
+                                                        @if (adjustedPrice > 0)
+                                                        {
+                                                            <br />
+                                                            <span >
+                                                                <i class="bi bi-graph-up-arrow"></i>
+                                                                Adjusted for inflation: <strong>$@adjustedPrice.ToString("N2")</strong> (@DateTime.Now.Year value)
+                                                            </span>
+                                                        }
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <span>@fieldValue</span>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <span>@fieldValue</span>
+                                            }
+                                        }
+                                        catch
+                                        {
+                                            <span>@fieldValue</span>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted fst-italic">Not specified</span>
+                                    }
+                                    break;
+                                    
+                                case FieldType.Dropdown:
+                                    <span>@fieldValue</span>
+                                    break;
+                                    
+                                default:
+                                    <span>@fieldValue</span>
+                                    break;
+                            }
+                        }
+                        
+                        @if (!string.IsNullOrWhiteSpace(field.HelpText) && ShowHelpText)
+                        {
+                            <small class="text-muted d-block mt-1">@field.HelpText</small>
+                        }
+                    </dd>
+                </div>
+            }
+        }
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public long? TemplateId { get; set; }
+    [Parameter, EditorRequired] public Dictionary<string, object?> FieldValues { get; set; } = new();
+    [Parameter] public bool ShowEmptyFields { get; set; } = false;
+    [Parameter] public bool ShowHelpText { get; set; } = false;
+    
+    private TemplateDefinition? _templateDefinition;
+    private bool _loading = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (TemplateId.HasValue)
+        {
+            await LoadTemplateDefinition();
+        }
+        else
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task LoadTemplateDefinition()
+    {
+        _loading = true;
+        
+        try
+        {
+            var query = new GetContentDefinitionByIdQuery(TemplateId!.Value);
+            var contentDefinition = await Mediator.Send(query);
+            
+            if (contentDefinition != null && contentDefinition.Fields != null)
+            {
+                // Convert FieldDefinitionDto to FieldDefinition
+                _templateDefinition = new TemplateDefinition
+                {
+                    Name = contentDefinition.Name,
+                    Description = contentDefinition.Description,
+                    Fields = contentDefinition.Fields.Select(f => new FieldDefinition
+                    {
+                        Name = f.Name,
+                        Label = f.Label,
+                        FieldType = f.FieldType,
+                        IsRequired = f.IsRequired,
+                        DisplayOrder = f.DisplayOrder,
+                        Placeholder = f.Placeholder,
+                        DefaultValue = f.DefaultValue,
+                        HelpText = f.HelpText,
+                        ValidationRules = f.ValidationRules != null ? new FieldValidationRules
+                        {
+                            MinLength = f.ValidationRules.MinLength,
+                            MaxLength = f.ValidationRules.MaxLength,
+                            Pattern = f.ValidationRules.Pattern,
+                            ErrorMessage = f.ValidationRules.ErrorMessage,
+                            MinValue = f.ValidationRules.MinValue,
+                            MaxValue = f.ValidationRules.MaxValue,
+                            MinDate = f.ValidationRules.MinDate,
+                            MaxDate = f.ValidationRules.MaxDate,
+                            AllowDecimals = f.ValidationRules.AllowDecimals,
+                            DecimalPlaces = f.ValidationRules.DecimalPlaces
+                        } : new FieldValidationRules(),
+                        Options = f.Options ?? new Dictionary<string, object>()
+                    }).ToList()
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading template definition: {ex.Message}");
+            _templateDefinition = null;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

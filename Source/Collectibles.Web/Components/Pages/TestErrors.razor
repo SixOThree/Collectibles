@@ -1,0 +1,154 @@
+@page "/test-errors"
+@inherits LoggablePageBase
+@inject ILogger<TestErrors> Logger
+
+<PageTitle>Test Error Scenarios</PageTitle>
+
+<h1>Error Testing Page</h1>
+
+<div class="alert alert-warning">
+    <strong>Warning:</strong> This page is for testing error handling. Only use in development!
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5>Exception Errors</h5>
+            </div>
+            <div class="card-body">
+                <button class="btn btn-danger mb-2" @onclick="ThrowException">
+                    Throw Unhandled Exception
+                </button>
+                <p class="text-muted">Simulates an unhandled exception in the application</p>
+
+                <button class="btn btn-danger mb-2" @onclick="ThrowNullReferenceException">
+                    Throw Null Reference Exception
+                </button>
+                <p class="text-muted">Simulates a common null reference error</p>
+
+                <button class="btn btn-danger mb-2" @onclick="ThrowDivideByZeroException">
+                    Throw Divide By Zero
+                </button>
+                <p class="text-muted">Simulates a mathematical error</p>
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5>Database Errors</h5>
+            </div>
+            <div class="card-body">
+                <button class="btn btn-warning mb-2" @onclick="SimulateDatabaseTimeout">
+                    Simulate Database Timeout
+                </button>
+                <p class="text-muted">Simulates a database connection timeout</p>
+
+                <button class="btn btn-warning mb-2" @onclick="SimulateDatabaseConnectionError">
+                    Simulate Connection Error
+                </button>
+                <p class="text-muted">Simulates database connection failure</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5>HTTP Status Errors</h5>
+            </div>
+            <div class="card-body">
+                <a href="/error/401" class="btn btn-secondary mb-2">
+                    Test 401 Unauthorized
+                </a>
+                <p class="text-muted">Navigate to unauthorized page</p>
+
+                <a href="/error/403" class="btn btn-secondary mb-2">
+                    Test 403 Forbidden
+                </a>
+                <p class="text-muted">Navigate to forbidden resource</p>
+
+                <a href="/nonexistent-page-12345" class="btn btn-secondary mb-2">
+                    Test 404 Not Found
+                </a>
+                <p class="text-muted">Navigate to non-existent page</p>
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5>Component Errors</h5>
+            </div>
+            <div class="card-body">
+                <button class="btn btn-info mb-2" @onclick="CauseRenderingError">
+                    Cause Rendering Error
+                </button>
+                <p class="text-muted">Triggers an error during component rendering</p>
+
+                <button class="btn btn-info mb-2" @onclick="SimulateAsyncError">
+                    Simulate Async Error
+                </button>
+                <p class="text-muted">Triggers an error in async operation</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (_showRenderError)
+{
+    @* This will cause a rendering error *@
+    string? nullString = null;
+    <p>@nullString!.ToUpper()</p>
+}
+
+@code {
+    private bool _showRenderError = false;
+
+    private void ThrowException()
+    {
+        throw new InvalidOperationException("This is a test exception to verify error handling!");
+    }
+
+    private void ThrowNullReferenceException()
+    {
+        string? testString = null;
+        _ = testString!.Length; // This will throw NullReferenceException
+    }
+
+    private void ThrowDivideByZeroException()
+    {
+        int zero = 0;
+        int result = 10 / zero;
+    }
+
+    private async Task SimulateDatabaseTimeout()
+    {
+        Logger.LogWarning("Simulating database timeout...");
+        await Task.Delay(100);
+        throw new TimeoutException("Database operation timed out after 30 seconds.");
+    }
+
+    private async Task SimulateDatabaseConnectionError()
+    {
+        Logger.LogWarning("Simulating database connection error...");
+        await Task.Delay(100);
+        throw new InvalidOperationException(
+            "A network-related or instance-specific error occurred while establishing a connection to SQL Server. " +
+            "The server was not found or was not accessible."
+        );
+    }
+
+    private async Task CauseRenderingError()
+    {
+        Logger.LogInformation("Triggering a rendering error...");
+        await Task.Delay(50);
+        _showRenderError = true;
+    }
+
+    private async Task SimulateAsyncError()
+    {
+        Logger.LogInformation("Simulating an error in an async method...");
+        await Task.Delay(500);
+        throw new ApplicationException("Error occurred during async operation!");
+    }
+}

@@ -1,0 +1,195 @@
+@page "/share/{Token}"
+@using Collectibles.Application.Showcases.Queries.GetPublicShowcase
+@using MediatR
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+
+<PageTitle>@(_showcase?.Name ?? "Showcase")</PageTitle>
+
+@if (_loading)
+{
+    <div class="d-flex justify-content-center align-items-center" style="min-height: 50vh;">
+        <Spinner Type="SpinnerType.Dots" Color="SpinnerColor.Primary" />
+    </div>
+}
+else if (_error != null)
+{
+    <div class="container mt-5">
+        <div class="alert alert-danger" role="alert">
+            <h4 class="alert-heading">Unable to Load Showcase</h4>
+            <p>@_error</p>
+            <hr>
+            <p class="mb-0">This link may be expired, invalid, or the showcase may no longer be available.</p>
+        </div>
+    </div>
+}
+else if (_showcase != null)
+{
+    <div class="container mt-4">
+        <!-- Showcase Header -->
+        <div class="row mb-4">
+            <div class="col">
+                <h1 class="display-4">@_showcase.Name</h1>
+                @if (!string.IsNullOrWhiteSpace(_showcase.Description))
+                {
+                    <p class="lead">@_showcase.Description</p>
+                }
+                
+                @if (_showcase.Tags.Any())
+                {
+                    <div class="mb-3">
+                        @foreach (var tag in _showcase.Tags)
+                        {
+                            <span class="badge bg-secondary me-1">@tag</span>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Showcase Preview Image -->
+        @if (!string.IsNullOrWhiteSpace(_showcase.PreviewImageUrl))
+        {
+            <div class="row mb-4">
+                <div class="col-md-6 mx-auto">
+                    <LazyImage Src="@_showcase.PreviewImageUrl" 
+                               Alt="@_showcase.Name"
+                               Class="img-fluid rounded shadow"
+                               PlaceholderClass="img-fluid rounded shadow" />
+                </div>
+            </div>
+        }
+
+        <!-- Collectible Items Grid -->
+        @if (_showcase.CollectibleItems.Any())
+        {
+            <h2 class="mb-3">Items in this Showcase</h2>
+            <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 mb-4">
+                @foreach (var item in _showcase.CollectibleItems)
+                {
+                    <div class="col">
+                        <div class="card h-100 shadow-sm">
+                            @if (!string.IsNullOrWhiteSpace(item.PreviewImageUrl))
+                            {
+                                <LazyImage Src="@item.PreviewImageUrl" 
+                                           Alt="@item.Name"
+                                           Class="card-img-top"
+                                           Style="height: 200px; object-fit: cover;"
+                                           PlaceholderClass="card-img-top" />
+                            }
+                            else
+                            {
+                                <div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 200px;">
+                                    <i class="bi bi-image text-muted" style="font-size: 3rem;"></i>
+                                </div>
+                            }
+                            <div class="card-body">
+                                <h5 class="card-title">@item.Name</h5>
+                                @if (!string.IsNullOrWhiteSpace(item.Description))
+                                {
+                                    <p class="card-text">@item.Description</p>
+                                }
+                                
+                                @if (item.Attachments.Any())
+                                {
+                                    <h6 class="mt-3">Attachments (@item.Attachments.Count)</h6>
+                                    <div class="list-group list-group-flush">
+                                        @foreach (var attachment in item.Attachments)
+                                        {
+                                            <div class="list-group-item px-0">
+                                                <div class="d-flex align-items-center">
+                                                    @if (!string.IsNullOrWhiteSpace(attachment.ThumbnailUrl))
+                                                    {
+                                                        <img src="@attachment.ThumbnailUrl" alt="@attachment.FileName" style="width: 40px; height: 40px; object-fit: cover;" class="rounded me-2">
+                                                    }
+                                                    else
+                                                    {
+                                                        <div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                                            <i class="bi bi-file-earmark text-muted"></i>
+                                                        </div>
+                                                    }
+                                                    <div class="flex-grow-1">
+                                                        <div class="fw-semibold small">@attachment.FileName</div>
+                                                        <div class="text-muted small">@FormatFileSize(attachment.FileSize)</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-info" role="alert">
+                <i class="bi bi-info-circle me-2"></i>
+                This showcase doesn't contain any items yet.
+            </div>
+        }
+
+        <!-- Footer -->
+        <div class="row mt-5 mb-3">
+            <div class="col text-center text-muted">
+                <small>This showcase is being shared with you via a private link.</small>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string Token { get; set; } = string.Empty;
+
+    private PublicShowcaseDto? _showcase;
+    private bool _loading = true;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadShowcase();
+    }
+
+    private async Task LoadShowcase()
+    {
+        try
+        {
+            _loading = true;
+            _error = null;
+
+            var query = new GetPublicShowcaseQuery { Token = Token };
+            _showcase = await Mediator.Send(query);
+
+            if (_showcase == null)
+            {
+                _error = "The showcase could not be found or the link has expired.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = "An error occurred while loading the showcase. Please try again later.";
+            Console.Error.WriteLine($"Error loading public showcase: {ex}");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private string FormatFileSize(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB", "TB" };
+        int order = 0;
+        double size = bytes;
+        
+        while (size >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            size /= 1024;
+        }
+
+        return $"{size:0.##} {sizes[order]}";
+    }
+}
