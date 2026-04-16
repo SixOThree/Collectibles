@@ -1,11 +1,14 @@
-﻿@using Microsoft.AspNetCore.Identity
+﻿@using System.Security.Claims
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
 @using Microsoft.Extensions.Options
+@using Collectibles.Application.Interfaces
 @using Collectibles.Infrastructure.Persistence
 @using Collectibles.Domain.Configuration
 
 @inject SignInManager<ApplicationUser> SignInManager
 @inject UserManager<ApplicationUser> UserManager
-@inject IdentityUserAccessor UserAccessor
+@inject IApplicationDbContextFactory DbContextFactory
 @inject IOptions<SyncToolSettings> SyncToolOptions
 
 <ul class="nav nav-pills flex-column">
@@ -65,8 +68,17 @@
 
         if (SyncToolOptions.Value.Enabled)
         {
-            var user = await UserAccessor.GetRequiredUserAsync(HttpContext);
-            _showSyncToolLink = user.SyncToolEnabled;
+            var userId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!string.IsNullOrEmpty(userId))
+            {
+                // Use an isolated DbContext so this query doesn't race with the parent page's
+                // UserManager lookup on the request-scoped ApplicationDbContext.
+                await using var db = (ApplicationDbContext)await DbContextFactory.CreateDbContextAsync();
+                _showSyncToolLink = await db.Users
+                    .Where(u => u.Id == userId)
+                    .Select(u => u.SyncToolEnabled)
+                    .FirstOrDefaultAsync();
+            }
         }
     }
 }
