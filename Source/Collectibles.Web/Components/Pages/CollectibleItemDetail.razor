@@ -1,5 +1,5 @@
 @page "/item/{Hash}"
-@rendermode InteractiveServerWithoutPrerender
+@rendermode InteractiveServer
 @inherits LoggablePageBase
 @using Collectibles.Application.Features.CollectibleItems
 @using Collectibles.Application.Features.CollectibleItems.Commands
@@ -11,6 +11,7 @@
 @using Collectibles.Application.Features.ContentDefinitions.Queries
 @using Collectibles.Application.Services
 @using Collectibles.Application.Interfaces
+@using Collectibles.Web.Components.Pages.PrerenderState
 @using Collectibles.Web.Components.Shared
 @using Collectibles.Web.Components.Collectible
 @using Collectibles.Web.Components.Shared.Templates
@@ -21,6 +22,7 @@
 @inject IMediator Mediator
 @inject NavigationManager Navigation
 @inject IHashIdsService HashIds
+@inject PersistentComponentState ApplicationState
 @inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider
 @inject Collectibles.Application.Interfaces.IUserManagementService UserManagementService
 @inject IOptions<Collectibles.Domain.Configuration.ExternalLinksOptions> ExternalLinksOptions
@@ -523,6 +525,8 @@ else
     private List<CollectibleItemCardDto> _childItemCards = new();
     private string _showcaseOwnerName = "Unknown";
     private Dictionary<long, List<LinkCacheDto>> _linkCaches = new();
+    private PersistingComponentStateSubscription? _persistSubscription;
+    private const string PersistedStateKey = "CollectibleItemDetail";
     
     // Modal states
     private bool showAttachmentDetailModal = false;
@@ -535,14 +539,77 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        // Extract showcase context from query parameters
         var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
         if (QueryHelpers.ParseQuery(uri.Query).TryGetValue("showcase", out var showcaseValue))
         {
             _showcaseHash = showcaseValue.ToString();
         }
-        
+
+        _persistSubscription = ApplicationState.RegisterOnPersisting(PersistStateAsync);
+
+        if (TryRestorePersistedState())
+        {
+            _isLoading = false;
+            return;
+        }
+
         await LoadItem();
+    }
+
+    private bool TryRestorePersistedState()
+    {
+        if (!ApplicationState.TryTakeFromJson<CollectibleItemDetailPrerenderState>(PersistedStateKey, out var restored) || restored == null)
+        {
+            return false;
+        }
+
+        _item = restored.Item;
+        _accessDenied = restored.AccessDenied;
+        _canEdit = restored.CanEdit;
+        _canView = restored.CanView;
+        _showcaseHash = restored.ShowcaseHash;
+        _contextShowcase = restored.ContextShowcase;
+        _templateName = restored.TemplateName;
+        _hideAttachments = restored.HideAttachments;
+        _childItemCards = restored.ChildItemCards;
+        _relatedAttachments = restored.RelatedAttachments ?? new();
+        _showcaseOwnerName = restored.ShowcaseOwnerName;
+
+        if (_item != null)
+        {
+            _item.FieldValues = PrerenderStateJsonNormalizer.NormalizeDictionary(_item.FieldValues);
+            _item.FieldValueEntries = PrerenderStateJsonNormalizer.NormalizeDictionaryList(_item.FieldValueEntries);
+            _imageAttachments = _item.Attachments
+                .Where(a => a.AttachmentType == Domain.Common.Enums.AttachmentType.Image)
+                .ToList();
+        }
+
+        return true;
+    }
+
+    private Task PersistStateAsync()
+    {
+        if (_isLoading)
+        {
+            return Task.CompletedTask;
+        }
+
+        ApplicationState.PersistAsJson(PersistedStateKey, new CollectibleItemDetailPrerenderState
+        {
+            Item = _item,
+            AccessDenied = _accessDenied,
+            CanEdit = _canEdit,
+            CanView = _canView,
+            ShowcaseHash = _showcaseHash,
+            ContextShowcase = _contextShowcase,
+            TemplateName = _templateName,
+            HideAttachments = _hideAttachments,
+            ChildItemCards = _childItemCards,
+            RelatedAttachments = _relatedAttachments,
+            ShowcaseOwnerName = _showcaseOwnerName
+        });
+
+        return Task.CompletedTask;
     }
 
     private async Task LoadItem()
@@ -872,6 +939,6 @@ else
 
     public void Dispose()
     {
-        // No longer need to dispose the modal as it doesn't implement IAsyncDisposable
+        _persistSubscription?.Dispose();
     }
 }
