@@ -1,5 +1,6 @@
 @page "/showcase/{Hash}"
-@rendermode InteractiveServerWithoutPrerender
+@rendermode InteractiveServer
+@implements IDisposable
 @inherits LoggablePageBase
 @using Collectibles.Application.Features.Showcases
 @using Collectibles.Application.Features.Showcases.Queries
@@ -8,9 +9,11 @@
 @using Collectibles.Application.Services
 @using Collectibles.Application.Interfaces
 @using Collectibles.Domain.Entities
+@using Collectibles.Web.Components.Pages.PrerenderState
 @using Collectibles.Web.Components.Shared
 @using MediatR
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.WebUtilities
 @inject IMediator Mediator
@@ -20,6 +23,7 @@
 @inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider
 @inject ICollectibleItemPreviewService PreviewService
 @inject ISiteConfigurationService SiteConfigurationService
+@inject PersistentComponentState ApplicationState
 
 <PageTitle>@(_showcase?.Name ?? "Showcase")</PageTitle>
 
@@ -267,31 +271,27 @@ else
     private bool _showShareModal = false;
     private int _cardImageHeight = 200;
     private int _cardMinWidth = 280;
+    private PersistingComponentStateSubscription? _persistSubscription;
+    private const string PersistedStateKey = "ShowcaseDetail";
+    private bool _restoredFromPersistedState;
 
     protected override async Task OnInitializedAsync()
     {
+        _persistSubscription = ApplicationState.RegisterOnPersisting(PersistStateAsync);
+
+        if (TryRestorePersistedState())
+        {
+            _loading = false;
+            return;
+        }
+
         await LoadShowcase();
         var imageHeightStr = await SiteConfigurationService.GetConfigurationValueAsync("CardImageHeight", "200");
         var minWidthStr = await SiteConfigurationService.GetConfigurationValueAsync("CardMinWidth", "280");
         if (int.TryParse(imageHeightStr, out var ih)) _cardImageHeight = ih;
         if (int.TryParse(minWidthStr, out var mw)) _cardMinWidth = mw;
         ReadQueryParameters();
-        
-        // Trigger collage preview generation in background
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                if (_showcase != null)
-                {
-                    await PreviewService.GenerateCollagePreviewsForShowcaseAsync(_showcase.Id);
-                }
-            }
-            catch (Exception ex)
-            {
-                _ = LogErrorToSysLog(ex, "generating collage previews for showcase in background");
-            }
-        });
+        TriggerBackgroundPreviewGeneration();
     }
 
     private async Task LoadShowcase()
@@ -329,6 +329,63 @@ else
             _showcase = null;
         }
         _loading = false;
+    }
+
+    private bool TryRestorePersistedState()
+    {
+        if (!ApplicationState.TryTakeFromJson<ShowcaseDetailPrerenderState>(PersistedStateKey, out var restored) || restored == null)
+        {
+            return false;
+        }
+
+        _showcase = restored.Showcase;
+        _accessDenied = restored.AccessDenied;
+        _canEdit = restored.CanEdit;
+        _searchTerm = restored.SearchTerm;
+        _selectedTagIds = new HashSet<long>(restored.SelectedTagIds);
+        _cardImageHeight = restored.CardImageHeight;
+        _cardMinWidth = restored.CardMinWidth;
+        _restoredFromPersistedState = true;
+        return true;
+    }
+
+    private Task PersistStateAsync()
+    {
+        if (_loading && !_restoredFromPersistedState)
+        {
+            return Task.CompletedTask;
+        }
+
+        ApplicationState.PersistAsJson(PersistedStateKey, new ShowcaseDetailPrerenderState
+        {
+            Showcase = ShowcaseDetailPrerenderStateFactory.CreatePersistableShowcase(_showcase),
+            AccessDenied = _accessDenied,
+            CanEdit = _canEdit,
+            SearchTerm = _searchTerm,
+            SelectedTagIds = _selectedTagIds.ToList(),
+            CardImageHeight = _cardImageHeight,
+            CardMinWidth = _cardMinWidth
+        });
+
+        return Task.CompletedTask;
+    }
+
+    private void TriggerBackgroundPreviewGeneration()
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                if (_showcase != null)
+                {
+                    await PreviewService.GenerateCollagePreviewsForShowcaseAsync(_showcase.Id);
+                }
+            }
+            catch (Exception ex)
+            {
+                _ = LogErrorToSysLog(ex, "generating collage previews for showcase in background");
+            }
+        });
     }
 
     private void ReadQueryParameters()
@@ -523,6 +580,11 @@ else
         _isNavigating = true;
         StateHasChanged();
         Navigation.NavigateTo($"/showcase/{Hash}/templates/items");
+    }
+
+    public void Dispose()
+    {
+        _persistSubscription?.Dispose();
     }
 }
 
