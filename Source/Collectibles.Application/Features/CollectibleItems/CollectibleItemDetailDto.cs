@@ -15,6 +15,7 @@ public class CollectibleItemDetailDto
     public List<ParentInfo> ParentHierarchy { get; set; } = new();
     public List<CollectibleItemDto> Children { get; set; } = new();
     public long? ContentDefinitionId { get; set; }
+    public int? ItemDetailPreviewHeight { get; set; }
     public Dictionary<string, object?> FieldValues { get; set; } = new();
     public List<Dictionary<string, object?>>? FieldValueEntries { get; set; }
     public bool AllowMultipleEntries { get; set; }

@@ -30,6 +30,12 @@ public class ContentDefinition : BaseAuditableEntity
     public bool HideAttachments { get; set; }
 
     /// <summary>
+    /// Gets or sets an optional preview height override, in pixels, for image-style previews shown on
+    /// item detail pages that use this template.
+    /// </summary>
+    public int? ItemDetailPreviewHeight { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether indicates whether this template is globally available to all showcases.
     /// If false, the template is only available to the associated showcase.
     /// </summary>

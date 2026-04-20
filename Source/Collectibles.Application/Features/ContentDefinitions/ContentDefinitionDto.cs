@@ -9,6 +9,7 @@ public class ContentDefinitionDto
     public string? Description { get; set; }
     public bool IsActive { get; set; }
     public bool HideAttachments { get; set; }
+    public int? ItemDetailPreviewHeight { get; set; }
     public bool IsGlobal { get; set; }
     public long? ShowcaseId { get; set; }
     public string? ShowcaseName { get; set; }
@@ -30,6 +31,7 @@ public class ContentDefinitionListDto
     public bool IsActive { get; set; }
     public bool IsDefault { get; set; }
     public bool HideAttachments { get; set; }
+    public int? ItemDetailPreviewHeight { get; set; }
     public bool IsGlobal { get; set; }
     public long? ShowcaseId { get; set; }
     public string? ShowcaseName { get; set; }

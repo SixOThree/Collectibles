@@ -71,6 +71,7 @@ public class GetContentDefinitionsQueryHandler : IRequestHandler<GetContentDefin
                 IsActive = cd.IsActive,
                 IsDefault = cd.IsDefault,
                 HideAttachments = cd.HideAttachments,
+                ItemDetailPreviewHeight = cd.ItemDetailPreviewHeight,
                 IsGlobal = cd.IsGlobal,
                 ShowcaseId = cd.ShowcaseId,
                 ShowcaseName = cd.Showcase?.Name,

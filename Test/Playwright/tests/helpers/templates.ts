@@ -19,6 +19,7 @@ export type CreateShowcaseTemplateOptions = {
   description?: string;
   hideAttachments?: boolean;
   allowMultipleEntries?: boolean;
+  itemDetailPreviewHeight?: number;
   fields: TemplateFieldConfig[];
 };
 
@@ -40,6 +41,10 @@ export async function createShowcaseTemplate(page: Page, options: CreateShowcase
 
   await setCheckbox(page.getByLabel('Show Related Items Only'), options.hideAttachments ?? false);
   await setCheckbox(page.getByLabel('Allow Multiple Entries'), options.allowMultipleEntries ?? false);
+
+  if (options.itemDetailPreviewHeight !== undefined) {
+    await page.getByLabel('Item Page Preview Height Override (px)').fill(String(options.itemDetailPreviewHeight));
+  }
 
   for (const field of options.fields) {
     await addTemplateField(page, field);

@@ -6,7 +6,7 @@
 @implements IAsyncDisposable
 
 <div class="card attachment-thumbnail h-100 @(IsFeatured ? "featured-attachment" : "")" @onclick="HandleClick">
-    <div class="attachment-preview background-blur">
+    <div class="attachment-preview background-blur" style="@GetPreviewStyle()">
         @if (!string.IsNullOrEmpty(_previewThumbnail))
         {
             <img src="data:image/png;base64,@_previewThumbnail"
@@ -58,11 +58,19 @@
     [Parameter] public EventCallback OnFeatureToggle { get; set; }
     [Parameter] public bool CanToggleFeature { get; set; }
     [Parameter] public bool LazyLoadPreview { get; set; } = true;
+    [Parameter] public int? PreviewHeight { get; set; }
 
     private string? _previewThumbnail;
     private bool _isLoadingPreview;
     private bool _hasLoadedPreview;
     private IJSObjectReference? _intersectionObserver;
+
+    private string? GetPreviewStyle()
+    {
+        return PreviewHeight.HasValue
+            ? $"height: {PreviewHeight.Value}px; aspect-ratio: auto;"
+            : null;
+    }
 
     protected override async Task OnInitializedAsync()
     {

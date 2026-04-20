@@ -141,7 +141,7 @@ else
             }
             else
             {
-                <div class="items-grid" style="grid-template-columns: repeat(auto-fill, minmax(@(_cardMinWidth)px, 1fr))">
+                <div class="items-grid" style="grid-template-columns: repeat(auto-fill, minmax(280px, 1fr))">
                     @foreach (var item in FilteredItems)
                     {
                         <CollectibleItemCard Item="item" OnItemClick="HandleItemClick" ImageHeight="_cardImageHeight" />
@@ -270,7 +270,6 @@ else
     private bool _showInfoModal = false;
     private bool _showShareModal = false;
     private int _cardImageHeight = 200;
-    private int _cardMinWidth = 280;
     private PersistingComponentStateSubscription? _persistSubscription;
     private const string PersistedStateKey = "ShowcaseDetail";
     private bool _restoredFromPersistedState;
@@ -287,9 +286,7 @@ else
 
         await LoadShowcase();
         var imageHeightStr = await SiteConfigurationService.GetConfigurationValueAsync("CardImageHeight", "200");
-        var minWidthStr = await SiteConfigurationService.GetConfigurationValueAsync("CardMinWidth", "280");
         if (int.TryParse(imageHeightStr, out var ih)) _cardImageHeight = ih;
-        if (int.TryParse(minWidthStr, out var mw)) _cardMinWidth = mw;
         ReadQueryParameters();
         TriggerBackgroundPreviewGeneration();
     }
@@ -344,7 +341,6 @@ else
         _searchTerm = restored.SearchTerm;
         _selectedTagIds = new HashSet<long>(restored.SelectedTagIds);
         _cardImageHeight = restored.CardImageHeight;
-        _cardMinWidth = restored.CardMinWidth;
         _restoredFromPersistedState = true;
         return true;
     }
@@ -363,8 +359,7 @@ else
             CanEdit = _canEdit,
             SearchTerm = _searchTerm,
             SelectedTagIds = _selectedTagIds.ToList(),
-            CardImageHeight = _cardImageHeight,
-            CardMinWidth = _cardMinWidth
+            CardImageHeight = _cardImageHeight
         });
 
         return Task.CompletedTask;

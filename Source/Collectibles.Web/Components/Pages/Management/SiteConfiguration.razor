@@ -67,14 +67,6 @@
                 </div>
             </div>
 
-            <div class="mb-3">
-                <label for="cardMinWidth" class="form-label">Card Min Width (px)</label>
-                <InputNumber id="cardMinWidth" @bind-Value="configModel.CardMinWidth" class="form-control" style="max-width: 200px;" />
-                <div class="form-text">
-                    Minimum width of item cards in the grid. Valid range: 200-600px. Default: 280px.
-                </div>
-            </div>
-
             <button type="submit" class="btn btn-primary" disabled="@isSaving">
                 @if (isSaving)
                 {
@@ -108,9 +100,6 @@
 
             var imageHeight = await SiteConfigurationService.GetConfigurationValueAsync("CardImageHeight", "200");
             if (int.TryParse(imageHeight, out var ih)) configModel.CardImageHeight = ih;
-
-            var minWidth = await SiteConfigurationService.GetConfigurationValueAsync("CardMinWidth", "280");
-            if (int.TryParse(minWidth, out var mw)) configModel.CardMinWidth = mw;
         }
         catch (Exception ex)
         {
@@ -129,13 +118,6 @@
             return;
         }
 
-        if (configModel.CardMinWidth < 200 || configModel.CardMinWidth > 600)
-        {
-            statusMessage = "Card Min Width must be between 200 and 600 pixels.";
-            isError = true;
-            return;
-        }
-
         isSaving = true;
         try
         {
@@ -148,11 +130,6 @@
                 "CardImageHeight",
                 configModel.CardImageHeight.ToString(),
                 "Height in pixels for item card images (100-500)");
-
-            await SiteConfigurationService.SetConfigurationValueAsync(
-                "CardMinWidth",
-                configModel.CardMinWidth.ToString(),
-                "Minimum width in pixels for item cards in the grid (200-600)");
 
             statusMessage = "Configuration saved successfully.";
             isError = false;
@@ -173,6 +150,5 @@
     {
         public string RegistrationPendingMessage { get; set; } = "Please contact the site administrator to complete your registration.";
         public int CardImageHeight { get; set; } = 200;
-        public int CardMinWidth { get; set; } = 280;
     }
 }
