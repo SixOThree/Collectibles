@@ -377,6 +377,9 @@ FodyWeavers.xsd
 appsettings.Development.json
 appsettings.*.json
 
+# Local custom themes
+/Source/Collectibles.Web/wwwroot/themes/custom/terracotta-garden/
+
 # Environment files
 .env
 .env.*
