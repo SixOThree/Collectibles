@@ -9,28 +9,24 @@ using Polly;
 namespace Collectibles.Infrastructure.Services;
 
 /// <summary>
-/// Service that initializes Hangfire schema after database connectivity is confirmed.
-/// This runs after DatabaseConnectivityService to ensure SQL Server is ready.
+/// Initializes the Hangfire schema before any Hangfire jobs are configured.
 /// </summary>
-public class HangfireSchemaInitializerService : IHostedService
+public class HangfireSchemaInitializer : IHangfireSchemaInitializer
 {
-    private readonly ILogger<HangfireSchemaInitializerService> _logger;
+    private readonly ILogger<HangfireSchemaInitializer> _logger;
     private readonly IConfiguration _configuration;
-    private readonly IServiceProvider _serviceProvider;
 
-    public HangfireSchemaInitializerService(
-        ILogger<HangfireSchemaInitializerService> logger,
-        IConfiguration configuration,
-        IServiceProvider serviceProvider)
+    public HangfireSchemaInitializer(
+        ILogger<HangfireSchemaInitializer> logger,
+        IConfiguration configuration)
     {
         _logger = logger;
         _configuration = configuration;
-        _serviceProvider = serviceProvider;
     }
 
-    public async Task StartAsync(CancellationToken cancellationToken)
+    public async Task EnsureSchemaAsync(CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Hangfire schema initialization service starting...");
+        _logger.LogInformation("Ensuring Hangfire schema exists...");
 
         var defaultConnectionString = _configuration.GetConnectionString("DefaultConnection");
         if (string.IsNullOrWhiteSpace(defaultConnectionString))
@@ -92,14 +88,7 @@ public class HangfireSchemaInitializerService : IHostedService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to initialize Hangfire schema. Hangfire background jobs may not function properly.");
-
-            // Don't throw - allow the application to continue even if Hangfire schema initialization fails
-            // The application can still function without background jobs
+            throw;
         }
-    }
-
-    public Task StopAsync(CancellationToken cancellationToken)
-    {
-        return Task.CompletedTask;
     }
 }
