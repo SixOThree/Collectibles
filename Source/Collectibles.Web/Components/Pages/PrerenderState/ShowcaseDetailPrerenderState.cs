@@ -15,6 +15,4 @@ public sealed class ShowcaseDetailPrerenderState
     public List<long> SelectedTagIds { get; set; } = new();
 
     public int CardImageHeight { get; set; } = 200;
-
-    public int CardMinWidth { get; set; } = 280;
 }

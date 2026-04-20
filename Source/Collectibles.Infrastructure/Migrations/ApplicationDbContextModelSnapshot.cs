@@ -370,6 +370,9 @@ namespace Collectibles.Infrastructure.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(false);
 
+                    b.Property<int?>("ItemDetailPreviewHeight")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("LastModified")
                         .HasColumnType("datetime2");
 

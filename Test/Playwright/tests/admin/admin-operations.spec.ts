@@ -92,6 +92,7 @@ test('admin can review management and diagnostics surfaces safely', async ({ pag
 
   await page.goto('/Management/SiteConfiguration', { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'Site Configuration' })).toBeVisible({ timeout: 15000 });
+  await expect(page.getByLabel('Card Min Width (px)')).toHaveCount(0);
 
   const registrationMessage = page.locator('#registrationMessage');
   const originalRegistrationMessage = await registrationMessage.inputValue();

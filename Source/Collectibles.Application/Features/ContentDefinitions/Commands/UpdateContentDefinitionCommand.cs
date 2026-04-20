@@ -17,6 +17,7 @@ public class UpdateContentDefinitionCommand : IRequest
     public bool IsGlobal { get; set; }
     public long? ShowcaseId { get; set; }
     public bool HideAttachments { get; set; }
+    public int? ItemDetailPreviewHeight { get; set; }
     public bool AllowMultipleEntries { get; set; }
     public string? BorderColor { get; set; }
     public string? Icon { get; set; }
@@ -37,6 +38,11 @@ public class UpdateContentDefinitionCommandValidator : AbstractValidator<UpdateC
 
         RuleFor(x => x.Description)
             .MaximumLength(500).WithMessage("Description must not exceed 500 characters.");
+
+        RuleFor(x => x.ItemDetailPreviewHeight)
+            .InclusiveBetween(100, 500)
+            .When(x => x.ItemDetailPreviewHeight.HasValue)
+            .WithMessage("Item page preview height override must be between 100 and 500 pixels when provided.");
 
         RuleFor(x => x.ShowcaseId)
             .NotNull().When(x => !x.IsGlobal)
@@ -187,6 +193,7 @@ public class UpdateContentDefinitionCommandHandler : IRequestHandler<UpdateConte
             Name = oldTemplate?.Name,
             Description = oldTemplate?.Description,
             IsActive = contentDefinition.IsActive,
+            ItemDetailPreviewHeight = contentDefinition.ItemDetailPreviewHeight,
             FieldCount = oldTemplate?.Fields?.Count ?? 0,
             Fields = oldTemplate?.Fields?.Select(f => new { f.Name, f.Label, f.FieldType, f.IsRequired, f.DisplayOrder }),
         };
@@ -228,6 +235,7 @@ public class UpdateContentDefinitionCommandHandler : IRequestHandler<UpdateConte
         contentDefinition.SetTemplateDefinition(templateDefinition);
         contentDefinition.IsActive = request.IsActive;
         contentDefinition.HideAttachments = request.HideAttachments;
+        contentDefinition.ItemDetailPreviewHeight = request.ItemDetailPreviewHeight;
         contentDefinition.IsGlobal = request.IsGlobal;
         contentDefinition.ShowcaseId = request.ShowcaseId;
         contentDefinition.BorderColor = request.BorderColor;
@@ -241,6 +249,7 @@ public class UpdateContentDefinitionCommandHandler : IRequestHandler<UpdateConte
             Name = request.Name,
             Description = request.Description,
             IsActive = request.IsActive,
+            ItemDetailPreviewHeight = request.ItemDetailPreviewHeight,
             FieldCount = request.Fields.Count,
             Fields = request.Fields.Select(f => new { f.Name, f.Label, f.FieldType, f.IsRequired, f.DisplayOrder }),
         };

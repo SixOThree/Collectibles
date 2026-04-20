@@ -1,5 +1,5 @@
-using Collectibles.Application.Features.CollectibleItems;
 using Collectibles.Application.Features.Attachments;
+using Collectibles.Application.Features.CollectibleItems;
 
 namespace Collectibles.Web.Components.Pages.PrerenderState;
 
@@ -20,6 +20,8 @@ public sealed class CollectibleItemDetailPrerenderState
     public string? TemplateName { get; set; }
 
     public bool HideAttachments { get; set; }
+
+    public int ItemPreviewHeight { get; set; } = 200;
 
     public List<CollectibleItemCardDto> ChildItemCards { get; set; } = new();
 

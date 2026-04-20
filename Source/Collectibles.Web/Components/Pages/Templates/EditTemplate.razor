@@ -97,6 +97,15 @@
                     </div>
 
                     <div class="mb-3">
+                        <label for="itemDetailPreviewHeight" class="form-label">Item Page Preview Height Override (px)</label>
+                        <InputNumber id="itemDetailPreviewHeight" class="form-control" @bind-Value="_command.ItemDetailPreviewHeight" style="max-width: 220px;" />
+                        <ValidationMessage For="@(() => _command.ItemDetailPreviewHeight)" />
+                        <div class="form-text">
+                            Applies to related items and image/video attachment previews on item pages using this template. Leave blank to use the site-wide default. Suggested values: 160 wide/landscape, 200 balanced, 260 portrait, 320 tall card art.
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
                         <label class="form-label">Template Scope</label>
                         <div class="form-check">
                             <InputRadioGroup @bind-Value="_templateScope">
@@ -494,6 +503,7 @@
                     Description = _template.Description,
                     IsActive = _template.IsActive,
                     HideAttachments = _template.HideAttachments,
+                    ItemDetailPreviewHeight = _template.ItemDetailPreviewHeight,
                     AllowMultipleEntries = _template.AllowMultipleEntries,
                     IsGlobal = _template.IsGlobal,
                     ShowcaseId = _template.ShowcaseId,

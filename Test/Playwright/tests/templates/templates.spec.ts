@@ -14,6 +14,7 @@ test('regular user can create and edit a showcase template', async ({ page }) =>
   await createShowcaseTemplate(page, {
     showcaseName,
     templateName,
+    itemDetailPreviewHeight: 260,
     fields: [
       {
         name: 'manufacturer',
@@ -29,9 +30,11 @@ test('regular user can create and edit a showcase template', async ({ page }) =>
 
   await createdCard.getByRole('button', { name: 'Edit' }).click();
   await expect(page.getByRole('heading', { name: 'Edit Template' })).toBeVisible({ timeout: 15000 });
+  await expect(page.getByLabel('Item Page Preview Height Override (px)')).toHaveValue('260');
 
   const updatedDescription = `${templateName} updated description`;
   await page.getByLabel(/^Description$/).fill(updatedDescription);
+  await page.getByLabel('Item Page Preview Height Override (px)').fill('320');
   await addTemplateField(page, {
     name: 'series',
     label: 'Series',
@@ -43,6 +46,9 @@ test('regular user can create and edit a showcase template', async ({ page }) =>
   const updatedCard = getTemplateCard(page, templateName);
   await expect(updatedCard).toContainText(updatedDescription);
   await expect(updatedCard).toContainText('2 fields');
+
+  await updatedCard.getByRole('button', { name: 'Edit' }).click();
+  await expect(page.getByLabel('Item Page Preview Height Override (px)')).toHaveValue('320');
 });
 
 test('regular user can use a showcase template on an item and review it in template items', async ({ page }) => {

@@ -62,6 +62,7 @@ public static class CollectibleItemMappingExtensions
             ParentHierarchy = new List<ParentInfo>(), // Built separately
             Children = new List<CollectibleItemDto>(), // Mapped separately
             ContentDefinitionId = entity.ContentDefinitionId,
+            ItemDetailPreviewHeight = entity.ContentType?.ItemDetailPreviewHeight,
             FieldValues = GetFieldValuesAsDictionary(entity),
             FieldValueEntries = GetFieldValueEntries(entity),
             AllowMultipleEntries = GetAllowMultipleEntries(entity),

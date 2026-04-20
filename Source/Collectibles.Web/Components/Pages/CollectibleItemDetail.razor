@@ -4,6 +4,7 @@
 @using Collectibles.Application.Features.CollectibleItems
 @using Collectibles.Application.Features.CollectibleItems.Commands
 @using Collectibles.Application.Features.CollectibleItems.Queries
+@using Collectibles.Application.Features.Attachments
 @using Collectibles.Domain.Enums
 @using Collectibles.Application.Features.Attachments.Queries
 @using Collectibles.Application.Features.QRCodes.Commands
@@ -26,6 +27,7 @@
 @inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider
 @inject Collectibles.Application.Interfaces.IUserManagementService UserManagementService
 @inject IOptions<Collectibles.Domain.Configuration.ExternalLinksOptions> ExternalLinksOptions
+@inject ISiteConfigurationService SiteConfigurationService
 @implements IDisposable
 
 <PageTitle>@(_item?.Name ?? "Collectible Item")</PageTitle>
@@ -293,7 +295,7 @@ else
                         @foreach (var childCard in _childItemCards)
                         {
                             <div class="col-12 col-sm-6 col-md-4 col-lg-3">
-                                <CollectibleItemCard Item="childCard" OnItemClick="HandleChildItemClick" />
+                                <CollectibleItemCard Item="childCard" OnItemClick="HandleChildItemClick" ImageHeight="_itemPreviewHeight" />
                             </div>
                         }
                     </div>
@@ -316,9 +318,9 @@ else
 
             @if (!_hideAttachments)
             {
-                var featuredAttachments = _item.Attachments.Where(a => a.IsFeatured && a.AttachmentType == Domain.Common.Enums.AttachmentType.Image).ToList();
-                var imageAttachments = _item.Attachments.Where(a => !a.IsFeatured && a.AttachmentType == Domain.Common.Enums.AttachmentType.Image).ToList();
-                var documentAttachments = _item.Attachments.Where(a => a.AttachmentType != Domain.Common.Enums.AttachmentType.Image).ToList();
+                var featuredAttachments = _item.Attachments.Where(a => a.IsFeatured && IsVisualAttachment(a)).ToList();
+                var visualAttachments = _item.Attachments.Where(a => !a.IsFeatured && IsVisualAttachment(a)).ToList();
+                var documentAttachments = _item.Attachments.Where(a => !IsVisualAttachment(a)).ToList();
 
                 @if (featuredAttachments.Any())
                 {
@@ -334,19 +336,20 @@ else
                                         OnImageClick="ShowImagePreview"
                                         OnViewDetails="ShowAttachmentModal"
                                         OnFeatureToggle="@(async () => await ToggleFeatured(attachment.Id))"
-                                        CanToggleFeature="_canEdit" />
+                                        CanToggleFeature="_canEdit"
+                                        PreviewHeight="_itemPreviewHeight" />
                                 </div>
                             }
                         </div>
                     </div>
                 }
 
-                @if (imageAttachments.Any())
+                @if (visualAttachments.Any())
                 {
                     <div class="mb-4">
-                        <h3>Pictures</h3>
+                        <h3>@GetVisualAttachmentsHeading(visualAttachments)</h3>
                         <div class="row g-3">
-                            @foreach (var attachment in imageAttachments)
+                            @foreach (var attachment in visualAttachments)
                             {
                                 <div class="col-12 col-sm-6 col-md-4 col-lg-3">
                                     <AttachmentThumbnailView
@@ -355,7 +358,8 @@ else
                                         OnImageClick="ShowImagePreview"
                                         OnViewDetails="ShowAttachmentModal"
                                         OnFeatureToggle="@(async () => await ToggleFeatured(attachment.Id))"
-                                        CanToggleFeature="_canEdit" />
+                                        CanToggleFeature="_canEdit"
+                                        PreviewHeight="_itemPreviewHeight" />
                                 </div>
                             }
                         </div>
@@ -411,7 +415,8 @@ else
                                 <div class="col-12 col-sm-6 col-md-4 col-lg-3">
                                     <AttachmentThumbnailView Attachment="attachment"
                                                            OnImageClick="ShowImagePreview"
-                                                           OnViewDetails="ShowAttachmentModal" />
+                                                           OnViewDetails="ShowAttachmentModal"
+                                                           PreviewHeight="GetAttachmentPreviewHeight(attachment)" />
                                 </div>
                             }
                         </div>
@@ -438,7 +443,7 @@ else
                     @foreach (var childCard in _childItemCards)
                     {
                         <div class="col-12 col-sm-6 col-md-4 col-lg-3">
-                            <CollectibleItemCard Item="childCard" OnItemClick="HandleChildItemClick" />
+                            <CollectibleItemCard Item="childCard" OnItemClick="HandleChildItemClick" ImageHeight="_itemPreviewHeight" />
                         </div>
                     }
                 </div>
@@ -522,11 +527,13 @@ else
     private Application.Features.QRCodes.QRCodeDto? _currentQRCode = null;
     private string? _templateName = null;
     private bool _hideAttachments = false;
+    private int _itemPreviewHeight = DefaultItemPreviewHeight;
     private List<CollectibleItemCardDto> _childItemCards = new();
     private string _showcaseOwnerName = "Unknown";
     private Dictionary<long, List<LinkCacheDto>> _linkCaches = new();
     private PersistingComponentStateSubscription? _persistSubscription;
     private const string PersistedStateKey = "CollectibleItemDetail";
+    private const int DefaultItemPreviewHeight = 200;
     
     // Modal states
     private bool showAttachmentDetailModal = false;
@@ -571,6 +578,7 @@ else
         _contextShowcase = restored.ContextShowcase;
         _templateName = restored.TemplateName;
         _hideAttachments = restored.HideAttachments;
+        _itemPreviewHeight = restored.ItemPreviewHeight;
         _childItemCards = restored.ChildItemCards;
         _relatedAttachments = restored.RelatedAttachments ?? new();
         _showcaseOwnerName = restored.ShowcaseOwnerName;
@@ -604,6 +612,7 @@ else
             ContextShowcase = _contextShowcase,
             TemplateName = _templateName,
             HideAttachments = _hideAttachments,
+            ItemPreviewHeight = _itemPreviewHeight,
             ChildItemCards = _childItemCards,
             RelatedAttachments = _relatedAttachments,
             ShowcaseOwnerName = _showcaseOwnerName
@@ -615,6 +624,7 @@ else
     private async Task LoadItem()
     {
         _isLoading = true;
+        _itemPreviewHeight = DefaultItemPreviewHeight;
         
         try
         {
@@ -669,6 +679,9 @@ else
             
             if (_item != null)
             {
+                var defaultPreviewHeight = await GetDefaultItemPreviewHeightAsync();
+                ResolveItemPreviewHeight(defaultPreviewHeight);
+
                 _imageAttachments = _item.Attachments
                     .Where(a => a.AttachmentType == Domain.Common.Enums.AttachmentType.Image)
                     .ToList();
@@ -760,6 +773,34 @@ else
         _isLoading = false;
     }
 
+    private static bool IsVisualAttachment(AttachmentBriefDto attachment)
+    {
+        return attachment.AttachmentType == Domain.Common.Enums.AttachmentType.Image
+            || attachment.AttachmentType == Domain.Common.Enums.AttachmentType.Video;
+    }
+
+    private string GetVisualAttachmentsHeading(IEnumerable<AttachmentBriefDto> attachments)
+    {
+        return attachments.Any(a => a.AttachmentType == Domain.Common.Enums.AttachmentType.Video)
+            ? "Pictures & Video"
+            : "Pictures";
+    }
+
+    private int? GetAttachmentPreviewHeight(AttachmentBriefDto attachment)
+    {
+        return IsVisualAttachment(attachment) ? _itemPreviewHeight : null;
+    }
+
+    private async Task<int> GetDefaultItemPreviewHeightAsync()
+    {
+        var imageHeight = await SiteConfigurationService.GetConfigurationValueAsync("CardImageHeight", DefaultItemPreviewHeight.ToString());
+        return int.TryParse(imageHeight, out var parsedHeight) ? parsedHeight : DefaultItemPreviewHeight;
+    }
+
+    private void ResolveItemPreviewHeight(int defaultPreviewHeight)
+    {
+        _itemPreviewHeight = _item?.ItemDetailPreviewHeight ?? defaultPreviewHeight;
+    }
 
     private string GetDocumentIcon(Domain.Common.Enums.AttachmentType type)
     {

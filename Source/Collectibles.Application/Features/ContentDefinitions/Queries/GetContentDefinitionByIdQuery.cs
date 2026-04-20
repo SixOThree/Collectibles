@@ -61,6 +61,7 @@ public class GetContentDefinitionByIdQueryHandler : IRequestHandler<GetContentDe
             Description = contentDefinition.Description,
             IsActive = contentDefinition.IsActive,
             HideAttachments = contentDefinition.HideAttachments,
+            ItemDetailPreviewHeight = contentDefinition.ItemDetailPreviewHeight,
             IsGlobal = contentDefinition.IsGlobal,
             ShowcaseId = contentDefinition.ShowcaseId,
             ShowcaseName = contentDefinition.Showcase?.Name,
