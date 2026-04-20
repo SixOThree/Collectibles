@@ -164,8 +164,5 @@ public static class ConfigureServices
     }
 
     public static IServiceCollection AddHangfireSchemaInitializer(this IServiceCollection services)
-    {
-        services.AddHostedService<HangfireSchemaInitializerService>();
-        return services;
-    }
+        => services.AddSingleton<IHangfireSchemaInitializer, HangfireSchemaInitializer>();
 }

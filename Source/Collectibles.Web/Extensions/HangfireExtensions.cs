@@ -4,6 +4,7 @@ using Collectibles.Infrastructure.Services.Email;
 using Collectibles.Web.Authorization;
 
 using Hangfire;
+using Hangfire.Common;
 using Hangfire.Dashboard;
 
 namespace Collectibles.Web.Extensions;
@@ -38,27 +39,31 @@ public static class HangfireExtensions
     /// Configures all Hangfire recurring jobs.
     /// </summary>
     /// <returns></returns>
-    public static IApplicationBuilder ConfigureHangfireRecurringJobs(this IApplicationBuilder app, IConfiguration configuration)
+    public static async Task<IApplicationBuilder> ConfigureHangfireRecurringJobsAsync(this IApplicationBuilder app, IConfiguration configuration)
     {
         var logger = app.ApplicationServices.GetRequiredService<ILogger<Program>>();
+        var schemaInitializer = app.ApplicationServices.GetRequiredService<IHangfireSchemaInitializer>();
+        var recurringJobManager = app.ApplicationServices.GetRequiredService<IRecurringJobManager>();
         logger.LogInformation("Configuring Hangfire recurring jobs...");
 
         try
         {
+            await schemaInitializer.EnsureSchemaAsync();
+
             // Email processing jobs
-            ConfigureEmailJobs();
+            ConfigureEmailJobs(recurringJobManager);
 
             // Cleanup jobs
-            ConfigureCleanupJobs(configuration);
+            ConfigureCleanupJobs(recurringJobManager, configuration);
 
             // Zip upload jobs
-            ConfigureZipUploadJobs();
+            ConfigureZipUploadJobs(recurringJobManager);
 
             // Attachment indexing jobs
-            ConfigureAttachmentIndexingJobs();
+            ConfigureAttachmentIndexingJobs(recurringJobManager);
 
             // Attachment preview generation jobs
-            ConfigureAttachmentPreviewJobs();
+            ConfigureAttachmentPreviewJobs(recurringJobManager);
 
             logger.LogInformation("Hangfire recurring jobs configured successfully");
         }
@@ -74,23 +79,25 @@ public static class HangfireExtensions
     /// <summary>
     /// Configures email-related recurring jobs.
     /// </summary>
-    private static void ConfigureEmailJobs()
+    private static void ConfigureEmailJobs(IRecurringJobManager recurringJobManager)
     {
-        RecurringJob.AddOrUpdate<EmailBackgroundService>(
+        AddOrUpdate(
+            recurringJobManager,
             "process-pending-emails",
-            service => service.ProcessPendingEmailsAsync(),
+            Job.FromExpression<EmailBackgroundService>(service => service.ProcessPendingEmailsAsync()),
             "*/1 * * * *"); // Every minute
 
-        RecurringJob.AddOrUpdate<EmailBackgroundService>(
+        AddOrUpdate(
+            recurringJobManager,
             "cleanup-old-email-logs",
-            service => service.CleanupOldEmailLogsAsync(),
+            Job.FromExpression<EmailBackgroundService>(service => service.CleanupOldEmailLogsAsync()),
             "0 2 * * *"); // Daily at 2 AM
     }
 
     /// <summary>
     /// Configures cleanup-related recurring jobs.
     /// </summary>
-    private static void ConfigureCleanupJobs(IConfiguration configuration)
+    private static void ConfigureCleanupJobs(IRecurringJobManager recurringJobManager, IConfiguration configuration)
     {
         var requestLogRetentionDays = configuration.GetValue<int>("Logging:RequestLogRetentionDays", 365);
         if (requestLogRetentionDays <= 0)
@@ -98,56 +105,65 @@ public static class HangfireExtensions
             requestLogRetentionDays = 365;
         }
 
-        RecurringJob.AddOrUpdate<IRequestLogService>(
+        AddOrUpdate(
+            recurringJobManager,
             "cleanup-old-request-logs",
-            service => service.CleanupOldLogsAsync(requestLogRetentionDays, CancellationToken.None),
+            Job.FromExpression<IRequestLogService>(service => service.CleanupOldLogsAsync(requestLogRetentionDays, CancellationToken.None)),
             "0 3 * * *"); // Daily at 3 AM
     }
 
     /// <summary>
     /// Configures zip upload-related recurring jobs.
     /// </summary>
-    private static void ConfigureZipUploadJobs()
+    private static void ConfigureZipUploadJobs(IRecurringJobManager recurringJobManager)
     {
-        RecurringJob.AddOrUpdate<IZipUploadJobService>(
+        AddOrUpdate(
+            recurringJobManager,
             "cleanup-orphaned-zip-upload-jobs",
-            service => service.CleanupOrphanedJobsAsync(),
+            Job.FromExpression<IZipUploadJobService>(service => service.CleanupOrphanedJobsAsync()),
             "0 * * * *"); // Every hour
     }
 
     /// <summary>
     /// Configures attachment indexing recurring jobs.
     /// </summary>
-    private static void ConfigureAttachmentIndexingJobs()
+    private static void ConfigureAttachmentIndexingJobs(IRecurringJobManager recurringJobManager)
     {
-        RecurringJob.AddOrUpdate<AttachmentIndexingBackgroundService>(
+        AddOrUpdate(
+            recurringJobManager,
             "process-unhashed-attachments",
-            service => service.ProcessUnhashedAttachmentsAsync(),
+            Job.FromExpression<AttachmentIndexingBackgroundService>(service => service.ProcessUnhashedAttachmentsAsync()),
             "*/5 * * * *"); // Every 5 minutes
     }
 
     /// <summary>
     /// Configures attachment preview generation recurring jobs.
     /// </summary>
-    private static void ConfigureAttachmentPreviewJobs()
+    private static void ConfigureAttachmentPreviewJobs(IRecurringJobManager recurringJobManager)
     {
-        RecurringJob.AddOrUpdate<AttachmentPreviewBackgroundService>(
+        AddOrUpdate(
+            recurringJobManager,
             "generate-missing-attachment-previews",
-            service => service.ProcessMissingPreviewsAsync(),
+            Job.FromExpression<AttachmentPreviewBackgroundService>(service => service.ProcessMissingPreviewsAsync()),
             "*/5 * * * *"); // Every 5 minutes
+    }
+
+    private static void AddOrUpdate(IRecurringJobManager recurringJobManager, string recurringJobId, Job job, string cronExpression)
+    {
+        recurringJobManager.AddOrUpdate(recurringJobId, job, cronExpression, new RecurringJobOptions());
     }
 
     /// <summary>
     /// Configures all Hangfire-related middleware and jobs.
     /// </summary>
     /// <returns></returns>
-    public static IApplicationBuilder UseHangfire(this IApplicationBuilder app, IConfiguration configuration)
+    public static async Task<IApplicationBuilder> UseHangfireAsync(this IApplicationBuilder app, IConfiguration configuration)
     {
         // Configure Hangfire dashboard
         app.UseHangfireDashboardWithAuth(configuration);
 
         // Configure recurring jobs
-        app.ConfigureHangfireRecurringJobs(configuration);
+        await app.ConfigureHangfireRecurringJobsAsync(configuration);
 
         return app;
     }

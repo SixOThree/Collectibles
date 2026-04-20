@@ -330,7 +330,7 @@ try
     });
 
     // Configure Hangfire dashboard and recurring jobs
-    app.UseHangfire(builder.Configuration);
+    await app.UseHangfireAsync(builder.Configuration);
 
     // Map all API endpoints using the structured approach
     app.MapApiEndpoints();
