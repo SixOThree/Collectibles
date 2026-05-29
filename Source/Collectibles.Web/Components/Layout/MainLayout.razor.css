@@ -27,6 +27,13 @@ article.content {
     }
 }
 
+@media (max-width: 575.98px) {
+    main > .content.px-4 {
+        padding-left: 0.75rem !important;
+        padding-right: 0.75rem !important;
+    }
+}
+
 @media (min-width: 992px) {
     article.content {
         padding-left: 2rem !important;

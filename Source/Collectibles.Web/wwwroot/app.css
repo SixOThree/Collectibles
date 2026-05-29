@@ -180,6 +180,19 @@ h1:focus {
     flex-wrap: wrap;
 }
 
+@media (max-width: 575.98px) {
+    .page-header {
+        padding: 1rem;
+        border-radius: 8px;
+    }
+
+    .page-header h1 {
+        font-size: 2rem;
+        line-height: 1.15;
+        overflow-wrap: anywhere;
+    }
+}
+
 /* Account Management Page Styles */
 .account-page-container {
     background: var(--overlay-bg);

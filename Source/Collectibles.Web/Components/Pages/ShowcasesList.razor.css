@@ -224,9 +224,10 @@
 /* Grid Layout Styles */
 .showcase-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
     gap: 2rem;
     margin-top: 2rem;
+    min-width: 0;
 }
 
 .showcase-card {
@@ -237,6 +238,7 @@
     transition: transform 0.2s, box-shadow 0.2s;
     background: white;
     position: relative;
+    min-width: 0;
 }
 
 .showcase-card:hover {
@@ -263,6 +265,7 @@
 
 .card-content {
     padding: 1.25rem;
+    min-width: 0;
 }
 
 .card-content h3 {
