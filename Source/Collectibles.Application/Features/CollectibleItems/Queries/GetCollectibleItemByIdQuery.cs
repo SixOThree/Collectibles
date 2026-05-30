@@ -51,6 +51,8 @@ public class GetCollectibleItemByIdQueryHandler : IRequestHandler<GetCollectible
                     .ThenInclude(cit => cit.Tag)
             .Include(ci => ci.Children.Where(child => child.Deleted == null))
                 .ThenInclude(child => child.ContentType)
+            .Include(ci => ci.Children.Where(child => child.Deleted == null))
+                .ThenInclude(child => child.Children.Where(grandchild => grandchild.Deleted == null))
             .Include(ci => ci.CollectibleItemAttachments)
                 .ThenInclude(cia => cia.Attachment)
                 .ThenInclude(a => a.AttachmentContent)
