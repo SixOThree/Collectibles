@@ -131,6 +131,9 @@
 
 .items-grid {
     display: grid;
+    /* min(280px, 100%) lets the single column shrink below 280px on narrow
+       screens instead of overflowing the viewport horizontally. */
+    grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
     gap: 1.5rem;
     margin-top: 1.5rem;
 }
