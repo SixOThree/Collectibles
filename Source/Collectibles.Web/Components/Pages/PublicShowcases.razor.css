@@ -26,9 +26,17 @@
 
 .showcase-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(450px, 1fr));
+    /* Use min(450px, 100%) so a single column can shrink below 450px on
+       narrow screens instead of forcing horizontal overflow on mobile. */
+    grid-template-columns: repeat(auto-fill, minmax(min(450px, 100%), 1fr));
     gap: 2rem;
     margin-bottom: 2rem;
+}
+
+@media (max-width: 575.98px) {
+    .showcase-grid {
+        gap: 1.25rem;
+    }
 }
 
 .showcase-card {
