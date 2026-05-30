@@ -28,6 +28,7 @@ public static class CollectibleItemMappingExtensions
             ParentName = entity.Parent?.Name,
             TagCount = entity.CollectibleItemTags?.Count ?? 0,
             AttachmentCount = entity.CollectibleItemAttachments?.Count ?? 0,
+            ChildItemCount = entity.Children?.Count(c => c.Deleted == null) ?? 0,
             Created = entity.Created ?? DateTime.MinValue,
             CreatedBy = entity.CreatedBy,
             LastModified = entity.LastModified,

@@ -11,6 +11,7 @@ public class CollectibleItemDto
     public string? ParentName { get; set; }
     public int TagCount { get; set; }
     public int AttachmentCount { get; set; }
+    public int ChildItemCount { get; set; }
     public DateTime Created { get; set; }
     public string? CreatedBy { get; set; }
     public DateTime? LastModified { get; set; }

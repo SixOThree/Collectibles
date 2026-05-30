@@ -718,7 +718,7 @@ else
                         Description = child.DetailedDescription,
                         PreviewImageUrl = child.PreviewImageUrl,
                         AttachmentCount = child.AttachmentCount,
-                        ChildItemCount = 0, // CollectibleItemDto doesn't have child count
+                        ChildItemCount = child.ChildItemCount,
                         Tags = new List<TagSummaryDto>(), // CollectibleItemDto doesn't have tags
                         CreatedDate = child.Created,
                         ParentId = _item.Id,
