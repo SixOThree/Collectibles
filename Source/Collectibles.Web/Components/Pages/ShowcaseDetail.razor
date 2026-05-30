@@ -141,7 +141,7 @@ else
             }
             else
             {
-                <div class="items-grid" style="grid-template-columns: repeat(auto-fill, minmax(280px, 1fr))">
+                <div class="items-grid">
                     @foreach (var item in FilteredItems)
                     {
                         <CollectibleItemCard Item="item" OnItemClick="HandleItemClick" ImageHeight="_cardImageHeight" />
