@@ -8,14 +8,108 @@
     box-sizing: border-box;
 }
 
-/* User showcase card */
+/* Repository hero */
+.repo-hero {
+    margin-bottom: 50px;
+}
+
+.repo-hero-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 12px;
+}
+
+.repo-hero h1 {
+    color: var(--text-primary);
+    font-size: 3em;
+    margin-bottom: 15px;
+    text-wrap: balance;
+}
+
+.repo-hero .lead {
+    color: var(--text-muted);
+    font-size: 1.25em;
+    margin-bottom: 30px;
+    max-width: 640px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.repo-hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+}
+
+.repo-hero-actions .btn {
+    padding: 12px 25px;
+    font-size: 1.1em;
+    text-decoration: none;
+}
+
+.repo-hero-actions .btn i {
+    margin-right: 6px;
+}
+
+/* Implementation feature grid */
+.welcome-features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 30px;
+    margin-bottom: 40px;
+}
+
+.feature-card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 30px;
+    box-shadow: var(--shadow-sm);
+    transition:
+        transform 0.3s ease,
+        box-shadow 0.3s ease;
+    box-sizing: border-box;
+    text-align: left;
+}
+
+.feature-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+}
+
+.feature-icon {
+    font-size: 1.75rem;
+    color: var(--tc-primary-text);
+    margin-bottom: 12px;
+    line-height: 1;
+}
+
+.feature-card h2 {
+    color: var(--tc-primary-text);
+    font-size: 1.5em;
+    margin-bottom: 12px;
+}
+
+.feature-card p {
+    color: var(--text-secondary);
+    font-size: 1em;
+    line-height: 1.6;
+    margin: 0;
+}
+
+/* User showcase card (secondary, authenticated) */
 .user-showcase-card {
     text-align: left;
-    background: var(--bg-card);
+    background: var(--bg-secondary);
     border: 1px solid var(--border-color);
-    border-radius: 10px;
+    border-radius: 8px;
     padding: 16px;
-    margin-bottom: 24px;
     box-shadow: var(--shadow-sm);
 }
 
@@ -42,7 +136,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background-color: var(--bg-secondary);
+    background-color: var(--bg-card);
     border-radius: 8px;
     border: 1px solid var(--border-color);
     color: var(--text-muted);
@@ -84,11 +178,6 @@
     align-items: center;
 }
 
-.view-link {
-    align-self: flex-start;
-    margin-top: 4px;
-}
-
 .multi-showcase {
     display: flex;
     align-items: center;
@@ -107,76 +196,6 @@
     margin: 4px 0 0 0;
 }
 
-.welcome-header h1 {
-    color: var(--text-primary);
-    font-size: 3em;
-    margin-bottom: 15px;
-    text-wrap: balance;
-}
-
-.welcome-header .lead {
-    color: var(--text-muted);
-    font-size: 1.25em;
-    margin-bottom: 40px;
-}
-
-.welcome-features {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 30px;
-    margin-bottom: 50px;
-}
-
-.feature-card {
-    background-color: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 30px;
-    box-shadow: var(--shadow-sm);
-    transition:
-        transform 0.3s ease,
-        box-shadow 0.3s ease;
-    box-sizing: border-box;
-}
-
-.feature-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
-}
-
-.feature-card h2 {
-    color: var(--tc-primary-text);
-    font-size: 1.75em;
-    margin-bottom: 15px;
-}
-
-.feature-card p {
-    color: var(--text-secondary);
-    font-size: 1em;
-    line-height: 1.6;
-}
-
-.welcome-call-to-action {
-    margin-top: 40px;
-}
-
-.welcome-call-to-action p {
-    font-size: 1.3em;
-    color: var(--text-primary);
-    margin-bottom: 25px;
-}
-
-.welcome-call-to-action .btn {
-    display: inline-block;
-    margin: 5px;
-}
-
-.welcome-call-to-action .btn {
-    padding: 12px 25px;
-    font-size: 1.1em;
-    text-decoration: none;
-}
-
 /* Mobile responsive styles */
 @media (max-width: 576px) {
     .welcome-container {
@@ -188,13 +207,26 @@
         grid-template-columns: 1fr;
     }
 
-    .welcome-header h1 {
+    .repo-hero h1 {
         font-size: 2em;
     }
 
-    .welcome-header .lead {
+    .repo-hero .lead {
         font-size: 1.1em;
-        margin-bottom: 30px;
+        margin-bottom: 25px;
+    }
+
+    .repo-hero-actions {
+        flex-direction: column;
+    }
+
+    .repo-hero-actions .btn {
+        display: block;
+        width: 100%;
+        max-width: 280px;
+        margin: 0 auto;
+        padding: 10px 20px;
+        font-size: 1em;
     }
 
     .welcome-features {
@@ -208,33 +240,11 @@
     }
 
     .feature-card h2 {
-        font-size: 1.5em;
+        font-size: 1.35em;
     }
 
     .feature-card p {
         font-size: 0.95em;
-    }
-
-    .welcome-call-to-action p {
-        font-size: 1.1em;
-        margin-bottom: 20px;
-    }
-
-    .welcome-call-to-action {
-        margin-top: 30px;
-    }
-
-    .welcome-call-to-action .btn {
-        display: block;
-        width: 100%;
-        max-width: 280px;
-        margin: 10px auto;
-    }
-
-    .btn-primary,
-    .btn-secondary {
-        padding: 10px 20px;
-        font-size: 1em;
     }
 }
 
@@ -245,7 +255,7 @@
         margin: 0px 15px 15px 15px;
     }
 
-    .welcome-header h1 {
+    .repo-hero h1 {
         font-size: 2.5em;
     }
 
@@ -256,11 +266,6 @@
 
     .feature-card {
         padding: 25px;
-    }
-
-    .welcome-call-to-action .btn {
-        display: inline-block;
-        margin: 5px;
     }
 }
 
