@@ -14,8 +14,58 @@
 
 <PageTitle>@SiteSettings.Value.SiteTitle</PageTitle>
 
-<div class="welcome-container text-center">
-    @* Personalized showcase card for logged-in users with showcases *@
+<div class="welcome-container">
+    @* Repository hero — the project comes first *@
+    <div class="repo-hero text-center">
+        <h1>An open-source showcase platform for collectors</h1>
+        <p class="lead">@SiteSettings.Value.SiteTitle is a .NET&nbsp;/&nbsp;Blazor project for cataloging, sharing, and managing collections. Explore the source, run it yourself, or contribute.</p>
+        <div class="repo-hero-actions">
+            <a class="btn btn-primary btn-lg" href="https://github.com/SixOThree/Collectibles" target="_blank" rel="noopener noreferrer">
+                <i class="bi bi-github"></i> View on GitHub
+            </a>
+            <a class="btn btn-secondary btn-lg" href="/showcases/public">Browse Public Showcases</a>
+            @if (_isAuthenticated)
+            {
+                <a class="btn btn-outline-secondary btn-lg" href="/showcases">Your Showcases</a>
+            }
+        </div>
+    </div>
+
+    @* Implementation feature grid — concrete code/project features *@
+    <div class="welcome-features">
+        <div class="feature-card">
+            <div class="feature-icon"><i class="bi bi-grid-3x3-gap"></i></div>
+            <h2>Template-Driven Fields</h2>
+            <p>Collection templates define custom fields so each kind of collectible captures exactly the data that matters — text and large text areas, numbers, dates and date-times, booleans, dropdowns, and even inflation-adjusted prices.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon"><i class="bi bi-layers"></i></div>
+            <h2>Blazor &amp; .NET</h2>
+            <p>A .NET&nbsp;10 Blazor Server front end built on Clean Architecture — Domain, Application, Infrastructure, and Web layers, with a MAUI Blazor Hybrid QR scanner companion.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon"><i class="bi bi-share"></i></div>
+            <h2>Public Sharing Routes</h2>
+            <p>Showcases can be published to hash-id routes, letting collections be shared publicly without exposing internal identifiers.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon"><i class="bi bi-paperclip"></i></div>
+            <h2>Attachments &amp; Media</h2>
+            <p>Items support image and file attachments, with previews for many media types. Attachments can be uploaded in bulk via ZIP files with a hierarchical folder structure.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon"><i class="bi bi-palette"></i></div>
+            <h2>Theme &amp; Configuration</h2>
+            <p>A CSS-variable theme system and site settings drive styling and behavior without recompiling the application.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon"><i class="bi bi-speedometer2"></i></div>
+            <h2>Admin &amp; Diagnostics</h2>
+            <p>Management and diagnostics surfaces give administrators insight into the running application and its data.</p>
+        </div>
+    </div>
+
+    @* Authenticated user shortcut — secondary, below the project content *@
     @if (!_isLoading && _isAuthenticated && _myShowcases != null && _myShowcases.Any())
     {
         <div class="user-showcase-card">
@@ -60,36 +110,6 @@
             }
         </div>
     }
-
-    <div class="welcome-header">
-        <h1>Welcome to @SiteSettings.Value.SiteTitle!</h1>
-        <p class="lead">@SiteSettings.Value.SiteDescription</p>
-    </div>
-
-    <div class="welcome-features">
-        <div class="feature-card">
-            <h2>Organize Your Collection</h2>
-            <p>Effortlessly catalog all your collectible items. Add detailed descriptions, custom tags, and categorize them with flexible taxonomies.</p>
-        </div>
-        <div class="feature-card">
-            <h2>Showcase Your Treasures</h2>
-            <p>Create stunning digital showcases to display your collections. Share them with friends, family, or the entire community.</p>
-        </div>
-        <div class="feature-card">
-            <h2>Rich Media Support</h2>
-            <p>Attach images, documents, and other files to your collectibles. Keep all relevant information in one place.</p>
-        </div>
-        <div class="feature-card">
-            <h2>Discover & Connect</h2>
-            <p>Explore collections from other enthusiasts (coming soon!) and connect with a vibrant community of collectors.</p>
-        </div>
-    </div>
-
-    <div class="welcome-call-to-action">
-        <p>Ready to start building your digital collection?</p>
-        <a href="/showcases" class="btn btn-primary btn-lg">Your Showcases</a>
-        <a href="/showcases/public" class="btn btn-secondary btn-lg">Browse All Showcases</a>
-    </div>
 </div>
 
 @code {
@@ -124,4 +144,3 @@
         _isLoading = false;
     }
 }
-
