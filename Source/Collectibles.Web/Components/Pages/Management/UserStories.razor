@@ -610,6 +610,12 @@
         return story.ToString();
     }
 
+    // HTML-encodes user-controlled values (entity names/types, theme names) before they are
+    // interpolated into the story markup, which is rendered via @((MarkupString)story).
+    // Without this, a user-supplied value like an item name could inject script (stored XSS).
+    private static string Enc(string? value) =>
+        System.Text.Encodings.Web.HtmlEncoder.Default.Encode(value ?? string.Empty);
+
     private string GenerateActionPhrase(EventAction action, List<EventLog> events)
     {
         var count = events.Count;
@@ -633,8 +639,8 @@
                 if (viewedEntities.Any())
                 {
                     phrase.Append("<span class='story-action'>viewed</span> ");
-                    var entityPhrases = viewedEntities.Select(kvp => 
-                        $"{kvp.Value} <span class='story-entity'>{kvp.Key}{(kvp.Value > 1 ? "s" : "")}</span>");
+                    var entityPhrases = viewedEntities.Select(kvp =>
+                        $"{kvp.Value} <span class='story-entity'>{Enc(kvp.Key)}{(kvp.Value > 1 ? "s" : "")}</span>");
                     phrase.Append(string.Join(", ", entityPhrases));
                 }
                 else
@@ -646,7 +652,7 @@
             case EventAction.Create:
                 if (count == 1 && !string.IsNullOrEmpty(events[0].EntityName))
                 {
-                    phrase.Append($"<span class='story-action'>created</span> <span class='story-entity'>{events[0].EntityType}</span> \"{events[0].EntityName}\"");
+                    phrase.Append($"<span class='story-action'>created</span> <span class='story-entity'>{Enc(events[0].EntityType)}</span> \"{Enc(events[0].EntityName)}\"");
                 }
                 else
                 {
@@ -657,7 +663,7 @@
             case EventAction.Update:
                 if (count == 1 && !string.IsNullOrEmpty(events[0].EntityName))
                 {
-                    phrase.Append($"<span class='story-action'>updated</span> <span class='story-entity'>{events[0].EntityType}</span> \"{events[0].EntityName}\"");
+                    phrase.Append($"<span class='story-action'>updated</span> <span class='story-entity'>{Enc(events[0].EntityType)}</span> \"{Enc(events[0].EntityName)}\"");
                 }
                 else
                 {
@@ -714,7 +720,7 @@
                         if (additionalData.RootElement.TryGetProperty("Theme", out var themeElement))
                         {
                             var theme = themeElement.GetString()?.ToLower() ?? "unknown";
-                            phrase.Append($"<span class='story-action'>switched to {theme} mode</span>");
+                            phrase.Append($"<span class='story-action'>switched to {Enc(theme)} mode</span>");
                         }
                         else
                         {
