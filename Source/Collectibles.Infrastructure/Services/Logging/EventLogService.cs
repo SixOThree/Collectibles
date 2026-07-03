@@ -13,17 +13,20 @@ public class EventLogService : IEventLogService
     private readonly ICurrentUserService _currentUserService;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<EventLogService> _logger;
+    private readonly ISessionTrackingService _sessionTrackingService;
 
     public EventLogService(
         IApplicationDbContextFactory contextFactory,
         ICurrentUserService currentUserService,
         IHttpContextAccessor httpContextAccessor,
-        ILogger<EventLogService> logger)
+        ILogger<EventLogService> logger,
+        ISessionTrackingService sessionTrackingService)
     {
         _contextFactory = contextFactory;
         _currentUserService = currentUserService;
         _httpContextAccessor = httpContextAccessor;
         _logger = logger;
+        _sessionTrackingService = sessionTrackingService;
     }
 
     public async Task LogEventAsync(
@@ -233,36 +236,31 @@ public class EventLogService : IEventLogService
         return httpContext.Connection.RemoteIpAddress?.ToString();
     }
 
-    private static string? TryGetSessionId(HttpContext? httpContext)
+    private string? TryGetSessionId(HttpContext? httpContext)
     {
-        if (httpContext == null)
-        {
-            return null;
-        }
-
         try
         {
-            // Primary: Try to get tracking cookie
-            const string trackingCookieName = "CollectiblesTrackingId";
-            if (httpContext.Request.Cookies.TryGetValue(trackingCookieName, out var trackingId) &&
-                !string.IsNullOrEmpty(trackingId))
+            if (httpContext != null)
             {
-                return $"session_{trackingId}";
+                const string trackingCookieName = "CollectiblesTrackingId";
+                if (httpContext.Request.Cookies.TryGetValue(trackingCookieName, out var trackingId) &&
+                    !string.IsNullOrEmpty(trackingId))
+                {
+                    return $"session_{trackingId}";
+                }
+
+                var connectionId = httpContext.Connection?.Id;
+                if (!string.IsNullOrEmpty(connectionId))
+                {
+                    return $"connection_{connectionId}";
+                }
             }
 
-            // Fallback: Try to get connection ID
-            var connectionId = httpContext.Connection?.Id;
-            if (!string.IsNullOrEmpty(connectionId))
-            {
-                return $"connection_{connectionId}";
-            }
-
-            return null;
+            return _sessionTrackingService.SessionId;
         }
         catch
         {
-            // If cookie access fails for any reason, just return null
-            return null;
+            return _sessionTrackingService.SessionId;
         }
     }
 
@@ -379,6 +377,12 @@ public class EventLogService : IEventLogService
                     if (!session.UniqueActions.Contains(sessionEvent.Action))
                     {
                         session.UniqueActions.Add(sessionEvent.Action);
+                    }
+
+                    if (!string.IsNullOrEmpty(sessionEvent.UserId) && string.IsNullOrEmpty(session.UserId))
+                    {
+                        session.UserId = sessionEvent.UserId;
+                        session.UserEmail = sessionEvent.UserEmail;
                     }
                 }
 
