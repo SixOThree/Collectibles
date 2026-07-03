@@ -1,10 +1,12 @@
+using Collectibles.Application.Interfaces;
+
 namespace Collectibles.Web.Middleware;
 
 public class TrackingCookieMiddleware
 {
     private readonly RequestDelegate _next;
     private const string TrackingCookieName = "CollectiblesTrackingId";
-    private const int CookieExpirationMinutes = 30;
+    private const int CookieExpirationMinutes = 1440;
 
     public TrackingCookieMiddleware(RequestDelegate next)
     {
@@ -13,35 +15,35 @@ public class TrackingCookieMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        // Check if tracking cookie exists
+        var sessionTrackingService = context.RequestServices.GetRequiredService<ISessionTrackingService>();
+
         if (!context.Request.Cookies.ContainsKey(TrackingCookieName))
         {
-            // Generate new tracking ID
             var trackingId = Guid.NewGuid().ToString("N");
 
-            // Set cookie with sliding expiration
             var cookieOptions = new CookieOptions
             {
                 HttpOnly = true,
-                IsEssential = true, // GDPR - this cookie is essential for the service
+                IsEssential = true,
                 SameSite = SameSiteMode.Strict,
                 Expires = DateTimeOffset.UtcNow.AddMinutes(CookieExpirationMinutes),
             };
 
-            // Set Secure flag in production
             if (!context.RequestServices.GetRequiredService<IWebHostEnvironment>().IsDevelopment())
             {
                 cookieOptions.Secure = true;
             }
 
             context.Response.Cookies.Append(TrackingCookieName, trackingId, cookieOptions);
+            sessionTrackingService.SetTrackingId(trackingId);
         }
         else
         {
-            // Refresh cookie expiration on activity
             var existingTrackingId = context.Request.Cookies[TrackingCookieName];
             if (!string.IsNullOrEmpty(existingTrackingId))
             {
+                sessionTrackingService.SetTrackingId(existingTrackingId);
+
                 var cookieOptions = new CookieOptions
                 {
                     HttpOnly = true,
