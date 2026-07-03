@@ -150,6 +150,7 @@ public static class ConfigureServices
         services.AddScoped<IEmailConfigurationService, EmailConfigurationService>();
 
         // Register logging services
+        services.AddScoped<ISessionTrackingService, SessionTrackingService>();
         services.AddScoped<IEventLogService, EventLogService>();
         services.AddScoped<ISysLogService, SysLogService>();
         services.AddScoped<IRequestLogService, RequestLogService>();
