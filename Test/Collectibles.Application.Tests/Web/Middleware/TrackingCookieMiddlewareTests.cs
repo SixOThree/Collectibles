@@ -31,6 +31,23 @@ public class TrackingCookieMiddlewareTests
     }
 
     [Fact]
+    public async Task InvokeAsyncCreatesTrackingCookieWhenCookieFeatureDoesNotContainTrackingCookie()
+    {
+        var sessionTrackingService = new SessionTrackingService();
+        var context = CreateContext(sessionTrackingService);
+        context.Features.Set<IRequestCookiesFeature>(
+            new TestRequestCookiesFeature(
+                new TestRequestCookieCollection(new Dictionary<string, string?>())));
+        var middleware = new TrackingCookieMiddleware(_ => Task.CompletedTask);
+
+        await middleware.InvokeAsync(context);
+
+        sessionTrackingService.TrackingId.Should().NotBeNullOrWhiteSpace();
+        sessionTrackingService.TrackingId.Should().HaveLength(32);
+        context.Response.Headers.SetCookie.ToString().Should().Contain($"CollectiblesTrackingId={sessionTrackingService.TrackingId}");
+    }
+
+    [Fact]
     public async Task InvokeAsyncUsesExistingTrackingCookieWithoutRefreshingExpiration()
     {
         var sessionTrackingService = new SessionTrackingService();
@@ -79,7 +96,7 @@ public class TrackingCookieMiddlewareTests
             _cookies = cookies;
         }
 
-        public string? this[string key] => _cookies[key];
+        public string? this[string key] => _cookies.TryGetValue(key, out var value) ? value : null;
 
         public int Count => _cookies.Count;
 
