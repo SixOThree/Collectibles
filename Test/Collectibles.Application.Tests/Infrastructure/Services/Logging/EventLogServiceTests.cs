@@ -49,6 +49,38 @@ public class EventLogServiceTests : BaseTestFixture
         session.UserEmail.Should().Be("user@example.com");
     }
 
+    [Fact]
+    public async Task GetUserSessionsAsyncDoesNotBackfillUserEmailFromDifferentUserInSameSession()
+    {
+        var timestamp = DateTime.UtcNow.AddMinutes(-5);
+        Context.EventLogs.AddRange(
+            new EventLog
+            {
+                SessionId = "session_shared-id",
+                UserId = "user-1",
+                UserEmail = null,
+                Action = EventAction.View,
+                Timestamp = timestamp,
+            },
+            new EventLog
+            {
+                SessionId = "session_shared-id",
+                UserId = "user-2",
+                UserEmail = "other-user@example.com",
+                Action = EventAction.Update,
+                Timestamp = timestamp.AddMinutes(1),
+            });
+        await Context.SaveChangesAsync();
+
+        var service = CreateService();
+
+        var sessions = await service.GetUserSessionsAsync(cancellationToken: CancellationToken);
+
+        var session = sessions.Should().ContainSingle().Subject;
+        session.UserId.Should().Be("user-1");
+        session.UserEmail.Should().BeNull();
+    }
+
     private EventLogService CreateService()
     {
         return new EventLogService(

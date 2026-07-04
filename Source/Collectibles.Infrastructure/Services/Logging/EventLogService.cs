@@ -384,7 +384,9 @@ public class EventLogService : IEventLogService
                         session.UserId = sessionEvent.UserId;
                     }
 
-                    if (!string.IsNullOrEmpty(sessionEvent.UserEmail) && string.IsNullOrEmpty(session.UserEmail))
+                    if (!string.IsNullOrEmpty(sessionEvent.UserEmail) &&
+                        string.IsNullOrEmpty(session.UserEmail) &&
+                        (string.IsNullOrEmpty(session.UserId) || string.Equals(sessionEvent.UserId, session.UserId, StringComparison.Ordinal)))
                     {
                         session.UserEmail = sessionEvent.UserEmail;
                     }
