@@ -4,9 +4,10 @@ namespace Collectibles.Web.Middleware;
 
 public class TrackingCookieMiddleware
 {
-    private readonly RequestDelegate _next;
     private const string TrackingCookieName = "CollectiblesTrackingId";
     private const int CookieExpirationMinutes = 1440;
+
+    private readonly RequestDelegate _next;
 
     public TrackingCookieMiddleware(RequestDelegate next)
     {
@@ -16,51 +17,38 @@ public class TrackingCookieMiddleware
     public async Task InvokeAsync(HttpContext context)
     {
         var sessionTrackingService = context.RequestServices.GetRequiredService<ISessionTrackingService>();
+        var trackingId = context.Request.Cookies[TrackingCookieName];
 
-        if (!context.Request.Cookies.ContainsKey(TrackingCookieName))
+        if (string.IsNullOrEmpty(trackingId))
         {
-            var trackingId = Guid.NewGuid().ToString("N");
+            trackingId = Guid.NewGuid().ToString("N");
 
-            var cookieOptions = new CookieOptions
-            {
-                HttpOnly = true,
-                IsEssential = true,
-                SameSite = SameSiteMode.Strict,
-                Expires = DateTimeOffset.UtcNow.AddMinutes(CookieExpirationMinutes),
-            };
-
-            if (!context.RequestServices.GetRequiredService<IWebHostEnvironment>().IsDevelopment())
-            {
-                cookieOptions.Secure = true;
-            }
-
-            context.Response.Cookies.Append(TrackingCookieName, trackingId, cookieOptions);
+            context.Response.Cookies.Append(TrackingCookieName, trackingId, CreateCookieOptions(context));
             sessionTrackingService.SetTrackingId(trackingId);
         }
         else
         {
-            var existingTrackingId = context.Request.Cookies[TrackingCookieName];
-            if (!string.IsNullOrEmpty(existingTrackingId))
-            {
-                sessionTrackingService.SetTrackingId(existingTrackingId);
-
-                var cookieOptions = new CookieOptions
-                {
-                    HttpOnly = true,
-                    IsEssential = true,
-                    SameSite = SameSiteMode.Strict,
-                    Expires = DateTimeOffset.UtcNow.AddMinutes(CookieExpirationMinutes),
-                };
-
-                if (!context.RequestServices.GetRequiredService<IWebHostEnvironment>().IsDevelopment())
-                {
-                    cookieOptions.Secure = true;
-                }
-
-                context.Response.Cookies.Append(TrackingCookieName, existingTrackingId, cookieOptions);
-            }
+            sessionTrackingService.SetTrackingId(trackingId);
         }
 
         await _next(context);
+    }
+
+    private static CookieOptions CreateCookieOptions(HttpContext context)
+    {
+        var cookieOptions = new CookieOptions
+        {
+            HttpOnly = true,
+            IsEssential = true,
+            SameSite = SameSiteMode.Strict,
+            Expires = DateTimeOffset.UtcNow.AddMinutes(CookieExpirationMinutes),
+        };
+
+        if (!context.RequestServices.GetRequiredService<IWebHostEnvironment>().IsDevelopment())
+        {
+            cookieOptions.Secure = true;
+        }
+
+        return cookieOptions;
     }
 }
