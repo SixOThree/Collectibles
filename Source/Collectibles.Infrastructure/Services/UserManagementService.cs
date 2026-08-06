@@ -9,22 +9,15 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Infrastructure.Services;
 
-public class UserManagementService : IUserManagementService
+public class UserManagementService(
+    UserManager<ApplicationUser> userManager,
+    RoleManager<IdentityRole> roleManager,
+    ApplicationDbContext dbContext) : IUserManagementService
 {
-    private readonly UserManager<ApplicationUser> _userManager;
-    private readonly RoleManager<IdentityRole> _roleManager;
-    private readonly ApplicationDbContext _dbContext;
-    private static readonly string[] Errors = new[] { "User ID cannot be null." };
-
-    public UserManagementService(
-        UserManager<ApplicationUser> userManager,
-        RoleManager<IdentityRole> roleManager,
-        ApplicationDbContext dbContext)
-    {
-        _userManager = userManager;
-        _roleManager = roleManager;
-        _dbContext = dbContext;
-    }
+    private readonly UserManager<ApplicationUser> _userManager = userManager;
+    private readonly RoleManager<IdentityRole> _roleManager = roleManager;
+    private readonly ApplicationDbContext _dbContext = dbContext;
+    private static readonly string[] Errors = ["User ID cannot be null."];
 
     public async Task<PaginatedList<UserListDto>> GetUsersAsync(
         int pageNumber,

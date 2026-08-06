@@ -46,7 +46,9 @@ public class DeleteUserCommandServiceTests
 
         await act.Should().NotThrowAsync();
 
-        var deletedUser = await secondaryUserManager.FindByIdAsync(user.Id);
+        await using var verificationContext = CreateContext(databaseName);
+        using var verificationUserManager = CreateUserManager(verificationContext);
+        var deletedUser = await verificationUserManager.FindByIdAsync(user.Id);
         deletedUser.Should().BeNull();
     }
 

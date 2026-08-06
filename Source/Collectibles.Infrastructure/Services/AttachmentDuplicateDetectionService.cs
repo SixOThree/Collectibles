@@ -5,14 +5,9 @@ namespace Collectibles.Infrastructure.Services;
 /// <summary>
 /// Service for detecting duplicate attachments based on content hash.
 /// </summary>
-public class AttachmentDuplicateDetectionService : IAttachmentDuplicateDetectionService
+public class AttachmentDuplicateDetectionService(IApplicationDbContextFactory contextFactory) : IAttachmentDuplicateDetectionService
 {
-    private readonly IApplicationDbContextFactory _contextFactory;
-
-    public AttachmentDuplicateDetectionService(IApplicationDbContextFactory contextFactory)
-    {
-        _contextFactory = contextFactory;
-    }
+    private readonly IApplicationDbContextFactory _contextFactory = contextFactory;
 
     /// <inheritdoc />
     public async Task<DuplicateCheckResult> CheckForDuplicatesAsync(

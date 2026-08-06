@@ -21,21 +21,14 @@ public class CreateCollectibleItemCommand : IRequest<long>
     public string? UserId { get; set; } // Optional UserId to handle Blazor context issues
 }
 
-public class CreateCollectibleItemCommandHandler : IRequestHandler<CreateCollectibleItemCommand, long>
+public class CreateCollectibleItemCommandHandler(
+    IApplicationDbContextFactory contextFactory,
+    IEventLogService eventLogService,
+    ICurrentUserService currentUserService) : IRequestHandler<CreateCollectibleItemCommand, long>
 {
-    private readonly IApplicationDbContextFactory _contextFactory;
-    private readonly IEventLogService _eventLogService;
-    private readonly ICurrentUserService _currentUserService;
-
-    public CreateCollectibleItemCommandHandler(
-        IApplicationDbContextFactory contextFactory,
-        IEventLogService eventLogService,
-        ICurrentUserService currentUserService)
-    {
-        _contextFactory = contextFactory;
-        _eventLogService = eventLogService;
-        _currentUserService = currentUserService;
-    }
+    private readonly IApplicationDbContextFactory _contextFactory = contextFactory;
+    private readonly IEventLogService _eventLogService = eventLogService;
+    private readonly ICurrentUserService _currentUserService = currentUserService;
 
     public async Task<long> Handle(CreateCollectibleItemCommand request, CancellationToken cancellationToken)
     {

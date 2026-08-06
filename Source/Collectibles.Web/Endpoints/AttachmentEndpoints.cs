@@ -137,26 +137,7 @@ public static class AttachmentEndpoints
                 return Results.NotFound("Invalid attachment identifier");
             }
 
-            // WORKAROUND: Get user ID directly from HttpContext due to service scoping issue
-            // CurrentUserService doesn't always get the correct HttpContext in minimal API endpoints
-            string? actualUserId = null;
-            var httpContext = httpContextAccessor.HttpContext;
-            if (httpContext != null)
-            {
-                actualUserId = httpContext.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-                var isAuthenticated = httpContext.User?.Identity?.IsAuthenticated ?? false;
-
-                // Log for debugging
-                if (!string.IsNullOrEmpty(actualUserId) && string.IsNullOrEmpty(currentUserService.UserId))
-                {
-                    Log.Debug(
-                        "Using direct HttpContext user {ActualUserId} instead of CurrentUserService (which returned null)",
-                        actualUserId);
-                }
-            }
-
-            // Use the actual user ID from HttpContext if available, otherwise fall back to CurrentUserService
-            var effectiveUserId = actualUserId ?? currentUserService.UserId;
+            var effectiveUserId = GetEffectiveUserId(httpContextAccessor, currentUserService);
 
             // Check authorization with the effective user ID
             var authorizationResult = await CheckAttachmentAuthorizationWithUserIdAsync(
@@ -245,25 +226,7 @@ public static class AttachmentEndpoints
                 return Results.NotFound("Invalid attachment identifier");
             }
 
-            // WORKAROUND: Get user ID directly from HttpContext due to service scoping issue
-            // CurrentUserService doesn't always get the correct HttpContext in minimal API endpoints
-            string? actualUserId = null;
-            var httpContext = httpContextAccessor.HttpContext;
-            if (httpContext != null)
-            {
-                actualUserId = httpContext.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-
-                // Log for debugging
-                if (!string.IsNullOrEmpty(actualUserId) && string.IsNullOrEmpty(currentUserService.UserId))
-                {
-                    Log.Debug(
-                        "Using direct HttpContext user {ActualUserId} instead of CurrentUserService (which returned null)",
-                        actualUserId);
-                }
-            }
-
-            // Use the actual user ID from HttpContext if available, otherwise fall back to CurrentUserService
-            var effectiveUserId = actualUserId ?? currentUserService.UserId;
+            var effectiveUserId = GetEffectiveUserId(httpContextAccessor, currentUserService);
 
             // Check authorization with the effective user ID
             var authorizationResult = await CheckAttachmentAuthorizationWithUserIdAsync(
@@ -351,15 +314,7 @@ public static class AttachmentEndpoints
                 return Results.NotFound("Invalid attachment identifier");
             }
 
-            // Get user ID from HttpContext
-            string? actualUserId = null;
-            var httpContext = httpContextAccessor.HttpContext;
-            if (httpContext != null)
-            {
-                actualUserId = httpContext.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            }
-
-            var effectiveUserId = actualUserId ?? currentUserService.UserId;
+            var effectiveUserId = GetEffectiveUserId(httpContextAccessor, currentUserService);
 
             // Check authorization
             var authorizationResult = await CheckAttachmentAuthorizationWithUserIdAsync(
@@ -819,5 +774,23 @@ public static class AttachmentEndpoints
             httpContext.Response.Headers.CacheControl = CacheControlHeader;
             httpContext.Response.Headers.ETag = $"\"{hash}\"";
         }
+    }
+
+    /// <summary>
+    /// Gets the effective user ID directly from HttpContext claims or falls back to ICurrentUserService.
+    /// </summary>
+    private static string? GetEffectiveUserId(IHttpContextAccessor httpContextAccessor, ICurrentUserService currentUserService)
+    {
+        var httpContext = httpContextAccessor.HttpContext;
+        var actualUserId = httpContext?.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        if (!string.IsNullOrEmpty(actualUserId) && string.IsNullOrEmpty(currentUserService.UserId))
+        {
+            Log.Debug(
+                "Using direct HttpContext user {ActualUserId} instead of CurrentUserService (which returned null)",
+                actualUserId);
+        }
+
+        return actualUserId ?? currentUserService.UserId;
     }
 }
