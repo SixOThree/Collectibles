@@ -12,18 +12,12 @@ using Microsoft.Extensions.Logging;
 
 namespace Collectibles.Infrastructure.Services;
 
-public class ZipUploadJobService : IZipUploadJobService
+public class ZipUploadJobService(IServiceProvider serviceProvider, ILogger<ZipUploadJobService> logger) : IZipUploadJobService
 {
-    private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger<ZipUploadJobService> _logger;
+    private readonly IServiceProvider _serviceProvider = serviceProvider;
+    private readonly ILogger<ZipUploadJobService> _logger = logger;
 
-    public ZipUploadJobService(IServiceProvider serviceProvider, ILogger<ZipUploadJobService> logger)
-    {
-        _serviceProvider = serviceProvider;
-        _logger = logger;
-    }
-
-    [AutomaticRetry(Attempts = 3, DelaysInSeconds = new[] { 10, 30, 60 })]
+    [AutomaticRetry(Attempts = 3, DelaysInSeconds = [10, 30, 60])]
     public async Task ProcessJobAsync(long jobId)
     {
         using var scope = _serviceProvider.CreateScope();
