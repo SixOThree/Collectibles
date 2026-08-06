@@ -9,27 +9,18 @@ using Microsoft.Extensions.Options;
 
 namespace Collectibles.Infrastructure.Services;
 
-public class CollectibleItemPreviewService : ICollectibleItemPreviewService
+public class CollectibleItemPreviewService(
+    IApplicationDbContextFactory contextFactory,
+    IFileProcessingService fileProcessingService,
+    IFileStorage fileStorage,
+    ILogger<CollectibleItemPreviewService> logger,
+    IOptions<StorageSettings> storageOptions) : ICollectibleItemPreviewService
 {
-    private readonly IApplicationDbContextFactory _contextFactory;
-    private readonly IFileProcessingService _fileProcessingService;
-    private readonly IFileStorage _fileStorage;
-    private readonly ILogger<CollectibleItemPreviewService> _logger;
-    private readonly StorageSettings _storageSettings;
-
-    public CollectibleItemPreviewService(
-        IApplicationDbContextFactory contextFactory,
-        IFileProcessingService fileProcessingService,
-        IFileStorage fileStorage,
-        ILogger<CollectibleItemPreviewService> logger,
-        IOptions<StorageSettings> storageOptions)
-    {
-        _contextFactory = contextFactory;
-        _fileProcessingService = fileProcessingService;
-        _fileStorage = fileStorage;
-        _logger = logger;
-        _storageSettings = storageOptions.Value;
-    }
+    private readonly IApplicationDbContextFactory _contextFactory = contextFactory;
+    private readonly IFileProcessingService _fileProcessingService = fileProcessingService;
+    private readonly IFileStorage _fileStorage = fileStorage;
+    private readonly ILogger<CollectibleItemPreviewService> _logger = logger;
+    private readonly StorageSettings _storageSettings = storageOptions.Value;
 
     public async Task<bool> NeedsCollagePreviewAsync(long collectibleItemId, CancellationToken cancellationToken = default)
     {

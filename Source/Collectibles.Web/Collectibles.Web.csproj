@@ -44,7 +44,6 @@
     <ProjectReference Include="..\Collectibles.Application\Collectibles.Application.csproj" />
     <ProjectReference Include="..\Collectibles.Domain\Collectibles.Domain.csproj" />
     <ProjectReference Include="..\Collectibles.Infrastructure\Collectibles.Infrastructure.csproj" />
-    <ProjectReference Include="..\Collectibles.Kernel\Collectibles.Kernel.csproj" />
   </ItemGroup>
   <!-- Handle web.config based on configuration -->
   <ItemGroup>

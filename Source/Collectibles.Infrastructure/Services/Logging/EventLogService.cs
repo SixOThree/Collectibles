@@ -3,6 +3,7 @@ using System.Text.Json;
 using Collectibles.Application.Interfaces;
 
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace Collectibles.Infrastructure.Services.Logging;
@@ -41,10 +42,7 @@ public class EventLogService : IEventLogService
     {
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
 
-        // Try to get HTTP context, but handle gracefully if it's null (common in Blazor Server)
         var httpContext = _httpContextAccessor?.HttpContext;
-
-        // Get user info from CurrentUserService which now handles null HttpContext gracefully
         var userId = _currentUserService?.UserId;
         var userName = _currentUserService?.UserName;
 
@@ -69,7 +67,6 @@ public class EventLogService : IEventLogService
         await context.SaveChangesAsync(cancellationToken);
     }
 
-    // Overload with explicit context information for Blazor Interactive components
     public async Task LogEventAsync(
         EventAction action,
         string? entityType,
@@ -140,7 +137,7 @@ public class EventLogService : IEventLogService
 
         if (!string.IsNullOrEmpty(userId))
         {
-            query = query.Where(e => e.UserId == userId);
+            query = query.Where(e => e.UserId == userId || e.UserEmail == userId);
         }
 
         if (startDate.HasValue)
@@ -184,7 +181,7 @@ public class EventLogService : IEventLogService
 
         if (!string.IsNullOrEmpty(userId))
         {
-            query = query.Where(e => e.UserId == userId);
+            query = query.Where(e => e.UserId == userId || e.UserEmail == userId);
         }
 
         if (startDate.HasValue)
@@ -278,7 +275,14 @@ public class EventLogService : IEventLogService
 
         if (!string.IsNullOrEmpty(userId))
         {
-            query = query.Where(e => e.UserId == userId || e.UserEmail == userId);
+            if (string.Equals(userId, "anonymous", StringComparison.OrdinalIgnoreCase))
+            {
+                query = query.Where(e => e.UserId == null && e.UserEmail == null);
+            }
+            else
+            {
+                query = query.Where(e => e.UserId == userId || e.UserEmail == userId);
+            }
         }
 
         if (startDate.HasValue)
@@ -291,122 +295,88 @@ public class EventLogService : IEventLogService
             query = query.Where(e => e.Timestamp <= endDate.Value);
         }
 
-        // Group events by session or by user and time proximity
-        var allEvents = await query.OrderBy(e => e.Timestamp).ToListAsync(cancellationToken);
-
-        var sessions = new List<UserSession>();
-        var processedEvents = new HashSet<long>();
-
-        foreach (var evt in allEvents)
-        {
-            if (processedEvents.Contains(evt.Id))
+        // 1. Group events with a valid SessionId
+        var trackedSessionGroups = query
+            .Where(e => e.SessionId != null && e.SessionId != "")
+            .GroupBy(e => e.SessionId!)
+            .Select(g => new
             {
-                continue;
-            }
+                SessionId = g.Key,
+                StartTime = g.Min(e => e.Timestamp),
+                EndTime = g.Max(e => e.Timestamp),
+                EventCount = g.Count(),
+            });
 
-            var session = new UserSession
+        // 2. Group legacy events with a null SessionId
+        var legacySessionGroups = query
+            .Where(e => e.SessionId == null || e.SessionId == "")
+            .GroupBy(e => new { UserKey = e.UserId ?? e.UserEmail ?? "anonymous", DateBucket = e.Timestamp.Date })
+            .Select(g => new
             {
-                SessionId = evt.SessionId ?? $"synthetic_{evt.UserId ?? "anonymous"}_{evt.Timestamp:yyyyMMddHHmmss}",
-                UserId = evt.UserId,
-                UserEmail = evt.UserEmail,
-                StartTime = evt.Timestamp,
-                EndTime = evt.Timestamp,
-                EventCount = 1,
-                UniqueActions = new List<EventAction> { evt.Action },
-            };
+                SessionId = "synthetic_" + g.Key.UserKey + "_" + g.Min(e => e.Timestamp).ToString("yyyyMMddHHmmss"),
+                StartTime = g.Min(e => e.Timestamp),
+                EndTime = g.Max(e => e.Timestamp),
+                EventCount = g.Count(),
+            });
 
-            // Find all events in the same session
-            var sessionEvents = new List<EventLog>();
-
-            if (!string.IsNullOrEmpty(evt.SessionId))
-            {
-                // If we have a session ID, use it
-                sessionEvents = allEvents
-                    .Where(e => e.SessionId == evt.SessionId && !processedEvents.Contains(e.Id))
-                    .ToList();
-            }
-            else
-            {
-                // Group by user and time proximity (within 30 minutes of each other)
-                var currentUser = evt.UserId;
-                var currentTime = evt.Timestamp;
-
-                sessionEvents = allEvents
-                    .Where(e => e.UserId == currentUser &&
-                               !processedEvents.Contains(e.Id) &&
-                               Math.Abs((e.Timestamp - currentTime).TotalMinutes) <= 30)
-                    .OrderBy(e => e.Timestamp)
-                    .ToList();
-
-                // Refine the group to ensure continuity
-                var refinedEvents = new List<EventLog>();
-                DateTime? lastEventTime = null;
-
-                foreach (var e in sessionEvents)
-                {
-                    if (lastEventTime == null || (e.Timestamp - lastEventTime.Value).TotalMinutes <= 30)
-                    {
-                        refinedEvents.Add(e);
-                        lastEventTime = e.Timestamp;
-                    }
-                    else
-                    {
-                        break; // Gap too large, end this session
-                    }
-                }
-
-                sessionEvents = refinedEvents;
-            }
-
-            if (sessionEvents.Count != 0)
-            {
-                foreach (var sessionEvent in sessionEvents)
-                {
-                    processedEvents.Add(sessionEvent.Id);
-
-                    if (sessionEvent.Timestamp < session.StartTime)
-                    {
-                        session.StartTime = sessionEvent.Timestamp;
-                    }
-
-                    if (sessionEvent.Timestamp > session.EndTime)
-                    {
-                        session.EndTime = sessionEvent.Timestamp;
-                    }
-
-                    if (!session.UniqueActions.Contains(sessionEvent.Action))
-                    {
-                        session.UniqueActions.Add(sessionEvent.Action);
-                    }
-
-                    if (!string.IsNullOrEmpty(sessionEvent.UserId) && string.IsNullOrEmpty(session.UserId))
-                    {
-                        session.UserId = sessionEvent.UserId;
-                    }
-
-                    if (!string.IsNullOrEmpty(sessionEvent.UserEmail) &&
-                        string.IsNullOrEmpty(session.UserEmail) &&
-                        (string.IsNullOrEmpty(session.UserId) || string.Equals(sessionEvent.UserId, session.UserId, StringComparison.Ordinal)))
-                    {
-                        session.UserEmail = sessionEvent.UserEmail;
-                    }
-                }
-
-                session.EventCount = sessionEvents.Count;
-                sessions.Add(session);
-
-                _logger.LogDebug("Created session {SessionId} with {EventCount} events for user {User}", session.SessionId, session.EventCount, session.UserEmail ?? session.UserId ?? "anonymous");
-            }
-        }
-
-        _logger.LogDebug("Total sessions created: {Count}", sessions.Count);
-
-        // Apply pagination
-        return sessions
+        // Combine both in SQL and apply pagination
+        var sessionGroups = await trackedSessionGroups
+            .Concat(legacySessionGroups)
             .OrderByDescending(s => s.StartTime)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
-            .ToList();
+            .ToListAsync(cancellationToken);
+
+        var sessionIds = sessionGroups.Select(s => s.SessionId).ToList();
+        var sessionDetailsMap = new Dictionary<string, (string? UserId, string? UserEmail, List<EventAction> Actions)>();
+
+        if (sessionIds.Count > 0)
+        {
+            var trackedSessionIds = sessionIds.Where(id => !id.StartsWith("synthetic_")).ToList();
+            if (trackedSessionIds.Count > 0)
+            {
+                var eventsForSessions = await context.EventLogs
+                    .Where(e => e.SessionId != null && trackedSessionIds.Contains(e.SessionId))
+                    .OrderBy(e => e.Timestamp)
+                    .ToListAsync(cancellationToken);
+
+                var groupedEvents = eventsForSessions.GroupBy(e => e.SessionId!);
+
+                foreach (var g in groupedEvents)
+                {
+                    var firstEvt = g.First();
+                    var primaryUserId = firstEvt.UserId;
+
+                    var userEmail = g.FirstOrDefault(e =>
+                        (string.IsNullOrEmpty(primaryUserId) ? e.UserId == null : e.UserId == primaryUserId) &&
+                        !string.IsNullOrEmpty(e.UserEmail))?.UserEmail ?? firstEvt.UserEmail;
+
+                    var actions = g.Select(e => e.Action).Distinct().ToList();
+
+                    sessionDetailsMap[g.Key] = (primaryUserId, userEmail, actions);
+                }
+            }
+        }
+
+        var result = new List<UserSession>();
+        foreach (var sg in sessionGroups)
+        {
+            sessionDetailsMap.TryGetValue(sg.SessionId, out var details);
+
+            var session = new UserSession
+            {
+                SessionId = sg.SessionId,
+                UserId = details.UserId,
+                UserEmail = details.UserEmail,
+                StartTime = sg.StartTime,
+                EndTime = sg.EndTime,
+                EventCount = sg.EventCount,
+                UniqueActions = details.Actions ?? new List<EventAction>(),
+            };
+            result.Add(session);
+        }
+
+        return result;
     }
 
     public async Task<IEnumerable<EventLog>> GetEventLogsBySessionAsync(
@@ -415,7 +385,6 @@ public class EventLogService : IEventLogService
     {
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
 
-        // First try to find events by actual session ID
         var events = await context.EventLogs
             .Where(e => e.SessionId == sessionId)
             .OrderBy(e => e.Timestamp)
@@ -423,80 +392,45 @@ public class EventLogService : IEventLogService
 
         if (events.Count != 0)
         {
-            _logger.LogDebug("Found {Count} events by SessionId: {SessionId}", events.Count, sessionId);
             return events;
         }
 
-        // If no events found by session ID, try to parse the synthetic session ID
-        // Formats: synthetic_{userId}_{timestamp}, session_{trackingId}, connection_{connectionId}
         if (sessionId.StartsWith("synthetic_") || sessionId.StartsWith("session_") || sessionId.StartsWith("connection_"))
         {
-            _logger.LogDebug("Parsing synthetic session ID: {SessionId}", sessionId);
             var parts = sessionId.Split('_');
             if (parts.Length >= 3)
             {
-                var userId = parts[1];
-                var timestampStr = parts[parts.Length - 1]; // Get last part as timestamp
-
-                // Reconstruct userId if it contained underscores
-                if (parts.Length > 3)
-                {
-                    userId = string.Join("_", parts.Skip(1).Take(parts.Length - 2));
-                }
-
-                _logger.LogDebug("Extracted userId: {UserId}, timestamp: {Timestamp}", userId, timestampStr);
+                var timestampStr = parts[parts.Length - 1];
+                var userKey = string.Join("_", parts.Skip(1).Take(parts.Length - 2));
 
                 if (DateTime.TryParseExact(timestampStr, "yyyyMMddHHmmss", null,
                     System.Globalization.DateTimeStyles.None, out var baseTime))
                 {
-                    // Find events for this user around this time (within 30 minutes)
                     var startTime = baseTime.AddMinutes(-30);
                     var endTime = baseTime.AddMinutes(30);
 
-                    if (userId == "anonymous")
+                    if (userKey == "anonymous")
                     {
-                        // For anonymous users, match by time range and null userId
                         events = await context.EventLogs
-                            .Where(e => e.UserId == null &&
-                                       e.Timestamp >= startTime &&
-                                       e.Timestamp <= endTime)
+                            .Where(e => e.UserId == null && e.UserEmail == null &&
+                                       e.Timestamp >= startTime && e.Timestamp <= endTime)
                             .OrderBy(e => e.Timestamp)
                             .ToListAsync(cancellationToken);
                     }
                     else
                     {
                         events = await context.EventLogs
-                            .Where(e => e.UserId == userId &&
-                                       e.Timestamp >= startTime &&
-                                       e.Timestamp <= endTime)
+                            .Where(e => (e.UserId == userKey || e.UserEmail == userKey) &&
+                                       e.Timestamp >= startTime && e.Timestamp <= endTime)
                             .OrderBy(e => e.Timestamp)
                             .ToListAsync(cancellationToken);
                     }
 
-                    // Refine to ensure continuity
-                    var refinedEvents = new List<EventLog>();
-                    DateTime? lastEventTime = null;
-
-                    foreach (var evt in events)
-                    {
-                        if (lastEventTime == null || (evt.Timestamp - lastEventTime.Value).TotalMinutes <= 30)
-                        {
-                            refinedEvents.Add(evt);
-                            lastEventTime = evt.Timestamp;
-                        }
-                        else if (refinedEvents.Count != 0)
-                        {
-                            break; // Gap too large, end this session
-                        }
-                    }
-
-                    _logger.LogDebug("Found {Count} refined events for synthetic session", refinedEvents.Count);
-                    return refinedEvents;
+                    return events;
                 }
             }
         }
 
-        _logger.LogDebug("No events found for session: {SessionId}", sessionId);
         return events;
     }
 }

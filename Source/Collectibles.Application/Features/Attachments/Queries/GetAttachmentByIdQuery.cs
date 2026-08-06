@@ -10,24 +10,16 @@ namespace Collectibles.Application.Features.Attachments.Queries;
 
 public record GetAttachmentByIdQuery(long Id) : IRequest<AttachmentDto>;
 
-public class GetAttachmentByIdQueryHandler : IRequestHandler<GetAttachmentByIdQuery, AttachmentDto>
+public class GetAttachmentByIdQueryHandler(
+    IApplicationDbContext context,
+    IAttachmentMappingService attachmentMappingService,
+    IAuthorizationService authorizationService,
+    ILogger<GetAttachmentByIdQueryHandler> logger) : IRequestHandler<GetAttachmentByIdQuery, AttachmentDto>
 {
-    private readonly IApplicationDbContext _context;
-    private readonly IAttachmentMappingService _attachmentMappingService;
-    private readonly IAuthorizationService _authorizationService;
-    private readonly ILogger<GetAttachmentByIdQueryHandler> _logger;
-
-    public GetAttachmentByIdQueryHandler(
-        IApplicationDbContext context,
-        IAttachmentMappingService attachmentMappingService,
-        IAuthorizationService authorizationService,
-        ILogger<GetAttachmentByIdQueryHandler> logger)
-    {
-        _context = context;
-        _attachmentMappingService = attachmentMappingService;
-        _authorizationService = authorizationService;
-        _logger = logger;
-    }
+    private readonly IApplicationDbContext _context = context;
+    private readonly IAttachmentMappingService _attachmentMappingService = attachmentMappingService;
+    private readonly IAuthorizationService _authorizationService = authorizationService;
+    private readonly ILogger<GetAttachmentByIdQueryHandler> _logger = logger;
 
     public async Task<AttachmentDto> Handle(GetAttachmentByIdQuery request, CancellationToken cancellationToken)
     {

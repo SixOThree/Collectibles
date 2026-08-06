@@ -21,7 +21,7 @@ namespace Collectibles.Web.Extensions;
 
 public static class ServiceCollectionExtensions
 {
-    private static readonly string[] Tags = new[] { "database", "sql" };
+    private static readonly string[] Tags = ["database", "sql"];
 
     /// <summary>
     /// Adds all web-related services including Blazor, SignalR, and form configuration.
