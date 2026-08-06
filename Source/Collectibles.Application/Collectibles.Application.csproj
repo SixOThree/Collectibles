@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -14,7 +14,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Collectibles.Domain\Collectibles.Domain.csproj" />
-    <ProjectReference Include="..\Collectibles.Kernel\Collectibles.Kernel.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Features\" />
