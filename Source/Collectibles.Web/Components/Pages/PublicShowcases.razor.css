@@ -26,17 +26,10 @@
 
 .showcase-grid {
     display: grid;
-    /* Use min(450px, 100%) so a single column can shrink below 450px on
-       narrow screens instead of forcing horizontal overflow on mobile. */
-    grid-template-columns: repeat(auto-fill, minmax(min(450px, 100%), 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 450px), 1fr));
     gap: 2rem;
     margin-bottom: 2rem;
-}
-
-@media (max-width: 575.98px) {
-    .showcase-grid {
-        gap: 1.25rem;
-    }
+    min-width: 0;
 }
 
 .showcase-card {
@@ -49,6 +42,7 @@
     flex-direction: column;
     height: 100%;
     overflow: hidden;
+    min-width: 0;
 }
 
 .showcase-card:hover {
@@ -98,11 +92,13 @@
     padding: 0.75rem 1.25rem;
     background-color: var(--bg-secondary);
     border-bottom: 1px solid var(--border-color);
+    min-width: 0;
 }
 
 .showcase-card-body {
     padding: 1.25rem;
     flex-grow: 1;
+    min-width: 0;
 }
 
 .showcase-title {
@@ -132,6 +128,7 @@
 
 .showcase-stats {
     display: flex;
+    flex-wrap: wrap;
     gap: 1.5rem;
     margin-bottom: 1rem;
     font-size: 0.9rem;
@@ -164,6 +161,33 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+}
+
+@media (max-width: 576px) {
+    .showcase-filters {
+        padding: 1rem;
+    }
+
+    .showcase-grid {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 1rem;
+    }
+
+    .showcase-card-image,
+    .showcase-card-placeholder {
+        height: 200px;
+    }
+
+    .showcase-card-header,
+    .showcase-card-body,
+    .showcase-card-footer {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+
+    .showcase-stats {
+        gap: 0.75rem;
+    }
 }
 
 /* Respect reduced motion preference */
