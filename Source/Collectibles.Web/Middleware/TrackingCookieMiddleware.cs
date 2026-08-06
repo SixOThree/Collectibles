@@ -1,10 +1,13 @@
+using Collectibles.Application.Interfaces;
+
 namespace Collectibles.Web.Middleware;
 
 public class TrackingCookieMiddleware
 {
-    private readonly RequestDelegate _next;
     private const string TrackingCookieName = "CollectiblesTrackingId";
-    private const int CookieExpirationMinutes = 30;
+    private const int CookieExpirationMinutes = 1440;
+
+    private readonly RequestDelegate _next;
 
     public TrackingCookieMiddleware(RequestDelegate next)
     {
@@ -13,52 +16,39 @@ public class TrackingCookieMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        // Check if tracking cookie exists
-        if (!context.Request.Cookies.ContainsKey(TrackingCookieName))
+        var sessionTrackingService = context.RequestServices.GetRequiredService<ISessionTrackingService>();
+        var trackingId = context.Request.Cookies[TrackingCookieName];
+
+        if (string.IsNullOrEmpty(trackingId))
         {
-            // Generate new tracking ID
-            var trackingId = Guid.NewGuid().ToString("N");
+            trackingId = Guid.NewGuid().ToString("N");
 
-            // Set cookie with sliding expiration
-            var cookieOptions = new CookieOptions
-            {
-                HttpOnly = true,
-                IsEssential = true, // GDPR - this cookie is essential for the service
-                SameSite = SameSiteMode.Strict,
-                Expires = DateTimeOffset.UtcNow.AddMinutes(CookieExpirationMinutes),
-            };
-
-            // Set Secure flag in production
-            if (!context.RequestServices.GetRequiredService<IWebHostEnvironment>().IsDevelopment())
-            {
-                cookieOptions.Secure = true;
-            }
-
-            context.Response.Cookies.Append(TrackingCookieName, trackingId, cookieOptions);
+            context.Response.Cookies.Append(TrackingCookieName, trackingId, CreateCookieOptions(context));
+            sessionTrackingService.SetTrackingId(trackingId);
         }
         else
         {
-            // Refresh cookie expiration on activity
-            var existingTrackingId = context.Request.Cookies[TrackingCookieName];
-            if (!string.IsNullOrEmpty(existingTrackingId))
-            {
-                var cookieOptions = new CookieOptions
-                {
-                    HttpOnly = true,
-                    IsEssential = true,
-                    SameSite = SameSiteMode.Strict,
-                    Expires = DateTimeOffset.UtcNow.AddMinutes(CookieExpirationMinutes),
-                };
-
-                if (!context.RequestServices.GetRequiredService<IWebHostEnvironment>().IsDevelopment())
-                {
-                    cookieOptions.Secure = true;
-                }
-
-                context.Response.Cookies.Append(TrackingCookieName, existingTrackingId, cookieOptions);
-            }
+            sessionTrackingService.SetTrackingId(trackingId);
         }
 
         await _next(context);
+    }
+
+    private static CookieOptions CreateCookieOptions(HttpContext context)
+    {
+        var cookieOptions = new CookieOptions
+        {
+            HttpOnly = true,
+            IsEssential = true,
+            SameSite = SameSiteMode.Strict,
+            Expires = DateTimeOffset.UtcNow.AddMinutes(CookieExpirationMinutes),
+        };
+
+        if (!context.RequestServices.GetRequiredService<IWebHostEnvironment>().IsDevelopment())
+        {
+            cookieOptions.Secure = true;
+        }
+
+        return cookieOptions;
     }
 }
