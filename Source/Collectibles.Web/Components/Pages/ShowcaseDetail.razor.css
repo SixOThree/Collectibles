@@ -2,6 +2,7 @@
     max-width: 1200px;
     margin: 0 auto;
     padding: 2rem;
+    min-width: 0;
 }
 
 .showcase-header {
@@ -131,16 +132,24 @@
 
 .items-grid {
     display: grid;
-    /* min(280px, 100%) lets the single column shrink below 280px on narrow
-       screens instead of overflowing the viewport horizontally. */
-    grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
     gap: 1.5rem;
     margin-top: 1.5rem;
+    min-width: 0;
 }
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
     .showcase-detail {
+        padding: 0.5rem 0;
+    }
+
+    .showcase-detail > .card {
+        margin-left: 0;
+        margin-right: 0;
+    }
+
+    .card-body {
         padding: 1rem;
     }
 
@@ -154,7 +163,8 @@
     }
 
     .items-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr) !important;
+        gap: 1rem;
     }
 }
 
