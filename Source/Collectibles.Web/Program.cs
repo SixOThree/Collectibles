@@ -81,13 +81,6 @@ try
         serverOptions.Limits.KeepAliveTimeout = TimeSpan.FromMinutes(ApplicationConstants.Web.KeepAliveTimeoutMinutes);
     });
 
-    // Configure IIS for better streaming support (only when IIS is available)
-    // Note: IISServerOptions is only available when running on Windows with IIS
-    // builder.Services.Configure<IISServerOptions>(options =>
-    // {
-    //     options.MaxRequestBodySize = 21_474_836_480; // 20 GB in bytes
-    //     options.AllowSynchronousIO = true; // Required for some streaming scenarios
-    // });
 
     // Use Serilog for all logging
     builder.Host.UseSerilog((context, services, configuration) =>
