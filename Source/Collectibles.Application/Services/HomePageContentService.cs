@@ -37,6 +37,8 @@ public class HomePageContentService(
 
     public async Task SaveAsync(HomePageContent content)
     {
+        ArgumentNullException.ThrowIfNull(content);
+
         Validate(content);
 
         var json = JsonSerializer.Serialize(content, SerializerOptions);
