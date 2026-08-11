@@ -1,0 +1,213 @@
+@page "/Management/HomePage"
+@using Collectibles.Application.Common
+@using Collectibles.Application.Common.Models
+@using Collectibles.Application.Interfaces
+@using Microsoft.AspNetCore.Authorization
+
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Administrator")]
+
+@inject IHomePageContentService HomePageContentService
+@inject ILogger<HomePage> Logger
+
+<PageTitle>Home Page Content</PageTitle>
+
+<h3>Home Page Content</h3>
+<p class="text-muted">
+    Edit the hero text and feature cards shown on the public home page.
+    The token <code>{SiteTitle}</code> is replaced with the configured site title in any field.
+</p>
+
+@if (!string.IsNullOrEmpty(statusMessage))
+{
+    <div class="alert @(isError ? "alert-danger" : "alert-success") alert-dismissible fade show" role="alert">
+        @statusMessage
+        <button type="button" class="btn-close" @onclick="() => statusMessage = string.Empty"></button>
+    </div>
+}
+
+<fieldset disabled="@isSaving">
+    <div class="card mt-4">
+        <div class="card-header">
+            <h5>Hero Section</h5>
+        </div>
+        <div class="card-body">
+            <div class="mb-3">
+                <label for="heroTitle" class="form-label">Hero Title</label>
+                <input id="heroTitle" type="text" class="form-control" @bind="content.HeroTitle" />
+            </div>
+            <div class="mb-0">
+                <label for="heroLead" class="form-label">Hero Lead</label>
+                <textarea id="heroLead" class="form-control" rows="3" @bind="content.HeroLead"></textarea>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mt-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Feature Cards</h5>
+            <button type="button" class="btn btn-sm btn-outline-primary" @onclick="AddCard">
+                <i class="bi bi-plus-lg"></i> Add Card
+            </button>
+        </div>
+        <div class="card-body">
+            @if (content.Cards.Count == 0)
+            {
+                <p class="text-muted mb-0">No cards — the feature grid will not be shown on the home page.</p>
+            }
+            @for (var i = 0; i < content.Cards.Count; i++)
+            {
+                var index = i;
+                var card = content.Cards[index];
+                <div class="border rounded p-3 mb-3" @key="card">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <button type="button" class="btn btn-outline-secondary" title="Change icon"
+                                @onclick="() => OpenIconPicker(index)">
+                            <i class="bi @(BootstrapIcons.IsValid(card.Icon) ? card.Icon : "bi-star") fs-4"></i>
+                            <span class="ms-2">@card.Icon</span>
+                        </button>
+                        <div class="btn-group">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" title="Move up"
+                                    disabled="@(index == 0)" @onclick="() => MoveCard(index, -1)">
+                                <i class="bi bi-arrow-up"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" title="Move down"
+                                    disabled="@(index == content.Cards.Count - 1)" @onclick="() => MoveCard(index, 1)">
+                                <i class="bi bi-arrow-down"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger" title="Remove card"
+                                    @onclick="() => RemoveCard(index)">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Title</label>
+                        <input type="text" class="form-control" @bind="card.Title" />
+                    </div>
+                    <div class="mb-0">
+                        <label class="form-label">Text</label>
+                        <textarea class="form-control" rows="3" @bind="card.Text"></textarea>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</fieldset>
+
+<div class="mt-4 mb-5 d-flex gap-2">
+    <button type="button" class="btn btn-primary" disabled="@isSaving" @onclick="Save">
+        @if (isSaving)
+        {
+            <Spinner Type="SpinnerType.Dots" Size="SpinnerSize.Small" Color="SpinnerColor.Light" Class="me-2" />
+        }
+        Save Changes
+    </button>
+    <button type="button" class="btn btn-outline-danger" disabled="@isSaving" @onclick="() => showResetConfirm = true">
+        Reset to Defaults
+    </button>
+</div>
+
+@if (showResetConfirm)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Reset to Defaults</h5>
+                    <button type="button" class="btn-close" @onclick="() => showResetConfirm = false"></button>
+                </div>
+                <div class="modal-body">
+                    <p>
+                        Load the default hero text and feature cards into the form, replacing your
+                        current edits. Nothing is saved until you press <strong>Save Changes</strong>.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => showResetConfirm = false">Cancel</button>
+                    <button type="button" class="btn btn-danger" @onclick="LoadDefaults">Load Defaults</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<IconPickerModal IsVisible="@(iconPickerCardIndex is not null)"
+                 SelectedIcon="@(iconPickerCardIndex is int idx ? content.Cards[idx].Icon : null)"
+                 OnSelected="IconSelected"
+                 OnCancelled="() => iconPickerCardIndex = null" />
+
+@code {
+    private HomePageContent content = HomePageContent.Default;
+    private string statusMessage = string.Empty;
+    private bool isError;
+    private bool isSaving;
+    private bool showResetConfirm;
+    private int? iconPickerCardIndex;
+
+    protected override async Task OnInitializedAsync()
+    {
+        content = await HomePageContentService.GetAsync();
+    }
+
+    private void AddCard() => content.Cards.Add(new HomePageCard { Icon = "bi-star" });
+
+    private void RemoveCard(int index) => content.Cards.RemoveAt(index);
+
+    private void MoveCard(int index, int delta)
+    {
+        var target = index + delta;
+        if (target < 0 || target >= content.Cards.Count)
+        {
+            return;
+        }
+
+        (content.Cards[index], content.Cards[target]) = (content.Cards[target], content.Cards[index]);
+    }
+
+    private void OpenIconPicker(int index) => iconPickerCardIndex = index;
+
+    private void IconSelected(string icon)
+    {
+        if (iconPickerCardIndex is int index)
+        {
+            content.Cards[index].Icon = icon;
+        }
+
+        iconPickerCardIndex = null;
+    }
+
+    private void LoadDefaults()
+    {
+        content = HomePageContent.Default;
+        iconPickerCardIndex = null;
+        showResetConfirm = false;
+    }
+
+    private async Task Save()
+    {
+        isSaving = true;
+        try
+        {
+            await HomePageContentService.SaveAsync(content);
+            statusMessage = "Home page content saved.";
+            isError = false;
+        }
+        catch (ArgumentException ex)
+        {
+            // Validation failure — the service message is user-readable.
+            statusMessage = ex.Message;
+            isError = true;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error saving home page content");
+            statusMessage = "Error saving home page content.";
+            isError = true;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+}
