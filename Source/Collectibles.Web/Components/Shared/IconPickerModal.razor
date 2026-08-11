@@ -1,0 +1,87 @@
+@using Collectibles.Application.Common
+
+@if (IsVisible)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Choose an Icon</h5>
+                    <button type="button" class="btn-close" @onclick="Cancel"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="text" class="form-control mb-3" placeholder="Search icons by name..."
+                           @bind="_filter" @bind:event="oninput" />
+
+                    @if (_matchCount > MaxResults)
+                    {
+                        <p class="text-muted small">Showing the first @MaxResults of @_matchCount matches — type to narrow the list.</p>
+                    }
+
+                    <div class="row g-2">
+                        @foreach (var icon in FilteredIcons)
+                        {
+                            <div class="col-4 col-md-3 col-lg-2">
+                                <button type="button"
+                                        class="btn w-100 text-center @(icon == SelectedIcon ? "btn-primary" : "btn-outline-secondary")"
+                                        title="@icon"
+                                        @onclick="() => Select(icon)">
+                                    <i class="bi @icon fs-4 d-block"></i>
+                                    <span class="small text-truncate d-block">@icon.Replace("bi-", "")</span>
+                                </button>
+                            </div>
+                        }
+                    </div>
+
+                    @if (_matchCount == 0)
+                    {
+                        <p class="text-muted">No icons match "@_filter".</p>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="Cancel">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    // Rendering all ~2,000 icons at once is heavy over the Blazor Server circuit,
+    // so the grid is capped and the user narrows by searching.
+    private const int MaxResults = 120;
+
+    private string _filter = string.Empty;
+    private int _matchCount;
+
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public string? SelectedIcon { get; set; }
+    [Parameter] public EventCallback<string> OnSelected { get; set; }
+    [Parameter] public EventCallback OnCancelled { get; set; }
+
+    private IEnumerable<string> FilteredIcons
+    {
+        get
+        {
+            var matches = string.IsNullOrWhiteSpace(_filter)
+                ? BootstrapIcons.All
+                : BootstrapIcons.All
+                    .Where(i => i.Contains(_filter.Trim(), StringComparison.OrdinalIgnoreCase))
+                    .ToArray();
+            _matchCount = matches.Length;
+            return matches.Take(MaxResults);
+        }
+    }
+
+    private async Task Select(string icon)
+    {
+        _filter = string.Empty;
+        await OnSelected.InvokeAsync(icon);
+    }
+
+    private async Task Cancel()
+    {
+        _filter = string.Empty;
+        await OnCancelled.InvokeAsync();
+    }
+}
