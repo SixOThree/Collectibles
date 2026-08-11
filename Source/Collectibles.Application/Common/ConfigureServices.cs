@@ -41,6 +41,7 @@ public static class ConfigureServices
         // Register application services
         services.AddSingleton<IInflationCalculationService, InflationCalculationService>();
         services.AddScoped<ISiteConfigurationService, SiteConfigurationService>();
+        services.AddScoped<IHomePageContentService, HomePageContentService>();
 
         // Register explicit mapping services
         services.AddScoped<IAttachmentMappingService, AttachmentMappingService>();
