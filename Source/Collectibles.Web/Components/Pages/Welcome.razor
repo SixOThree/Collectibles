@@ -3,6 +3,7 @@
 @rendermode InteractiveServerWithoutPrerender
 @inherits LoggablePageBase
 @using Collectibles.Domain.Configuration
+@using Collectibles.Application.Common
 @using Collectibles.Application.Features.Showcases
 @using Collectibles.Application.Features.Showcases.Queries
 @using Collectibles.Application.Services
@@ -41,7 +42,7 @@
             @foreach (var card in _content.Cards)
             {
                 <div class="feature-card">
-                    <div class="feature-icon"><i class="bi @card.Icon"></i></div>
+                    <div class="feature-icon"><i class="bi @(BootstrapIcons.IsValid(card.Icon) ? card.Icon : "bi-star")"></i></div>
                     <h2>@Fill(card.Title)</h2>
                     <p>@Fill(card.Text)</p>
                 </div>
