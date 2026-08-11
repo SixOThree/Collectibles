@@ -25,72 +25,74 @@
     </div>
 }
 
-<div class="card mt-4">
-    <div class="card-header">
-        <h5>Hero Section</h5>
-    </div>
-    <div class="card-body">
-        <div class="mb-3">
-            <label for="heroTitle" class="form-label">Hero Title</label>
-            <input id="heroTitle" type="text" class="form-control" @bind="content.HeroTitle" />
+<fieldset disabled="@isSaving">
+    <div class="card mt-4">
+        <div class="card-header">
+            <h5>Hero Section</h5>
         </div>
-        <div class="mb-0">
-            <label for="heroLead" class="form-label">Hero Lead</label>
-            <textarea id="heroLead" class="form-control" rows="3" @bind="content.HeroLead"></textarea>
+        <div class="card-body">
+            <div class="mb-3">
+                <label for="heroTitle" class="form-label">Hero Title</label>
+                <input id="heroTitle" type="text" class="form-control" @bind="content.HeroTitle" />
+            </div>
+            <div class="mb-0">
+                <label for="heroLead" class="form-label">Hero Lead</label>
+                <textarea id="heroLead" class="form-control" rows="3" @bind="content.HeroLead"></textarea>
+            </div>
         </div>
     </div>
-</div>
 
-<div class="card mt-4">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">Feature Cards</h5>
-        <button type="button" class="btn btn-sm btn-outline-primary" @onclick="AddCard">
-            <i class="bi bi-plus-lg"></i> Add Card
-        </button>
-    </div>
-    <div class="card-body">
-        @if (content.Cards.Count == 0)
-        {
-            <p class="text-muted mb-0">No cards — the feature grid will not be shown on the home page.</p>
-        }
-        @for (var i = 0; i < content.Cards.Count; i++)
-        {
-            var index = i;
-            var card = content.Cards[index];
-            <div class="border rounded p-3 mb-3">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                    <button type="button" class="btn btn-outline-secondary" title="Change icon"
-                            @onclick="() => OpenIconPicker(index)">
-                        <i class="bi @card.Icon fs-4"></i>
-                        <span class="ms-2">@card.Icon</span>
-                    </button>
-                    <div class="btn-group">
-                        <button type="button" class="btn btn-sm btn-outline-secondary" title="Move up"
-                                disabled="@(index == 0)" @onclick="() => MoveCard(index, -1)">
-                            <i class="bi bi-arrow-up"></i>
+    <div class="card mt-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Feature Cards</h5>
+            <button type="button" class="btn btn-sm btn-outline-primary" @onclick="AddCard">
+                <i class="bi bi-plus-lg"></i> Add Card
+            </button>
+        </div>
+        <div class="card-body">
+            @if (content.Cards.Count == 0)
+            {
+                <p class="text-muted mb-0">No cards — the feature grid will not be shown on the home page.</p>
+            }
+            @for (var i = 0; i < content.Cards.Count; i++)
+            {
+                var index = i;
+                var card = content.Cards[index];
+                <div class="border rounded p-3 mb-3" @key="card">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <button type="button" class="btn btn-outline-secondary" title="Change icon"
+                                @onclick="() => OpenIconPicker(index)">
+                            <i class="bi @card.Icon fs-4"></i>
+                            <span class="ms-2">@card.Icon</span>
                         </button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" title="Move down"
-                                disabled="@(index == content.Cards.Count - 1)" @onclick="() => MoveCard(index, 1)">
-                            <i class="bi bi-arrow-down"></i>
-                        </button>
-                        <button type="button" class="btn btn-sm btn-outline-danger" title="Remove card"
-                                @onclick="() => RemoveCard(index)">
-                            <i class="bi bi-trash"></i>
-                        </button>
+                        <div class="btn-group">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" title="Move up"
+                                    disabled="@(index == 0)" @onclick="() => MoveCard(index, -1)">
+                                <i class="bi bi-arrow-up"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" title="Move down"
+                                    disabled="@(index == content.Cards.Count - 1)" @onclick="() => MoveCard(index, 1)">
+                                <i class="bi bi-arrow-down"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger" title="Remove card"
+                                    @onclick="() => RemoveCard(index)">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Title</label>
+                        <input type="text" class="form-control" @bind="card.Title" />
+                    </div>
+                    <div class="mb-0">
+                        <label class="form-label">Text</label>
+                        <textarea class="form-control" rows="3" @bind="card.Text"></textarea>
                     </div>
                 </div>
-                <div class="mb-2">
-                    <label class="form-label">Title</label>
-                    <input type="text" class="form-control" @bind="card.Title" />
-                </div>
-                <div class="mb-0">
-                    <label class="form-label">Text</label>
-                    <textarea class="form-control" rows="3" @bind="card.Text"></textarea>
-                </div>
-            </div>
-        }
+            }
+        </div>
     </div>
-</div>
+</fieldset>
 
 <div class="mt-4 mb-5 d-flex gap-2">
     <button type="button" class="btn btn-primary" disabled="@isSaving" @onclick="Save">
@@ -177,6 +179,7 @@
     private void LoadDefaults()
     {
         content = HomePageContent.Default;
+        iconPickerCardIndex = null;
         showResetConfirm = false;
     }
 
