@@ -6,19 +6,22 @@
 @using Collectibles.Application.Features.Showcases
 @using Collectibles.Application.Features.Showcases.Queries
 @using Collectibles.Application.Services
+@using Collectibles.Application.Common.Models
+@using Collectibles.Application.Interfaces
 @using MediatR
 @using Microsoft.Extensions.Options
 @inject IOptions<SiteSettings> SiteSettings
 @inject IMediator Mediator
 @inject IHashIdsService HashIds
+@inject IHomePageContentService HomePageContentService
 
 <PageTitle>@SiteSettings.Value.SiteTitle</PageTitle>
 
 <div class="welcome-container">
     @* Repository hero — the project comes first *@
     <div class="repo-hero text-center">
-        <h1>An open-source showcase platform for collectors</h1>
-        <p class="lead">@SiteSettings.Value.SiteTitle is a .NET&nbsp;/&nbsp;Blazor project for cataloging, sharing, and managing collections. Explore the source, run it yourself, or contribute.</p>
+        <h1>@Fill(_content.HeroTitle)</h1>
+        <p class="lead">@Fill(_content.HeroLead)</p>
         <div class="repo-hero-actions">
             <a class="btn btn-primary btn-lg" href="https://github.com/SixOThree/Collectibles" target="_blank" rel="noopener noreferrer">
                 <i class="bi bi-github"></i> View on GitHub
@@ -31,39 +34,20 @@
         </div>
     </div>
 
-    @* Implementation feature grid — concrete code/project features *@
-    <div class="welcome-features">
-        <div class="feature-card">
-            <div class="feature-icon"><i class="bi bi-grid-3x3-gap"></i></div>
-            <h2>Template-Driven Fields</h2>
-            <p>Collection templates define custom fields so each kind of collectible captures exactly the data that matters — text and large text areas, numbers, dates and date-times, booleans, dropdowns, and even inflation-adjusted prices.</p>
+    @* Feature grid — content is admin-configurable, defaults defined in HomePageContent.Default *@
+    @if (_content.Cards.Count > 0)
+    {
+        <div class="welcome-features">
+            @foreach (var card in _content.Cards)
+            {
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="bi @card.Icon"></i></div>
+                    <h2>@Fill(card.Title)</h2>
+                    <p>@Fill(card.Text)</p>
+                </div>
+            }
         </div>
-        <div class="feature-card">
-            <div class="feature-icon"><i class="bi bi-layers"></i></div>
-            <h2>Blazor &amp; .NET</h2>
-            <p>A .NET&nbsp;10 Blazor Server front end built on Clean Architecture — Domain, Application, Infrastructure, and Web layers, with a MAUI Blazor Hybrid QR scanner companion.</p>
-        </div>
-        <div class="feature-card">
-            <div class="feature-icon"><i class="bi bi-share"></i></div>
-            <h2>Public Sharing Routes</h2>
-            <p>Showcases can be published to hash-id routes, letting collections be shared publicly without exposing internal identifiers.</p>
-        </div>
-        <div class="feature-card">
-            <div class="feature-icon"><i class="bi bi-paperclip"></i></div>
-            <h2>Attachments &amp; Media</h2>
-            <p>Items support image and file attachments, with previews for many media types. Attachments can be uploaded in bulk via ZIP files with a hierarchical folder structure.</p>
-        </div>
-        <div class="feature-card">
-            <div class="feature-icon"><i class="bi bi-palette"></i></div>
-            <h2>Theme &amp; Configuration</h2>
-            <p>A CSS-variable theme system and site settings drive styling and behavior without recompiling the application.</p>
-        </div>
-        <div class="feature-card">
-            <div class="feature-icon"><i class="bi bi-speedometer2"></i></div>
-            <h2>Admin &amp; Diagnostics</h2>
-            <p>Management and diagnostics surfaces give administrators insight into the running application and its data.</p>
-        </div>
-    </div>
+    }
 
     @* Authenticated user shortcut — secondary, below the project content *@
     @if (!_isLoading && _isAuthenticated && _myShowcases != null && _myShowcases.Any())
@@ -117,9 +101,15 @@
     private bool _isAuthenticated;
     private string? _userId;
     private List<ShowcaseCardDto>? _myShowcases;
+    private HomePageContent _content = HomePageContent.Default;
+
+    private string Fill(string text) =>
+        HomePageContent.ReplaceSiteTitle(text, SiteSettings.Value.SiteTitle);
 
     protected override async Task OnInitializedAsync()
     {
+        _content = await HomePageContentService.GetAsync();
+
         // Determine auth state
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
