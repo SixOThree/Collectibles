@@ -105,31 +105,42 @@ try
 
     var app = builder.Build();
 
-    // Apply database migrations before starting the application
-    Log.Information("Applying database migrations...");
-    using (var scope = app.Services.CreateScope())
+    // Apply database migrations before starting the application.
+    // Skipped when the host is being built by the EF Core CLI (update-database / migrations),
+    // which runs migrations itself and would otherwise abort the host during Build().
+    var isEfCoreCli = args.Any(a => string.Equals(a, "ef", StringComparison.OrdinalIgnoreCase))
+        || args.Any(a => string.Equals(a, "database", StringComparison.OrdinalIgnoreCase) && args.Contains("update", StringComparer.OrdinalIgnoreCase));
+    if (isEfCoreCli)
     {
-        try
+        Log.Information("EF Core CLI context detected - skipping startup migrations");
+    }
+    else
+    {
+        Log.Information("Applying database migrations...");
+        using (var scope = app.Services.CreateScope())
         {
-            // Prefer factory-based context creation to avoid resolving scoped services from the root provider in .NET 9/EF Core 9
-            var dbContextFactory = scope.ServiceProvider.GetService<IDbContextFactory<ApplicationDbContext>>();
-            if (dbContextFactory is not null)
+            try
             {
-                await using var dbFromFactory = dbContextFactory.CreateDbContext();
-                await dbFromFactory.Database.MigrateAsync();
-            }
-            else
-            {
-                var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                await dbContext.Database.MigrateAsync();
-            }
+                // Prefer factory-based context creation to avoid resolving scoped services from the root provider in .NET 9/EF Core 9
+                var dbContextFactory = scope.ServiceProvider.GetService<IDbContextFactory<ApplicationDbContext>>();
+                if (dbContextFactory is not null)
+                {
+                    await using var dbFromFactory = dbContextFactory.CreateDbContext();
+                    await dbFromFactory.Database.MigrateAsync();
+                }
+                else
+                {
+                    var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                    await dbContext.Database.MigrateAsync();
+                }
 
-            Log.Information("Database migrations applied successfully");
-        }
-        catch (Exception ex)
-        {
-            Log.Fatal(ex, "Failed to apply database migrations");
-            throw;
+                Log.Information("Database migrations applied successfully");
+            }
+            catch (Exception ex)
+            {
+                Log.Fatal(ex, "Failed to apply database migrations");
+                throw;
+            }
         }
     }
 
