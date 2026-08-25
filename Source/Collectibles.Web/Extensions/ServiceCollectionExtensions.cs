@@ -158,7 +158,7 @@ public static class ServiceCollectionExtensions
             // User management policies
             options.AddPolicy("AdminOnly", policy => policy.RequireRole(ApplicationConstants.Roles.Administrator));
             options.AddPolicy("UserManager", policy => policy.RequireRole(ApplicationConstants.Roles.Administrator, ApplicationConstants.Roles.UserManager));
-            options.AddPolicy("CanViewUsers", policy => policy.RequireRole(ApplicationConstants.Roles.Administrator, ApplicationConstants.Roles.UserManager, ApplicationConstants.Roles.Viewer));
+            options.AddPolicy("CanViewUsers", policy => policy.RequireRole(ApplicationConstants.Roles.Administrator, ApplicationConstants.Roles.UserManager));
         });
 
         return services;

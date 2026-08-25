@@ -4,6 +4,7 @@ using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Entities;
 using Collectibles.Domain.Interfaces;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Showcases.Commands.RevokeShareToken;
 
@@ -11,13 +12,19 @@ public class RevokeShareTokenCommandHandler : IRequestHandler<RevokeShareTokenCo
 {
     private readonly IShowcaseShareTokenRepository _shareTokenRepository;
     private readonly IEventLogService _eventLogService;
+    private readonly IApplicationDbContext _context;
+    private readonly ICurrentUserService _currentUserService;
 
     public RevokeShareTokenCommandHandler(
         IShowcaseShareTokenRepository shareTokenRepository,
-        IEventLogService eventLogService)
+        IEventLogService eventLogService,
+        IApplicationDbContext context,
+        ICurrentUserService currentUserService)
     {
         _shareTokenRepository = shareTokenRepository;
         _eventLogService = eventLogService;
+        _context = context;
+        _currentUserService = currentUserService;
     }
 
     public async Task<bool> Handle(RevokeShareTokenCommand request, CancellationToken cancellationToken)
@@ -27,6 +34,14 @@ public class RevokeShareTokenCommandHandler : IRequestHandler<RevokeShareTokenCo
         if (token == null)
         {
             return false;
+        }
+
+        var showcase = await _context.Showcases
+            .FirstOrDefaultAsync(s => s.Id == token.ShowcaseId, cancellationToken);
+
+        if (showcase == null || (showcase.UserId != _currentUserService.UserId && !_currentUserService.IsAdministrator))
+        {
+            throw new UnauthorizedAccessException("You are not authorized to revoke share links for this showcase.");
         }
 
         token.IsActive = false;

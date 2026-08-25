@@ -22,19 +22,27 @@ public class CleanupOrphansCommandHandler : IRequestHandler<CleanupOrphansComman
     private readonly IApplicationDbContextFactory _contextFactory;
     private readonly IFileStorage _fileStorage;
     private readonly IEventLogService _eventLogService;
+    private readonly ICurrentUserService _currentUserService;
 
     public CleanupOrphansCommandHandler(
         IApplicationDbContextFactory contextFactory,
         IFileStorage fileStorage,
-        IEventLogService eventLogService)
+        IEventLogService eventLogService,
+        ICurrentUserService currentUserService)
     {
         _contextFactory = contextFactory;
         _fileStorage = fileStorage;
         _eventLogService = eventLogService;
+        _currentUserService = currentUserService;
     }
 
     public async Task<CleanupOrphansResult> Handle(CleanupOrphansCommand request, CancellationToken cancellationToken)
     {
+        if (!_currentUserService.IsAdministrator)
+        {
+            throw new UnauthorizedAccessException("Only administrators can clean up orphaned records.");
+        }
+
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
 
         // 1. Delete orphaned attachments (no item links and not used as preview images)
