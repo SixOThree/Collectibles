@@ -21,4 +21,6 @@ public class HttpContextDataUserService : ICurrentUserService
     public string? UserName => _httpContextDataService.UserName;
 
     public bool IsAdministrator => _httpContextDataService.IsAdministrator;
+
+    public bool IsInRole(string role) => _httpContextDataService.IsAdministrator && role == Collectibles.Domain.Constants.ApplicationConstants.Roles.Administrator;
 }

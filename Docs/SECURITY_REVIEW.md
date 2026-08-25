@@ -45,5 +45,27 @@ A full security alignment audit of the **Collectibles** codebase was performed a
 ## 4. Defense-in-Depth Security Middleware
 - **Status**: ✅ **Configured & Active**
 - **Analysis**:
-  - [`SecurityScanBlockingMiddleware.cs`](file:///C:/Development/Ready%20Ok%20Retro/Collectibles/Source/Collectibles.Web/Middleware/SecurityScanBlockingMiddleware.cs) detects aggressive request rate anomalies or suspicious scanner request patterns, automatically rate-limiting and blocking malicious IP addresses.
-  - [`CrawlerBlockingMiddleware.cs`](file:///C:/Development/Ready%20Ok%20Retro/Collectibles/Source/Collectibles.Web/Middleware/CrawlerBlockingMiddleware.cs) restricts automated scrapers from harvesting non-public resources.
+   - [`SecurityScanBlockingMiddleware.cs`](file:///C:/Development/Ready%20Ok%20Retro/Collectibles/Source/Collectibles.Web/Middleware/SecurityScanBlockingMiddleware.cs) detects aggressive request rate anomalies or suspicious scanner request patterns, automatically rate-limiting and blocking malicious IP addresses.
+   - [`CrawlerBlockingMiddleware.cs`](file:///C:/Development/Ready%20Ok%20Retro/Collectibles/Source/Collectibles.Web/Middleware/CrawlerBlockingMiddleware.cs) restricts automated scrapers from harvesting non-public resources.
+
+---
+
+## 5. Role-Based Access Control Hardening
+
+Server-side authorization checks were added to command and query handlers that previously relied solely on page-level `[Authorize]` attributes. In Blazor Server, the UI gate is the only gate, so every privileged operation now re-verifies the caller's role or ownership at the application layer.
+
+### Changes
+
+- **`/test-storage`** is now restricted to administrators and only renders its controls in the Development environment.
+- **`GetAttachmentDetailQuery`** now enforces `ViewAttachmentRequirement` via `IAuthorizationService`, closing the gap where any attachment (including those in private showcases) was viewable by anyone who knew the hash.
+- **User management commands** (`CreateUser`, `UpdateUser`, `DeleteUser`, `LockUnlockUser`) and **user queries** (`GetUsersList`, `GetUserById`) now verify the caller is an Administrator or UserManager. `UpdateUser` additionally blocks a non-administrator from granting themselves the Administrator role, and `DeleteUser`/`LockUnlockUser` block self-targeting.
+- **`GetAllShowcasesQuery`** now requires the Administrator role, preventing private showcase data from leaking through any future caller.
+- **`SetDefaultContentDefinitionCommand`** now requires the Administrator role, matching the existing checks in `UpdateContentDefinitionCommand` and `DeleteContentDefinitionCommand`.
+- **Share-link commands** (`GenerateShareLink`, `RevokeShareToken`) and **`GetShareTokensQuery`** now verify showcase ownership (or Administrator), preventing users from minting or revoking share tokens for showcases they do not own.
+- **Maintenance commands** (`UpdateMissingPreviewImages`, `RollbackAttachmentMigration`, `CleanupMigratedAttachments`, `CleanupOrphans`) now require the Administrator role.
+- **`CanViewUsers` policy** no longer includes the Viewer role; only Administrator and UserManager can browse the user list.
+- **`ICurrentUserService`** gained an `IsInRole(string)` member, implemented by `CurrentUserService`, `BlazorCurrentUserService` (with role claims cached alongside the existing identity cache), `HttpContextDataUserService`, and the captured-user service in `ScopedApplicationDbContextFactory`.
+
+### Accepted risk: stale identity cache in Blazor circuits
+
+`BlazorCurrentUserService` caches `UserId`, `IsAdministrator`, and role claims for `ApplicationConstants.Caching.UserCacheSeconds` (30 seconds) to avoid blocking on `AuthenticationStateProvider` from synchronous property getters. As a consequence, after a role change or account lockout, an already-connected Blazor circuit may continue to pass authorization checks for up to 30 seconds. This is a deliberate trade-off: the alternative (synchronous blocking on an async auth state provider) risks deadlocks in the SignalR circuit. The window is short, the affected operations are re-checked against the database on each request, and the cache is invalidated on a new circuit. No code change is made for this item.
