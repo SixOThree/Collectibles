@@ -20,7 +20,15 @@
 
 <PageTitle>Attachment Details</PageTitle>
 
-@if (attachment == null)
+@if (_isUnauthorized)
+{
+    <div class="container text-center py-5">
+        <h3>You don't have permission to view this attachment</h3>
+        <p class="text-muted">It may belong to a private showcase.</p>
+        <button class="btn btn-primary" @onclick="GoBack">Go Back</button>
+    </div>
+}
+else if (attachment == null)
 {
     <div class="text-center">
         <Spinner Type="SpinnerType.Dots" Color="SpinnerColor.Primary" />
@@ -158,6 +166,7 @@ else
     private List<Collectibles.Application.Features.Tags.TagDto> _editableTags = new();
     private bool isTagModalOpen = false;
     private bool _canEdit = false;
+    private bool _isUnauthorized = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -172,7 +181,17 @@ else
             return;
         }
 
-        var result = await Mediator.Send(new GetAttachmentDetailQuery { Id = id });
+        AttachmentDto? result;
+        try
+        {
+            result = await Mediator.Send(new GetAttachmentDetailQuery { Id = id });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            _isUnauthorized = true;
+            return;
+        }
+
         if (result != null)
         {
             attachment = result;

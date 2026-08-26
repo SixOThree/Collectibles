@@ -7,14 +7,21 @@ namespace Collectibles.Application.Features.ContentDefinitions.Commands;
 public class SetDefaultContentDefinitionCommandHandler : IRequestHandler<SetDefaultContentDefinitionCommand>
 {
     private readonly IApplicationDbContext _context;
+    private readonly ICurrentUserService _currentUserService;
 
-    public SetDefaultContentDefinitionCommandHandler(IApplicationDbContext context)
+    public SetDefaultContentDefinitionCommandHandler(IApplicationDbContext context, ICurrentUserService currentUserService)
     {
         _context = context;
+        _currentUserService = currentUserService;
     }
 
     public async Task Handle(SetDefaultContentDefinitionCommand request, CancellationToken cancellationToken)
     {
+        if (!_currentUserService.IsAdministrator)
+        {
+            throw new UnauthorizedAccessException("Only administrators can set the default template.");
+        }
+
         var newDefault = await _context.ContentDefinitions
             .FirstOrDefaultAsync(cd => cd.Id == request.Id, cancellationToken);
 

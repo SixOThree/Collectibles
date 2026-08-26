@@ -11,17 +11,25 @@ public class GetAllShowcasesQueryHandler : IRequestHandler<GetAllShowcasesQuery,
 {
     private readonly IApplicationDbContext _context;
     private readonly IShowcaseMappingService _showcaseMappingService;
+    private readonly ICurrentUserService _currentUserService;
 
     public GetAllShowcasesQueryHandler(
         IApplicationDbContext context,
-        IShowcaseMappingService showcaseMappingService)
+        IShowcaseMappingService showcaseMappingService,
+        ICurrentUserService currentUserService)
     {
         _context = context;
         _showcaseMappingService = showcaseMappingService;
+        _currentUserService = currentUserService;
     }
 
     public async Task<List<ShowcaseCardDto>> Handle(GetAllShowcasesQuery request, CancellationToken cancellationToken)
     {
+        if (!_currentUserService.IsAdministrator)
+        {
+            throw new UnauthorizedAccessException("Only administrators can view all showcases.");
+        }
+
         var showcases = await _context.Showcases
             .Include(s => s.ShowcaseTags)
                 .ThenInclude(st => st.Tag)

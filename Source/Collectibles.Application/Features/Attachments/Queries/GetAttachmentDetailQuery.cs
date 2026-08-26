@@ -1,7 +1,11 @@
+using System.Security.Claims;
+
+using Collectibles.Application.Common.Authorization.Requirements;
 using Collectibles.Application.Interfaces;
 using Collectibles.Application.Mappings.Explicit;
 using Collectibles.Domain.Entities;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.Attachments.Queries;
@@ -16,15 +20,18 @@ public class GetAttachmentDetailQueryHandler : IRequestHandler<GetAttachmentDeta
     private readonly IApplicationDbContext _context;
     private readonly IAttachmentMappingService _attachmentMappingService;
     private readonly IEventLogService _eventLogService;
+    private readonly IAuthorizationService _authorizationService;
 
     public GetAttachmentDetailQueryHandler(
         IApplicationDbContext context,
         IAttachmentMappingService attachmentMappingService,
-        IEventLogService eventLogService)
+        IEventLogService eventLogService,
+        IAuthorizationService authorizationService)
     {
         _context = context;
         _attachmentMappingService = attachmentMappingService;
         _eventLogService = eventLogService;
+        _authorizationService = authorizationService;
     }
 
     public async Task<AttachmentDto?> Handle(GetAttachmentDetailQuery request, CancellationToken cancellationToken)
@@ -39,6 +46,16 @@ public class GetAttachmentDetailQueryHandler : IRequestHandler<GetAttachmentDeta
         if (attachment == null)
         {
             return null;
+        }
+
+        var authorizationResult = await _authorizationService.AuthorizeAsync(
+            new ClaimsPrincipal(),
+            attachment,
+            new ViewAttachmentRequirement());
+
+        if (!authorizationResult.Succeeded)
+        {
+            throw new UnauthorizedAccessException("You do not have permission to view this attachment.");
         }
 
         // Log the view event

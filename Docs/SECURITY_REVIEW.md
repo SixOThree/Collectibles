@@ -47,3 +47,24 @@ A full security alignment audit of the **Collectibles** codebase was performed a
 - **Analysis**:
   - [`SecurityScanBlockingMiddleware.cs`](file:///C:/Development/Ready%20Ok%20Retro/Collectibles/Source/Collectibles.Web/Middleware/SecurityScanBlockingMiddleware.cs) detects aggressive request rate anomalies or suspicious scanner request patterns, automatically rate-limiting and blocking malicious IP addresses.
   - [`CrawlerBlockingMiddleware.cs`](file:///C:/Development/Ready%20Ok%20Retro/Collectibles/Source/Collectibles.Web/Middleware/CrawlerBlockingMiddleware.cs) restricts automated scrapers from harvesting non-public resources.
+
+---
+
+## 5. Role-Based Access Control Hardening
+
+Server-side authorization checks were added to command and query handlers that previously relied solely on page-level `[Authorize]` attributes. In Blazor Server, the UI gate is the only gate, so every privileged operation now re-verifies the caller's role or ownership at the application layer.
+
+### Changes
+
+- **`/test-storage`** is restricted to the `AdminOnly` policy and only renders its controls when `IWebHostEnvironment.IsDevelopment()` is true.
+- **`GetAttachmentDetailQuery`** enforces `ViewAttachmentRequirement` via `IAuthorizationService`; denial throws `UnauthorizedAccessException` (consistent with `GetAttachmentByIdQuery`). Attachments in private showcases are no longer viewable by anyone who knows the hash; public-showcase attachments remain viewable per the existing domain model.
+- **User management commands** (`CreateUser`, `UpdateUser`, `DeleteUser`, `LockUnlockUser`) and **user queries** (`GetUsersList`, `GetUserById`) verify the caller is an Administrator or UserManager (`GetUserById` also allows self-view). `UpdateUser` blocks a non-administrator from granting themselves the Administrator role; `DeleteUser`/`LockUnlockUser` block self-targeting.
+- **`GetAllShowcasesQuery`** and **`SetDefaultContentDefinitionCommand`** require the Administrator role.
+- **Share-link commands** (`GenerateShareLink`, `RevokeShareToken`) and **`GetShareTokensQuery`** verify showcase ownership or Administrator.
+- **Maintenance commands** (`UpdateMissingPreviewImages`, `RollbackAttachmentMigration`, `CleanupMigratedAttachments`, `CleanupOrphans`) require the Administrator role.
+- **`CanViewUsers` policy** no longer includes the Viewer role.
+- **`ICurrentUserService`** gained `IsInRole(string)`: live from HttpContext in `CurrentUserService`, cached with the identity in `BlazorCurrentUserService`, and captured at factory-creation time in `ScopedApplicationDbContextFactory` (which now reports real roles and `IsAdministrator` instead of hardcoded `false`). The unused `HttpContextDataUserService` class was removed.
+
+### Accepted risk: stale identity cache in Blazor circuits
+
+`BlazorCurrentUserService` caches `UserId`, `IsAdministrator`, and role claims for `ApplicationConstants.Caching.UserCacheSeconds` (30 seconds) to avoid blocking on `AuthenticationStateProvider` from synchronous property getters. As a consequence, after a role change or account lockout, an already-connected Blazor circuit may continue to pass authorization checks for up to 30 seconds. This is a deliberate trade-off: the alternative (synchronous blocking on an async auth state provider) risks deadlocks in the SignalR circuit. The window is short, and the cache is per-circuit.
