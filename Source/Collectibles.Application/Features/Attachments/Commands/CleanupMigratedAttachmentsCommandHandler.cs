@@ -10,17 +10,25 @@ public class CleanupMigratedAttachmentsCommandHandler : IRequestHandler<CleanupM
 {
     private readonly IApplicationDbContextFactory _dbContextFactory;
     private readonly ILogger<CleanupMigratedAttachmentsCommandHandler> _logger;
+    private readonly ICurrentUserService _currentUserService;
 
     public CleanupMigratedAttachmentsCommandHandler(
         IApplicationDbContextFactory dbContextFactory,
-        ILogger<CleanupMigratedAttachmentsCommandHandler> logger)
+        ILogger<CleanupMigratedAttachmentsCommandHandler> logger,
+        ICurrentUserService currentUserService)
     {
         _dbContextFactory = dbContextFactory;
         _logger = logger;
+        _currentUserService = currentUserService;
     }
 
     public async Task<CleanupResult> Handle(CleanupMigratedAttachmentsCommand request, CancellationToken cancellationToken)
     {
+        if (!_currentUserService.IsAdministrator)
+        {
+            throw new UnauthorizedAccessException("Only administrators can clean up migrated attachments.");
+        }
+
         var result = new CleanupResult
         {
             StartTime = DateTime.UtcNow,
