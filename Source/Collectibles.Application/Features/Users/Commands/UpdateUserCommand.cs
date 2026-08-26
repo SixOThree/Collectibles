@@ -1,4 +1,5 @@
 using Collectibles.Application.Interfaces;
+using Collectibles.Domain.Constants;
 using Collectibles.Domain.Entities;
 using FluentValidation;
 using MediatR;
@@ -40,17 +41,32 @@ public class UpdateUserCommandHandler : IRequestHandler<UpdateUserCommand>
 {
     private readonly IUserManagementService _userManagementService;
     private readonly IEventLogService _eventLogService;
+    private readonly ICurrentUserService _currentUserService;
 
     public UpdateUserCommandHandler(
         IUserManagementService userManagementService,
-        IEventLogService eventLogService)
+        IEventLogService eventLogService,
+        ICurrentUserService currentUserService)
     {
         _userManagementService = userManagementService;
         _eventLogService = eventLogService;
+        _currentUserService = currentUserService;
     }
 
     public async Task Handle(UpdateUserCommand request, CancellationToken cancellationToken)
     {
+        if (!_currentUserService.IsAdministrator && !_currentUserService.IsInRole(ApplicationConstants.Roles.UserManager))
+        {
+            throw new UnauthorizedAccessException("You are not authorized to update users.");
+        }
+
+        if (request.Id == _currentUserService.UserId
+            && request.Roles.Contains(ApplicationConstants.Roles.Administrator)
+            && !_currentUserService.IsAdministrator)
+        {
+            throw new UnauthorizedAccessException("You cannot grant yourself the Administrator role.");
+        }
+
         await _userManagementService.UpdateUserAsync(
             request.Id,
             request.Email,

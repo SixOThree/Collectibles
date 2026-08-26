@@ -13,19 +13,27 @@ public class RollbackAttachmentMigrationCommandHandler : IRequestHandler<Rollbac
     private readonly IApplicationDbContext _context;
     private readonly IFileStorage _fileStorage;
     private readonly ILogger<RollbackAttachmentMigrationCommandHandler> _logger;
+    private readonly ICurrentUserService _currentUserService;
 
     public RollbackAttachmentMigrationCommandHandler(
         IApplicationDbContext context,
         IFileStorage fileStorage,
-        ILogger<RollbackAttachmentMigrationCommandHandler> logger)
+        ILogger<RollbackAttachmentMigrationCommandHandler> logger,
+        ICurrentUserService currentUserService)
     {
         _context = context;
         _fileStorage = fileStorage;
         _logger = logger;
+        _currentUserService = currentUserService;
     }
 
     public async Task<RollbackResult> Handle(RollbackAttachmentMigrationCommand request, CancellationToken cancellationToken)
     {
+        if (!_currentUserService.IsAdministrator)
+        {
+            throw new UnauthorizedAccessException("Only administrators can roll back attachment migrations.");
+        }
+
         var result = new RollbackResult
         {
             StartTime = DateTime.UtcNow,

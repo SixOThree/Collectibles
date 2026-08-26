@@ -18,6 +18,7 @@ public class BlazorCurrentUserService : ICurrentUserService
     private string? _cachedUserId;
     private string? _cachedUserName;
     private bool _cachedIsAdministrator;
+    private List<string> _cachedRoles = new();
     private DateTime _cacheExpiry;
     private readonly TimeSpan _cacheTimeout = TimeSpan.FromSeconds(ApplicationConstants.Caching.UserCacheSeconds);
 
@@ -55,6 +56,12 @@ public class BlazorCurrentUserService : ICurrentUserService
             RefreshCacheIfNeeded();
             return _cachedIsAdministrator;
         }
+    }
+
+    public bool IsInRole(string role)
+    {
+        RefreshCacheIfNeeded();
+        return _cachedRoles.Contains(role);
     }
 
     private void RefreshCacheIfNeeded()
@@ -114,12 +121,17 @@ public class BlazorCurrentUserService : ICurrentUserService
             _cachedUserId = httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             _cachedUserName = httpContext.User.Identity?.Name;
             _cachedIsAdministrator = httpContext.User.IsInRole(ApplicationConstants.Roles.Administrator);
+            _cachedRoles = httpContext.User.Claims
+                .Where(c => c.Type == ClaimTypes.Role)
+                .Select(c => c.Value)
+                .ToList();
         }
         else
         {
             _cachedUserId = null;
             _cachedUserName = null;
             _cachedIsAdministrator = false;
+            _cachedRoles = new List<string>();
         }
 
         _cacheExpiry = DateTime.UtcNow.AddSeconds(5); // Shorter cache for non-Blazor context
@@ -132,12 +144,17 @@ public class BlazorCurrentUserService : ICurrentUserService
             _cachedUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             _cachedUserName = authState.User.Identity?.Name;
             _cachedIsAdministrator = authState.User.IsInRole(ApplicationConstants.Roles.Administrator);
+            _cachedRoles = authState.User.Claims
+                .Where(c => c.Type == ClaimTypes.Role)
+                .Select(c => c.Value)
+                .ToList();
         }
         else
         {
             _cachedUserId = null;
             _cachedUserName = null;
             _cachedIsAdministrator = false;
+            _cachedRoles = new List<string>();
         }
 
         _cacheExpiry = DateTime.UtcNow.Add(_cacheTimeout);

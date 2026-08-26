@@ -1,4 +1,5 @@
 using Collectibles.Application.Interfaces;
+using Collectibles.Domain.Constants;
 using Collectibles.Domain.Entities;
 using FluentValidation;
 using MediatR;
@@ -36,17 +37,25 @@ public class CreateUserCommandHandler : IRequestHandler<CreateUserCommand, strin
 {
     private readonly IUserManagementService _userManagementService;
     private readonly IEventLogService _eventLogService;
+    private readonly ICurrentUserService _currentUserService;
 
     public CreateUserCommandHandler(
         IUserManagementService userManagementService,
-        IEventLogService eventLogService)
+        IEventLogService eventLogService,
+        ICurrentUserService currentUserService)
     {
         _userManagementService = userManagementService;
         _eventLogService = eventLogService;
+        _currentUserService = currentUserService;
     }
 
     public async Task<string> Handle(CreateUserCommand request, CancellationToken cancellationToken)
     {
+        if (!_currentUserService.IsAdministrator)
+        {
+            throw new UnauthorizedAccessException("Only administrators can create users.");
+        }
+
         var userId = await _userManagementService.CreateUserAsync(
             request.Email,
             request.Password,
