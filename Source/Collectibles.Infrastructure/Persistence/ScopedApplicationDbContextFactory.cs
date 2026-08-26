@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Collectibles.Application.Interfaces;
+using Collectibles.Domain.Constants;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -12,6 +13,7 @@ public class ScopedApplicationDbContextFactory : IApplicationDbContextFactory
     private readonly IHttpContextAccessor? _httpContextAccessor;
     private string? _userId;
     private string? _userName;
+    private List<string> _userRoles = new();
     private bool _userInfoCaptured;
 
     public ScopedApplicationDbContextFactory(
@@ -40,6 +42,10 @@ public class ScopedApplicationDbContextFactory : IApplicationDbContextFactory
         {
             _userId = httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             _userName = httpContext.User.Identity.Name;
+            _userRoles = httpContext.User.Claims
+                .Where(c => c.Type == ClaimTypes.Role)
+                .Select(c => c.Value)
+                .ToList();
             _userInfoCaptured = true;
             return;
         }
@@ -52,6 +58,7 @@ public class ScopedApplicationDbContextFactory : IApplicationDbContextFactory
             {
                 _userId = httpContextDataService.UserId;
                 _userName = httpContextDataService.UserName;
+                _userRoles = httpContextDataService.UserRoles?.ToList() ?? new List<string>();
                 _userInfoCaptured = true;
             }
         }
@@ -72,7 +79,7 @@ public class ScopedApplicationDbContextFactory : IApplicationDbContextFactory
         TryCaptureUserInfo();
 
         // Create a custom current user service with captured values
-        var currentUserService = new CapturedCurrentUserService(_userId, _userName);
+        var currentUserService = new CapturedCurrentUserService(_userId, _userName, _userRoles);
 
         // Create the context with the captured current user service
         var context = new ApplicationDbContext(_options, currentUserService);
@@ -82,14 +89,18 @@ public class ScopedApplicationDbContextFactory : IApplicationDbContextFactory
     // Implementation of ICurrentUserService that uses captured values
     private class CapturedCurrentUserService : ICurrentUserService
     {
-        public CapturedCurrentUserService(string? userId, string? userName)
+        private readonly List<string> _roles;
+
+        public CapturedCurrentUserService(string? userId, string? userName, List<string> roles)
         {
             UserId = userId;
             UserName = userName;
+            _roles = roles;
         }
 
         public string? UserId { get; }
         public string? UserName { get; }
-        public bool IsAdministrator => false;
+        public bool IsAdministrator => _roles.Contains(ApplicationConstants.Roles.Administrator);
+        public bool IsInRole(string role) => _roles.Contains(role);
     }
 }

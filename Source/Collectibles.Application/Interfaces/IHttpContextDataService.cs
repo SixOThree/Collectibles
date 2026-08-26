@@ -14,4 +14,5 @@ public interface IHttpContextDataService
     string? UserAgent { get; }
     string? ClientIpAddress { get; }
     string? RequestPath { get; }
+    List<string> UserRoles { get; }
 }
