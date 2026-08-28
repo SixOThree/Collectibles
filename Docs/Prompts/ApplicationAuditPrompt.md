@@ -10,7 +10,7 @@ This is a read-only audit. Do not fix findings. Produce a prioritized remediatio
 
 The repository is a .NET 10 application centered on a Blazor Server web application. Its declared architecture includes Domain, Application, Infrastructure, Web, and SyncTool projects; CQRS with MediatR; EF Core with SQL Server; Hangfire; FluentValidation; Serilog; resource-based authorization; pluggable storage and email; media processing; Playwright-based browser automation; xUnit tests; and a separate Node Playwright end-to-end suite.
 
-Treat that description as orientation, not truth. Establish the actual architecture, projects, dependencies, and runtime paths from the repository. Explicitly reconcile documentation with the solution and implementation. Initial context suggests that documented projects may not all exist, analyzer configurations may disagree, and test project boundaries may not match their names. Investigate these signals independently and do not pre-classify them as defects.
+Treat that description as orientation, not truth. Establish the actual architecture, projects, dependencies, and runtime paths from the repository. Explicitly reconcile documentation with the solution and implementation. Verify documented project existence, agreement among analyzer configurations, and alignment between test project names and actual dependency boundaries without presuming an issue.
 
 ## Required Outcome
 
@@ -18,9 +18,9 @@ Create exactly one final report at:
 
 `Docs/Audits/YYYY-MM-DD-application-audit.html`
 
-Use the current local date in the filename. The report must be understandable without this prompt or access to your working notes.
+Use the current local date in the filename. Before writing it, check whether the canonical date-only path already exists. Do not silently overwrite an existing report; if it exists, stop and obtain explicit user authorization before replacing it. Keep this canonical date-only path and do not invent a suffix without approval. The report must be understandable without this prompt or access to your working notes.
 
-Do not create fixes, commits, pull requests, migrations, snapshots, dependency updates, formatting changes, or rewritten tests. Do not modify application source, configuration, tests, documentation, or dependencies. Generated build, test, coverage, and package-diagnostic artifacts in ignored or temporary locations are permitted.
+The final HTML report is the sole permitted tracked repository/documentation write. Do not create fixes, commits, pull requests, migrations, snapshots, dependency updates, formatting changes, or rewritten tests. Do not modify existing application source, configuration, tests, documentation, or dependencies. No files may be changed except the required final report and permitted ignored or temporary diagnostic artifacts. Generated build, test, coverage, and package-diagnostic artifacts in ignored or temporary locations are permitted.
 
 ## Authority and Evidence
 
@@ -58,14 +58,17 @@ Build an actual project and dependency map. Identify entry points, composition r
 
 Define a coverage universe before recording findings:
 
-1. Content-inspect all custom C#, Razor, TypeScript, JavaScript, CSS, PowerShell, configuration, project, CI/CD, test, migration, and documentation files.
-2. Inventory binary, vendored, generated, minified, source-map, media, and build artifacts. Assess whether they belong in source control and whether their provenance or handling creates risk, but do not line-audit generated or third-party content.
+1. Define the starting universe as tracked files plus non-ignored untracked files under the current repository root, using source-control metadata when available.
+2. Explicitly exclude VCS internals, external or nested worktrees, `bin`, `obj`, `node_modules`, vendored dependency trees, tool caches, generated output, and temporary directories from content-level review. Inventory and assess provenance of relevant excluded artifacts, but do not line-audit generated or third-party content.
 3. Group files into named audit units by project, feature, integration, or delivery concern.
-4. Maintain a coverage ledger with unit, scope, status, files or file count, diagnostics, limitations, and relevant finding identifiers.
+4. Content-inspect all included custom C#, Razor, TypeScript, JavaScript, CSS, PowerShell, configuration, project, CI/CD, test, migration, and documentation files.
+5. Maintain a coverage ledger with unit, scope, status, files or file count, diagnostics, limitations, relevant finding identifiers, and inclusion or exclusion decisions.
 
 ## Phase 2: Capture Baseline Diagnostics
 
-Run relevant non-source-changing diagnostics from the repository root. Prefer existing repository commands and adapt only when the actual solution requires it. At minimum consider:
+Before executing repository-controlled builds, tests, analyzers, or scripts, capture the baseline source-control state and inspect custom MSBuild targets, scripts, test configuration, launch settings, and external-service configuration sufficiently to identify side effects. Restore, build, test, and analyzer commands can execute repository-controlled code and are not inherently side-effect free. Execute tests or scripts only when database, storage, email, browser, and network dependencies are isolated and disposable; never allow uncontrolled writes to persistent databases, storage, email, external services, or production-like systems. Record a safety skip when isolation cannot be established.
+
+Run each applicable listed diagnostic from the repository root. Prefer existing repository commands and adapt only when the actual solution requires it. A command may be skipped only for a recorded incompatibility, safety concern, missing prerequisite, or environmental limitation.
 
 ```powershell
 dotnet --info
@@ -73,13 +76,13 @@ dotnet restore Collectibles.sln
 dotnet build Collectibles.sln --no-restore
 dotnet test Collectibles.sln --no-build --logger "console;verbosity=normal"
 dotnet format Collectibles.sln --verify-no-changes --no-restore
-dotnet list Collectibles.sln package --vulnerable --include-transitive
-dotnet list Collectibles.sln package --deprecated
+dotnet package list --project Collectibles.sln --vulnerable --include-transitive --no-restore
+dotnet package list --project Collectibles.sln --deprecated --no-restore
 ```
 
 Run a second analyzer-focused build when useful, without editing project configuration. Collect test coverage if the existing test setup supports it without source changes. Inspect the Node Playwright package configuration and run applicable package or static diagnostics that do not update lockfiles or dependencies. Do not run end-to-end tests against an uncontrolled or non-isolated environment.
 
-For every diagnostic, record the exact command, exit status, material output, and interpretation. Distinguish environment/setup failures from repository failures. Do not paste large raw logs into the report; summarize them and include only evidence needed to support findings.
+For every diagnostic, record the exact command, exit status, material output, and interpretation. Distinguish environment/setup failures from repository failures. After diagnostics, capture the final source-control state. If unexpected tracked changes appear, stop, report them, and do not revert user changes. Do not paste large raw logs into the report; summarize them and include only evidence needed to support findings.
 
 ## Phase 3: Inspect Every Subsystem
 
@@ -193,12 +196,14 @@ Classify each finding as:
 
 Assign severity independently:
 
-- `Critical`: credible severe compromise, unrecoverable data loss or corruption, or broad production unavailability.
-- `High`: likely material correctness, security, authorization, integrity, or reliability failure.
-- `Medium`: meaningful operational, performance, maintainability, or change risk.
-- `Low`: localized convention, hygiene, documentation, or low-impact quality concern.
+- `Critical`: severe consequence and broad blast radius, such as compromise, unrecoverable data loss or corruption, or broad production unavailability.
+- `High`: material consequence and substantial blast radius affecting correctness, security, authorization, integrity, or reliability.
+- `Medium`: meaningful consequence or bounded blast radius involving operational, performance, maintainability, or change risk.
+- `Low`: localized consequence and limited blast radius involving convention, hygiene, documentation, or low-impact quality concerns.
 
 Assign confidence independently as `High`, `Medium`, or `Low`.
+
+Severity describes consequence magnitude and blast radius only. Confidence describes evidence strength. Exposure and trigger likelihood belong in the triggering-conditions narrative, not in Severity or Confidence.
 
 Every finding must include:
 
@@ -212,6 +217,8 @@ Every finding must include:
 8. Recommended correction with enough specificity to plan later, but no implementation during this audit.
 9. Verification method for a future fix.
 10. Related findings, representative examples, and occurrence count where applicable.
+
+Where repository file-and-line evidence or a traced runtime path cannot exist, an explicitly justified `Not applicable` is acceptable. Acceptable alternate evidence includes the exact command and material output, file-level evidence, an absence established by a documented search, configuration key or symbol references, or artifact provenance. Never invent or include irrelevant file, line, or path evidence.
 
 ## Remediation Roadmap
 
@@ -251,7 +258,7 @@ The top dashboard must show severity counts, classification counts, confidence d
 
 Provide sticky navigation plus search and combinable filters for severity, classification, confidence, category, subsystem, and remediation phase. Each finding must be addressable by a stable fragment link. Use semantic HTML and accessible form labels. Support keyboard operation, visible focus, sufficient contrast, reduced motion, and print styling.
 
-Render every finding in the document by default. JavaScript may filter, search, expand, summarize, and preserve navigation state, but it must not fetch or create report content. Without JavaScript, all evidence must remain accessible through normal HTML, including expandable sections that a reader can open manually.
+Render every finding in the document by default. JavaScript may filter, search, expand, summarize, and preserve navigation state, but it must not fetch or create report content. Hide or disable JavaScript-only controls until successful initialization. Include a clear no-script explanation. Without JavaScript, all evidence must remain accessible through normal HTML, including expandable sections that a reader can open manually. Browser-state persistence for `file:` origins is optional and must fail safely; storage failures must never block filtering or navigation.
 
 Escape all repository excerpts and diagnostic content before inserting them. Never concatenate unescaped source text into executable HTML or JavaScript. If structured finding data is embedded, encode it safely and render untrusted strings with `textContent`.
 
@@ -270,7 +277,7 @@ Do not declare the audit complete until all of these are true:
 7. The remediation roadmap includes dependencies, sequencing, and verification.
 8. The HTML report is self-contained, opens successfully from disk, works at desktop and mobile widths, prints readably, and remains usable without JavaScript.
 9. Sensitive evidence is redacted.
-10. No application source, configuration, dependency, migration, test, or documentation file was intentionally changed.
+10. No files were changed except the required final report and permitted ignored or temporary diagnostic artifacts; existing application source, configuration, dependency, migration, test, and documentation files were not intentionally changed.
 
 ## Final Response
 
@@ -280,6 +287,6 @@ When finished, respond with:
 2. Counts by severity and classification.
 3. A concise list of Critical and High finding titles.
 4. Diagnostic or coverage limitations that materially affect confidence.
-5. Confirmation that the audit made no intentional application or configuration changes.
+5. Confirmation that no files changed except the required final report and permitted ignored or temporary diagnostic artifacts, and that no existing application source, configuration, dependency, migration, test, or documentation files were intentionally changed.
 
 Do not reproduce the full report in the response.
