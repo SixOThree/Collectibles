@@ -20,7 +20,17 @@ Create exactly one final report at:
 
 Use the current local date in the filename. Before writing it, check whether the canonical date-only path already exists. Do not silently overwrite an existing report; if it exists, stop and obtain explicit user authorization before replacing it. Keep this canonical date-only path and do not invent a suffix without approval. The report must be understandable without this prompt or access to your working notes.
 
-Other than creating the required final report, or replacing that exact canonical report after explicit user authorization under the collision preflight, do not intentionally change any other file under the repository root. Do not create fixes, commits, pull requests, migrations, snapshots, dependency updates, formatting changes, or rewritten tests. Do not modify existing application source, configuration, tests, documentation, or dependencies, except for that explicitly authorized replacement of the exact canonical report. Necessary writes to OS-temporary locations and external package or tool caches caused by approved diagnostics (for example the global NuGet cache) are permitted. Uncontrolled external-service or persistent data writes remain prohibited.
+Comply with the authoritative write policy in `Allowed Writes and State Boundaries` throughout the audit. Do not create fixes, commits, pull requests, migrations, snapshots, dependency updates, formatting changes, or rewritten tests.
+
+## Allowed Writes and State Boundaries
+
+The future audit may intentionally create or change only:
+
+- The required canonical final HTML report, including replacement of that exact report only after the output-collision preflight obtains explicit user authorization.
+- Generated restore, build, test, coverage, analyzer, and package-diagnostic artifacts in ignored or temporary locations under the repository root.
+- Necessary OS-temporary files and external package or tool-cache state caused by approved diagnostics, such as the global NuGet cache.
+
+The canonical report is the sole intended non-ignored repository output. No other tracked or non-ignored untracked repository file may be intentionally changed. Existing application source, configuration, dependencies, migrations, tests, and documentation remain untouched apart from an explicitly authorized replacement of the canonical report. Approved diagnostics must not write to uncontrolled persistent databases, storage, email, browsers, production-like services, or other external systems.
 
 ## Authority and Evidence
 
@@ -277,7 +287,7 @@ Do not declare the audit complete until all of these are true:
 7. The remediation roadmap includes dependencies, sequencing, and verification.
 8. The HTML report is self-contained, opens successfully from disk, works at desktop and mobile widths, prints readably, and remains usable without JavaScript.
 9. Sensitive evidence is redacted.
-10. No other existing application source, configuration, dependency, migration, test, or documentation file was intentionally changed; the only tracked repository write was creation of the final report or its explicitly authorized canonical replacement. Necessary OS-temporary or external package/tool cache writes caused by approved diagnostics are separately permitted. Uncontrolled external-service or persistent data writes did not occur.
+10. Confirm compliance with `Allowed Writes and State Boundaries` and identify whether the canonical report was created or explicitly authorized for replacement.
 
 ## Final Response
 
@@ -287,6 +297,6 @@ When finished, respond with:
 2. Counts by severity and classification.
 3. A concise list of Critical and High finding titles.
 4. Diagnostic or coverage limitations that materially affect confidence.
-5. Identify whether the report was newly created or replaced with explicit authorization under the collision preflight, and confirm that no other existing repository files were intentionally changed. Confirm that the only tracked repository write was creation of the final report or its explicitly authorized canonical replacement, that necessary OS-temporary or external package/tool cache writes caused by approved diagnostics are separately permitted, and that no uncontrolled external-service or persistent data writes occurred.
+5. Confirm compliance with `Allowed Writes and State Boundaries` and identify whether the report was newly created or replaced with explicit authorization under the collision preflight.
 
 Do not reproduce the full report in the response.
