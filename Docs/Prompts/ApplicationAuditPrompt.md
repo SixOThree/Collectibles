@@ -20,7 +20,7 @@ Create exactly one final report at:
 
 Use the current local date in the filename. Before writing it, check whether the canonical date-only path already exists. Do not silently overwrite an existing report; if it exists, stop and obtain explicit user authorization before replacing it. Keep this canonical date-only path and do not invent a suffix without approval. The report must be understandable without this prompt or access to your working notes.
 
-The final HTML report is the sole permitted tracked repository/documentation write. Do not create fixes, commits, pull requests, migrations, snapshots, dependency updates, formatting changes, or rewritten tests. Do not modify existing application source, configuration, tests, documentation, or dependencies. No files may be changed except the required final report and permitted ignored or temporary diagnostic artifacts. Generated build, test, coverage, and package-diagnostic artifacts in ignored or temporary locations are permitted.
+The final HTML report is the sole permitted tracked repository/documentation write. Do not create fixes, commits, pull requests, migrations, snapshots, dependency updates, formatting changes, or rewritten tests. Do not modify existing application source, configuration, tests, documentation, or dependencies. Under the repository root, no files may be changed except the required final report, or an existing canonical audit report replaced only when the user explicitly authorized that replacement during the output-collision preflight, and permitted ignored or temporary diagnostic artifacts. Necessary writes to OS-temporary locations and external package or tool caches caused by approved diagnostics (for example the global NuGet cache) are permitted. Uncontrolled external-service or persistent data writes remain prohibited.
 
 ## Authority and Evidence
 
@@ -82,7 +82,7 @@ dotnet package list --project Collectibles.sln --deprecated --no-restore
 
 Run a second analyzer-focused build when useful, without editing project configuration. Collect test coverage if the existing test setup supports it without source changes. Inspect the Node Playwright package configuration and run applicable package or static diagnostics that do not update lockfiles or dependencies. Do not run end-to-end tests against an uncontrolled or non-isolated environment.
 
-For every diagnostic, record the exact command, exit status, material output, and interpretation. Distinguish environment/setup failures from repository failures. After diagnostics, capture the final source-control state. If unexpected tracked changes appear, stop, report them, and do not revert user changes. Do not paste large raw logs into the report; summarize them and include only evidence needed to support findings.
+For every diagnostic, record the exact command, exit status, material output, and interpretation. Distinguish environment/setup failures from repository failures. After diagnostics, capture the final source-control state. If unexpected tracked or non-ignored untracked repository changes appear, stop, report them, and do not revert user changes. Do not paste large raw logs into the report; summarize them and include only evidence needed to support findings.
 
 ## Phase 3: Inspect Every Subsystem
 
@@ -277,7 +277,7 @@ Do not declare the audit complete until all of these are true:
 7. The remediation roadmap includes dependencies, sequencing, and verification.
 8. The HTML report is self-contained, opens successfully from disk, works at desktop and mobile widths, prints readably, and remains usable without JavaScript.
 9. Sensitive evidence is redacted.
-10. No files were changed except the required final report and permitted ignored or temporary diagnostic artifacts; existing application source, configuration, dependency, migration, test, and documentation files were not intentionally changed.
+10. Under the repository root, no files were changed except the required final report, or an existing canonical audit report replaced only when the user explicitly authorized that replacement during the output-collision preflight, and permitted ignored or temporary diagnostic artifacts; necessary OS-temporary or external package/tool cache writes caused by approved diagnostics are separately permitted. Existing application source, configuration, dependency, migration, test, and documentation files were not intentionally changed. Uncontrolled external-service or persistent data writes did not occur.
 
 ## Final Response
 
@@ -287,6 +287,6 @@ When finished, respond with:
 2. Counts by severity and classification.
 3. A concise list of Critical and High finding titles.
 4. Diagnostic or coverage limitations that materially affect confidence.
-5. Confirmation that no files changed except the required final report and permitted ignored or temporary diagnostic artifacts, and that no existing application source, configuration, dependency, migration, test, or documentation files were intentionally changed.
+5. Confirmation that under the repository root no files changed except the required final report, or an existing canonical audit report replaced only when the user explicitly authorized that replacement during the output-collision preflight, and permitted ignored or temporary diagnostic artifacts; necessary OS-temporary or external package/tool cache writes caused by approved diagnostics are separately permitted. Confirm that no existing application source, configuration, dependency, migration, test, or documentation files were intentionally changed and that no uncontrolled external-service or persistent data writes occurred.
 
 Do not reproduce the full report in the response.
