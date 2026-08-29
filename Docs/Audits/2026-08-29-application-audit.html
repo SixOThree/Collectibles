@@ -1,0 +1,1518 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Collectibles Application Audit — 2026-08-29</title>
+<style>
+:root{
+  --bg:#f4f5f7; --surface:#ffffff; --surface-2:#fafbfc; --border:#d9dde3; --border-strong:#b8bfc8;
+  --text:#1a1d21; --text-muted:#5a6472; --text-faint:#8a94a2;
+  --accent:#2f4c8a; --accent-soft:#e7edf7; --link:#2f4c8a;
+  --crit:#8a1c2b; --crit-bg:#f7e3e6; --high:#b4531a; --high-bg:#f9e9dd;
+  --med:#8a6d15; --med-bg:#f6efd8; --low:#40607a; --low-bg:#e6edf3;
+  --ok:#2f6d4f; --ok-bg:#e0efe7; --shadow:0 1px 3px rgba(20,25,35,.08),0 4px 14px rgba(20,25,35,.05);
+  --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+:root:not([data-theme="light"]){
+@media (prefers-color-scheme:dark){
+  :root{
+  --bg:#14171c; --surface:#1c2027; --surface-2:#20252d; --border:#333a44; --border-strong:#454e5b;
+  --text:#e6e9ee; --text-muted:#a4adba; --text-faint:#727d8c;
+  --accent:#7ea2df; --accent-soft:#243049; --link:#9db8e8;
+  --crit:#f0909e; --crit-bg:#3a1f25; --high:#eaa876; --high-bg:#39271a; --med:#e0c76a; --med-bg:#332d18;
+  --low:#9db8cf; --low-bg:#1f2c36; --ok:#8ad3ab; --ok-bg:#1c2e25;
+  --shadow:0 1px 3px rgba(0,0,0,.4),0 4px 16px rgba(0,0,0,.3);
+  }
+}
+}
+:root[data-theme="dark"]{
+  --bg:#14171c; --surface:#1c2027; --surface-2:#20252d; --border:#333a44; --border-strong:#454e5b;
+  --text:#e6e9ee; --text-muted:#a4adba; --text-faint:#727d8c;
+  --accent:#7ea2df; --accent-soft:#243049; --link:#9db8e8;
+  --crit:#f0909e; --crit-bg:#3a1f25; --high:#eaa876; --high-bg:#39271a; --med:#e0c76a; --med-bg:#332d18;
+  --low:#9db8cf; --low-bg:#1f2c36; --ok:#8ad3ab; --ok-bg:#1c2e25;
+  --shadow:0 1px 3px rgba(0,0,0,.4),0 4px 16px rgba(0,0,0,.3);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.55;font-size:15px}
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px}
+a{color:var(--link)}
+h1,h2,h3,h4{line-height:1.25;font-weight:650}
+h2{font-size:1.5rem;margin:2.4em 0 .7em;padding-bottom:.3em;border-bottom:2px solid var(--border-strong)}
+h3{font-size:1.15rem;margin:1.8em 0 .5em}
+code{font-family:var(--mono);font-size:.86em;background:var(--surface-2);border:1px solid var(--border);border-radius:4px;padding:.08em .35em}
+header.hero{background:linear-gradient(135deg,var(--accent) 0%,#22355e 100%);color:#fff;padding:38px 0 30px}
+:root[data-theme="dark"] header.hero,:root:not([data-theme="light"]) header.hero{background:linear-gradient(135deg,#243049 0%,#161d2c 100%)}
+header.hero .wrap{max-width:1180px}
+header.hero h1{font-size:2rem;margin:0 0 .2em;color:#fff}
+header.hero .sub{opacity:.9;font-size:1.02rem;margin:0}
+header.hero .meta{margin-top:14px;display:flex;flex-wrap:wrap;gap:8px 22px;font-size:.85rem;opacity:.92}
+header.hero .meta span{white-space:nowrap}
+.theme-toggle{position:absolute;top:16px;right:20px}
+.theme-toggle button{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:6px;padding:6px 12px;cursor:pointer;font-size:.82rem}
+.hero-pos{position:relative}
+/* dashboard */
+.dash{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px;margin:26px 0}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px;box-shadow:var(--shadow)}
+.card h3{margin:0 0 12px;font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted)}
+.statrow{display:flex;align-items:center;justify-content:space-between;padding:4px 0;font-size:.92rem}
+.statrow .n{font-variant-numeric:tabular-nums;font-weight:650}
+.pill{display:inline-flex;align-items:center;gap:.4em;padding:.12em .55em;border-radius:999px;font-size:.76rem;font-weight:650;border:1px solid transparent;white-space:nowrap}
+.pill::before{content:"";width:.55em;height:.55em;border-radius:50%;background:currentColor;flex:none}
+.sev-Critical{color:var(--crit);background:var(--crit-bg);border-color:var(--crit)}
+.sev-High{color:var(--high);background:var(--high-bg);border-color:var(--high)}
+.sev-Medium{color:var(--med);background:var(--med-bg);border-color:var(--med)}
+.sev-Low{color:var(--low);background:var(--low-bg);border-color:var(--low)}
+.tag{display:inline-block;padding:.1em .5em;border-radius:5px;font-size:.75rem;background:var(--surface-2);border:1px solid var(--border);color:var(--text-muted);white-space:nowrap}
+.tag.cls{font-weight:600}
+.bar{height:9px;border-radius:5px;background:var(--surface-2);overflow:hidden;display:flex;margin:2px 0 8px;border:1px solid var(--border)}
+.bar>i{display:block;height:100%}
+/* nav */
+nav.toc{position:sticky;top:0;z-index:40;background:var(--surface);border-bottom:1px solid var(--border);box-shadow:var(--shadow)}
+nav.toc .wrap{display:flex;flex-wrap:wrap;gap:2px 4px;padding:8px 20px;align-items:center}
+nav.toc a{color:var(--text-muted);text-decoration:none;font-size:.82rem;padding:5px 9px;border-radius:6px}
+nav.toc a:hover{background:var(--surface-2);color:var(--text)}
+/* controls */
+.controls{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin:18px 0;box-shadow:var(--shadow)}
+.controls .row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.controls label{display:flex;flex-direction:column;gap:4px;font-size:.76rem;color:var(--text-muted);font-weight:600}
+.controls select,.controls input{font:inherit;font-size:.86rem;padding:6px 9px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface-2);color:var(--text);min-width:130px}
+.controls input[type=search]{min-width:210px}
+.controls .clearbtn{background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent);border-radius:6px;padding:7px 14px;cursor:pointer;font-weight:600;font-size:.82rem}
+#filterStatus{font-size:.82rem;color:var(--text-muted);margin:8px 2px 0}
+/* findings */
+.finding{background:var(--surface);border:1px solid var(--border);border-left:5px solid var(--border-strong);border-radius:9px;margin:14px 0;box-shadow:var(--shadow);overflow:hidden}
+.finding.s-Critical{border-left-color:var(--crit)}
+.finding.s-High{border-left-color:var(--high)}
+.finding.s-Medium{border-left-color:var(--med)}
+.finding.s-Low{border-left-color:var(--low)}
+.finding>summary{cursor:pointer;padding:14px 18px;list-style:none;display:flex;flex-wrap:wrap;gap:8px 12px;align-items:baseline}
+.finding>summary::-webkit-details-marker{display:none}
+.finding>summary::before{content:"▸";color:var(--text-faint);font-size:.85em;margin-right:2px}
+.finding[open]>summary::before{content:"▾"}
+.finding .fid{font-family:var(--mono);font-size:.82rem;color:var(--text-muted);font-weight:700}
+.finding .ftitle{font-weight:650;font-size:1.02rem;flex:1 1 320px;min-width:220px}
+.finding .badges{display:flex;flex-wrap:wrap;gap:6px}
+.finding .body{padding:2px 18px 18px;border-top:1px solid var(--border)}
+.finding .body dl{display:grid;grid-template-columns:max-content 1fr;gap:5px 16px;margin:12px 0 0}
+.finding .body dt{font-size:.74rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-faint);font-weight:700;padding-top:2px}
+.finding .body dd{margin:0}
+.finding .body dd code{word-break:break-word}
+.metabar{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.evidence{font-family:var(--mono);font-size:.82rem;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;overflow-x:auto;white-space:pre-wrap;word-break:break-word}
+table.grid{width:100%;border-collapse:collapse;font-size:.86rem;margin:12px 0}
+table.grid th,table.grid td{border:1px solid var(--border);padding:7px 10px;text-align:left;vertical-align:top}
+table.grid th{background:var(--surface-2);font-size:.76rem;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)}
+.scroll{overflow-x:auto}
+.callout{background:var(--accent-soft);border:1px solid var(--accent);border-radius:8px;padding:12px 16px;margin:14px 0}
+.callout.warn{background:var(--high-bg);border-color:var(--high)}
+.note{color:var(--text-muted);font-size:.9rem}
+ul.tight li{margin:.2em 0}
+.section{margin-top:10px}
+#noscript-note{background:var(--med-bg);border:1px solid var(--med);color:var(--med);border-radius:8px;padding:10px 14px;margin:16px 0;font-size:.9rem}
+footer{margin:50px 0 30px;padding-top:16px;border-top:1px solid var(--border);color:var(--text-faint);font-size:.82rem}
+.js-only{display:none}
+.js .js-only{display:block}
+.js .js-only.inline{display:inline-flex}
+@media (max-width:640px){
+  .finding .body dl{grid-template-columns:1fr}
+  .finding .body dt{padding-top:8px}
+  header.hero h1{font-size:1.5rem}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+@media print{
+  nav.toc,.controls,.theme-toggle,#filterStatus{display:none!important}
+  .finding{break-inside:avoid;box-shadow:none;border:1px solid #999}
+  .finding .body{display:block!important}
+  .finding[open] .body,.finding .body{display:block!important}
+  details.finding>summary::before{content:""}
+  body{background:#fff;color:#000;font-size:11pt}
+  .card{break-inside:avoid}
+  a{color:#000;text-decoration:underline}
+  header.hero{background:#fff!important;color:#000;border-bottom:2px solid #000}
+  header.hero h1,header.hero .sub{color:#000}
+}
+</style>
+</head>
+<body>
+<header class="hero hero-pos">
+  <div class="theme-toggle js-only"><button id="themeBtn" type="button" aria-label="Toggle colour theme">◐ Theme</button></div>
+  <div class="wrap">
+    <h1>Collectibles — Comprehensive Application Audit</h1>
+    <p class="sub">Evidence-based, read-only engineering assessment of the Collectibles .NET 10 / Blazor Server solution.</p>
+    <div class="meta">
+      <span><strong>Report date:</strong> 2026-08-29</span>
+      <span><strong>Repository:</strong> Collectibles</span>
+      <span><strong>Branch:</strong> FullAudit</span>
+      <span><strong>Commit:</strong> 0ad2acc</span>
+      <span><strong>Scope:</strong> full solution (read-only)</span>
+    </div>
+  </div>
+</header>
+
+<nav class="toc" aria-label="Section navigation">
+  <div class="wrap">
+    <a href="#summary">Summary</a>
+    <a href="#scope">Scope</a>
+    <a href="#diagnostics">Diagnostics</a>
+    <a href="#architecture">Architecture &amp; Drift</a>
+    <a href="#findings">Findings</a>
+    <a href="#duplication">Duplication</a>
+    <a href="#tests">Test Gaps</a>
+    <a href="#delivery">Build &amp; Delivery</a>
+    <a href="#roadmap">Roadmap</a>
+    <a href="#ledger">Coverage Ledger</a>
+    <a href="#commands">Commands &amp; References</a>
+  </div>
+</nav>
+
+<main class="wrap">
+
+<div id="noscript-note">
+  <noscript>JavaScript is disabled. All findings and evidence below are fully readable as static HTML — expand any finding by clicking its title (native <code>&lt;details&gt;</code>). Search, filtering, and the theme toggle are unavailable without JavaScript.</noscript>
+  <span class="js-only">Interactive search and filters are enabled below. Every finding is also readable directly as static HTML.</span>
+</div>
+
+<section id="summary" class="section">
+<h2>1 · Executive Summary</h2>
+<p>This audit inspected the full Collectibles solution — a .NET 10 (SDK 10.0.101), C# 14, Blazor Server application built on Clean Architecture and CQRS (MediatR 14.1), EF Core 10 / SQL Server, Hangfire, FluentValidation, Serilog, ASP.NET Core Identity, a pluggable storage/email layer, Playwright-based external-link capture, and a companion WPF sync tool. Eight subsystem passes plus repository-wide cross-cutting passes were run; baseline diagnostics (restore, build, test, format, package vulnerability/deprecation, npm audit, coverage) were captured. The build is green (0 errors) and all 242 unit tests pass, but the audit surfaced material correctness, data-integrity, authorization, and security issues beneath that green status.</p>
+
+<p><strong>Headline risks.</strong> The most severe issues are not visible to the compiler or the current test suite: an administrator migration-rollback path that can destroy the only surviving copy of an attachment; the absence of any global soft-delete query filter, so "deleted" content resurfaces across list, download, and public-share paths and — via drifted orphan-cleanup logic — can be permanently purged from storage; a server-side request-forgery (SSRF) surface in the Playwright link-capturer that fetches arbitrary user-supplied URLs from a privileged network position; a path-traversal write primitive in the default local file-storage provider; systemic inconsistency in per-handler authorization (several mutating commands enforce nothing while their siblings do); and a client-overridable <code>UserId</code> on multiple commands/queries that moves identity into the request contract. None of the four working-tree secrets were ever committed (verified across all git refs), but they sit in cleartext locally and should be rotated and relocated.</p>
+
+<div class="callout warn">
+<strong>Overall posture:</strong> The architecture is coherent and the happy paths are well built, but safety-critical invariants (soft-delete visibility, single-durable-copy, per-resource authorization, egress validation, filesystem containment) are enforced by convention rather than centrally, and have drifted. Prioritized remediation should begin with the Critical/High correctness, data-integrity, security, and authorization items before quality and hygiene work.</p>
+</div>
+
+<h3>At-a-glance dashboard</h3>
+<div class="dash">
+  <div class="card">
+    <h3>Findings by severity</h3>
+    <div class="statrow"><span class="pill sev-Critical">Critical</span><span class="n">1</span></div>
+    <div class="statrow"><span class="pill sev-High">High</span><span class="n">18</span></div>
+    <div class="statrow"><span class="pill sev-Medium">Medium</span><span class="n">23</span></div>
+    <div class="statrow"><span class="pill sev-Low">Low</span><span class="n">10</span></div>
+    <div class="statrow" style="border-top:1px solid var(--border);margin-top:6px;padding-top:8px"><span>Total</span><span class="n">52</span></div>
+  </div>
+  <div class="card">
+    <h3>By classification</h3>
+    <div class="statrow"><span>Confirmed defect</span><span class="n">36</span></div>
+    <div class="statrow"><span>Probable risk</span><span class="n">13</span></div>
+    <div class="statrow"><span>Improvement opportunity</span><span class="n">3</span></div>
+    <div class="bar" aria-hidden="true"><i style="width:69%;background:var(--crit)"></i><i style="width:25%;background:var(--med)"></i><i style="width:6%;background:var(--low)"></i></div>
+  </div>
+  <div class="card">
+    <h3>Confidence</h3>
+    <div class="statrow"><span>High</span><span class="n">46</span></div>
+    <div class="statrow"><span>Medium</span><span class="n">6</span></div>
+    <div class="statrow"><span>Low</span><span class="n">0</span></div>
+    <div class="bar" aria-hidden="true"><i style="width:88%;background:var(--ok)"></i><i style="width:12%;background:var(--med)"></i></div>
+  </div>
+  <div class="card">
+    <h3>Diagnostic status</h3>
+    <div class="statrow"><span>Build</span><span class="pill sev-Low" style="color:var(--ok);background:var(--ok-bg);border-color:var(--ok)">0 errors · 603 warn</span></div>
+    <div class="statrow"><span>Tests</span><span class="pill" style="color:var(--ok);background:var(--ok-bg);border-color:var(--ok)">242 / 242 pass</span></div>
+    <div class="statrow"><span>format --verify</span><span class="pill sev-Medium">drift (exit 2)</span></div>
+    <div class="statrow"><span>NuGet vuln/deprecated</span><span class="pill" style="color:var(--ok);background:var(--ok-bg);border-color:var(--ok)">none</span></div>
+    <div class="statrow"><span>npm audit (E2E)</span><span class="pill sev-High">2 high</span></div>
+  </div>
+  <div class="card">
+    <h3>Coverage (line-rate)</h3>
+    <div class="statrow"><span>Application</span><span class="n">40%</span></div>
+    <div class="statrow"><span>Domain</span><span class="n">24%</span></div>
+    <div class="statrow"><span>Infrastructure</span><span class="n">1.3%</span></div>
+    <div class="statrow"><span>Web</span><span class="n">1.4%</span></div>
+    <div class="note" style="margin-top:6px">Coverage locates unexamined behavior; it is not a confidence metric.</div>
+  </div>
+  <div class="card">
+    <h3>Subsystems assessed</h3>
+    <div class="statrow"><span>Domain / Application</span><span class="n">✓</span></div>
+    <div class="statrow"><span>Infra persistence / services</span><span class="n">✓</span></div>
+    <div class="statrow"><span>Web host / security / Blazor</span><span class="n">✓</span></div>
+    <div class="statrow"><span>SyncTool / Tests / Docs</span><span class="n">✓</span></div>
+  </div>
+</div>
+</section>
+
+<section id="scope" class="section">
+<h2>2 · Scope, Assumptions &amp; Limitations</h2>
+<p>The audit universe was the tracked files plus non-ignored untracked files under the repository root (1,028 tracked files excluding the four in-tree <code>.worktrees/</code> checkouts, which were excluded throughout). Content-level review covered all custom C#, Razor, TypeScript/JavaScript, configuration, project, solution, and documentation files. Generated migrations, vendored/minified <code>wwwroot</code> assets, <code>bin/</code>, <code>obj/</code>, <code>node_modules/</code>, and tool caches were inventoried and provenance-assessed but not line-audited.</p>
+<ul class="tight">
+<li><strong>Method &amp; authority.</strong> Findings prioritize observable behavior and traced runtime paths, then domain/security invariants, then repository configuration and tests, then current Microsoft/library documentation, then general principles. Suspected defects were traced through callers, persistence, and authorization before being classified <em>Confirmed</em>. Severity reflects consequence magnitude and blast radius only; confidence reflects evidence strength; exposure/likelihood is described in each finding's triggering-conditions.</li>
+<li><strong>Version-sensitivity.</strong> A few EF Core 10 / Blazor .NET 10 behavioral claims (execution-strategy + user-transaction interaction, filtered-include semantics, prerender double-execution) are stated from ≤EF Core 9 / prior Blazor behavior and are marked Medium confidence with the exact verification named; no behavioral change was found announced, but they were not runtime-confirmed here.</li>
+<li><strong>Safety skips.</strong> Running the application, executing the Node Playwright E2E suite, and EF design-time commands (<code>dotnet ef</code>, which executes app-startup code) were <em>not</em> performed: they require a live, isolated SQL Server / storage / browser environment that could not be guaranteed disposable. These are recorded as limitations, not as verified-correct. The xUnit suite was run because its fixtures use per-test GUID-named EF InMemory databases and per-instance temp directories (verified isolated).</li>
+<li><strong>Coverage limits that affect confidence.</strong> Infrastructure (1.3%) and Web (1.4%) have almost no automated coverage, so several Probable-risk findings in those layers could not be runtime-confirmed. The two prerender/execution-strategy items depend on unrun runtime behavior. Secret values encountered were redacted (presence reported only).</li>
+<li><strong>Write boundary.</strong> The only repository output intentionally created is this canonical report at <code>Docs/Audits/2026-08-29-application-audit.html</code>. No source, config, dependency, migration, test, or documentation file was modified. Diagnostic artifacts were written only to the OS temp scratchpad. The working tree was verified clean before and after every repository-controlled diagnostic.</li>
+</ul>
+</section>
+
+<section id="diagnostics" class="section">
+<h2>3 · Baseline Diagnostics</h2>
+<p>All commands were run from the repository root against SDK <code>10.0.400</code> (resolved from <code>global.json</code> pin <code>10.0.101</code>, <code>rollForward: latestMajor</code>). Raw logs are summarized, not reproduced.</p>
+<div class="scroll">
+<table class="grid">
+<thead><tr><th>Diagnostic</th><th>Command</th><th>Result</th><th>Interpretation</th></tr></thead>
+<tbody>
+<tr><td>SDK info</td><td><code>dotnet --info</code></td><td>SDK 10.0.400, win-x64</td><td>Matches declared .NET 10 target across all 7 projects.</td></tr>
+<tr><td>Restore</td><td><code>dotnet restore Collectibles.sln</code></td><td>Exit 0 — up to date</td><td>Central package management resolves cleanly.</td></tr>
+<tr><td>Build</td><td><code>dotnet build --no-restore</code></td><td>Exit 0 — <strong>0 errors, 603 warnings</strong></td><td>Warnings dominated by CA1848 (598 LoggerMessage-perf) and StyleCop layout; real signals include CS8601 (possible null assignment ×14) and CS0108 (member hides inherited ×32).</td></tr>
+<tr><td>Test</td><td><code>dotnet test --no-build</code></td><td>Exit 0 — <strong>242/242 pass</strong>, 4.3 s</td><td>All green, but coverage is concentrated in Application/Domain; Infra &amp; Web are near-zero.</td></tr>
+<tr><td>Format</td><td><code>dotnet format --verify-no-changes</code></td><td><strong>Exit 2 — changes needed</strong></td><td>Formatting/analyzer drift exists (1,261 lines of reported deltas). Consistent with the <code>.editorconfig</code>↔<code>stylecop.json</code> using-directive conflict (F-045).</td></tr>
+<tr><td>Vulnerable pkgs</td><td><code>dotnet package list --vulnerable --include-transitive</code></td><td>Exit 0 — <strong>none</strong></td><td>No known-vulnerable NuGet packages (direct or transitive).</td></tr>
+<tr><td>Deprecated pkgs</td><td><code>dotnet package list --deprecated</code></td><td>Exit 0 — <strong>none</strong></td><td>No deprecated NuGet packages.</td></tr>
+<tr><td>npm audit (E2E)</td><td><code>npm audit --package-lock-only</code> (Test/Playwright)</td><td><strong>2 high</strong></td><td>@playwright/test 1.52.0 depends on playwright &lt; 1.55.1 — GHSA-7mvr-c777-76hp (browser download without SSL-cert verification). Dev/test dependency only.</td></tr>
+<tr><td>Coverage</td><td><code>dotnet test --collect "XPlat Code Coverage"</code></td><td>Exit 0</td><td>Line-rate: Application 40.1%, Domain 24.1%, Infrastructure 1.3%, Web 1.4%.</td></tr>
+<tr><td>Analyzer rebuild</td><td><code>dotnet build -t:Rebuild</code></td><td>Top rules tallied</td><td>CA1848 ×598, SA1117 ×262, CA1873 ×234, SA1402 ×154, plus CS0108 ×32 and CS8601 ×14 (the two worth triaging for correctness).</td></tr>
+<tr><td>EF design-time / app run / E2E</td><td>—</td><td><strong>SAFETY SKIP</strong></td><td>Require a live, disposable SQL Server / storage / browser environment; not runnable safely read-only. Recorded as limitations.</td></tr>
+</tbody>
+</table>
+</div>
+<p class="note">Working-tree state was captured before and after all diagnostics via <code>git status --porcelain</code> and remained clean throughout; no tracked or non-ignored untracked repository file changed.</p>
+</section>
+
+<section id="architecture" class="section">
+<h2>4 · Actual Architecture &amp; Documentation Drift</h2>
+<p><strong>Actual solution.</strong> Five source projects — <code>Collectibles.Domain</code> (79 C# files, framework-pure POCO entities/value-objects/constants), <code>Collectibles.Application</code> (218 files; ~95 MediatR requests, ~93 handlers, 22 FluentValidation validators, 9 resource-based authorization handlers), <code>Collectibles.Infrastructure</code> (86 files + 37 EF migrations; persistence, ~30 services, storage/email providers, media, Playwright capture), <code>Collectibles.Web</code> (37 C# + 135 Razor + 13 custom JS; Blazor Server host, minimal-API endpoints, middleware, Identity), and <code>Collectibles.SyncTool</code> (WPF net10.0-windows). Two test projects (<code>Domain.Tests</code>, <code>Application.Tests</code>) plus a Node Playwright E2E suite. Dependency direction is broadly correct (Domain ← Application ← Infrastructure/Web), with noted framework leakage into Application (EF Core in ~70 files; static <code>Hangfire.BackgroundJob.Enqueue</code> in 3 handlers).</p>
+
+<div class="callout">
+<strong>Key reconciliations (documented vs. actual):</strong>
+<ul class="tight" style="margin:.4em 0 0">
+<li><strong>Framework version.</strong> The solution targets <strong>.NET 10 / C# 14 / EF Core 10</strong> everywhere (README correct). The untracked <code>AGENTS.md</code> and <code>CLAUDE.local.md</code> still say ".NET 8" — stale (F-047).</li>
+<li><strong>Phantom Kernel project.</strong> README, DEVELOPER_README, and CONTRIBUTING document a <code>Collectibles.Kernel</code> "5th layer" for constants/HashIds. It <em>does not exist</em> as a project (only an empty, untracked husk directory remains); <code>ApplicationConstants</code> lives in Domain. <code>REFACTORING_PLAN.md</code> itself records Kernel's removal, which the other docs never absorbed (F-043).</li>
+<li><strong>Solution references missing files.</strong> <code>Collectibles.sln</code> lists <code>azure-pipelines.yml</code> and <code>CLAUDE.md</code> as solution items; neither exists. No CI definition exists anywhere, yet <code>Collectibles.Web.csproj</code> advertises "Updated by Azure Pipeline during CI/CD" (F-046, F-048).</li>
+<li><strong>SyncTool omitted.</strong> The README architecture diagram omits the real <code>Collectibles.SyncTool</code> project while documenting the non-existent Kernel.</li>
+<li><strong>Config drift.</strong> <code>Docs/Configuration.md</code> documents a phantom <code>ApiKey</code> config section that no code reads (API keys are per-user, hash-stored); the real <code>SyncTool</code>, <code>Playwright:BrowsersPath</code>, and <code>PlaywrightSeed:*</code> keys are undocumented (F-044).</li>
+<li><strong>Inverted table mapping.</strong> The two Taxonomy EF configuration classes are swapped between files, so the physical tables are inverted (<code>TaxonomyVocabulary</code> → table <code>TaxonomyTerms</code> and vice-versa) — EF-internally consistent, so the app runs, but any raw SQL / DBA operation targets the wrong data (F-030).</li>
+</ul>
+</div>
+<p>A full documentation-status inventory (21 docs) and configuration-key mismatch matrix are folded into the Findings and the Build &amp; Delivery section. Substantive claims in the older <code>SECURITY_REVIEW.md</code> / <code>ARCHITECTURE_REVIEW.md</code> were spot-checked and remain accurate, but all their deep links point at a foreign machine's checkout path and are dead in this repository.</p>
+</section>
+
+<section id="findings" class="section">
+<h2>5 · Findings</h2>
+<p>52 findings, most-severe first. Every finding is expandable static HTML; the controls below (JavaScript) filter and search across them. Severity = consequence &amp; blast radius; confidence = evidence strength; likelihood is in each finding's triggering-conditions.</p>
+
+<div class="controls js-only" role="search" aria-label="Filter findings">
+  <div class="row">
+    <label>Search<input type="search" id="q" placeholder="title, file, category…"></label>
+    <label>Severity<select id="fSev"><option value="">All</option><option>Critical</option><option>High</option><option>Medium</option><option>Low</option></select></label>
+    <label>Classification<select id="fCls"><option value="">All</option><option>Confirmed defect</option><option>Probable risk</option><option>Improvement opportunity</option></select></label>
+    <label>Confidence<select id="fConf"><option value="">All</option><option>High</option><option>Medium</option><option>Low</option></select></label>
+    <label>Subsystem<select id="fSub"><option value="">All</option></select></label>
+    <label>Category<select id="fCat"><option value="">All</option></select></label>
+    <label>Phase<select id="fPhase"><option value="">All</option><option value="1">Phase 1</option><option value="2">Phase 2</option><option value="3">Phase 3</option><option value="4">Phase 4</option></select></label>
+    <button type="button" class="clearbtn" id="clearBtn">Reset</button>
+  </div>
+  <div id="filterStatus" aria-live="polite"></div>
+</div>
+
+<div id="findingList">
+
+<details class="finding s-Critical" id="F-001" data-sev="Critical" data-cls="Confirmed defect" data-conf="High" data-cat="Data integrity" data-sub="Application/Attachments" data-phase="4">
+<summary><span class="fid">F-001</span><span class="ftitle">Migration rollback can destroy the only remaining copy of an attachment's content</span><span class="badges"><span class="pill sev-Critical">Critical</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Data integrity · Application → Infrastructure storage (Attachments migration ops)</dd>
+<dt>Evidence</dt><dd><div class="evidence">Source/Collectibles.Application/Features/Attachments/Commands/RollbackAttachmentMigrationCommandHandler.cs:107-143
+  — deletes blob (line 111) + preview (117) BEFORE nulling FilePath/PreviewPath/IsMigrated (137-140), with no check that AttachmentContent still holds the DB copy.
+CleanupMigratedAttachmentsCommandHandler — nulls the DB AttachmentContent for migrated attachments.</div></dd>
+<dt>Affected behavior &amp; path</dt><dd>An admin runs "migrate to Azure" → later "cleanup migrated" (DB content nulled to reclaim space) → later "rollback" with <code>DeleteFromStorage=true</code>: the handler deletes the blob and sets <code>FilePath=null</code>, leaving the attachment with content in neither the database nor storage. The handler's own comment (lines 99-101, 145) acknowledges no transaction protects the delete+update pair.</dd>
+<dt>Root cause</dt><dd>Rollback assumes the DB copy is intact; no precondition check; three admin maintenance operations are individually safe but not composition-safe, and irreversible storage deletion precedes (and is not gated by) confirmation that another durable copy exists.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Permanent, unrecoverable content loss across an admin-selected batch. Requires the migrate → cleanup → rollback(DeleteFromStorage) sequence; exposure is admin-only, but consequence is total data loss with no recovery path.</dd>
+<dt>Violated invariant</dt><dd>"At least one durable copy of attachment content must exist at all times." Irreversible side effects must follow a committed transactional write, not precede it.</dd>
+<dt>Recommended correction</dt><dd>Before deleting storage, verify <code>AttachmentContent.Content != null</code> (or the DB copy is otherwise restorable); skip-and-report any attachment lacking a DB copy; delete the blob only after the DB restore is committed. Consider an Infrastructure-level transaction wrapper so rollback is atomic.</dd>
+<dt>Verification method</dt><dd>Unit/integration test: rollback an attachment whose <code>AttachmentContent</code> was nulled by cleanup; assert the handler reports an error and leaves the blob untouched.</dd>
+<dt>Related</dt><dd>F-012 (delete-then-save), F-018 (delete-semantics inconsistency). Occurrences: 1 handler; compositional with CleanupMigratedAttachments.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-High" id="F-002" data-sev="High" data-cls="Confirmed defect" data-conf="High" data-cat="Soft delete / query correctness" data-sub="Infrastructure/Persistence" data-phase="4">
+<summary><span class="fid">F-002</span><span class="ftitle">No global soft-delete query filter — deleted content resurfaces across lists, downloads, and shared links</span><span class="badges"><span class="pill sev-High">High</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Soft delete / query correctness · DbContext + ~37 Application query files</dd>
+<dt>Evidence</dt><dd><div class="evidence">HasQueryFilter: 0 matches solution-wide (verified). `Deleted == null` written by hand 89 times across 37 files.
+Confirmed omissions on soft-delete entities:
+  GetAttachmentsListQuery.cs:56-58; GetAttachmentByIdQuery / GetAttachmentForDownloadQuery / GetAttachmentForPreviewQuery.cs:50-56 (0 Deleted predicates)
+  Tags/Queries/GetTagsListQuery.cs:24-27 (SearchTagsQuery filters; this one does not)
+  ShowcaseShareTokenRepository.cs:22-35 (includes s.Showcase without filtering the showcase's own Deleted)</div></dd>
+<dt>Affected behavior &amp; path</dt><dd><code>DeleteCollectibleItemCommand</code> soft-deletes attachments, then <code>GetAttachmentsListQuery</code> / <code>GetAttachmentForDownloadQuery</code> return them; a soft-deleted showcase continues to serve its items, tags, and preview blobs through an active share link. Item/child counts disagree between paths that filter and paths that don't.</dd>
+<dt>Root cause</dt><dd>Soft delete is a per-query convention, not enforced centrally via <code>HasQueryFilter(e =&gt; e.Deleted == null)</code> on <code>ISoftDelete</code> types.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Deleted content is visible/downloadable/shareable after deletion; triggered by any soft-delete followed by a list/detail/share read. Broad blast radius (every soft-deletable entity, anonymous share paths included).</dd>
+<dt>Violated invariant</dt><dd>A global invariant ("deleted rows are invisible") must be enforced once, centrally — not restated 89 times where any omission silently breaks it.</dd>
+<dt>Recommended correction</dt><dd>Add model-level query filters for all <code>ISoftDelete</code> entities in <code>OnModelCreating</code>; audit the admin/restore paths that then need <code>IgnoreQueryFilters</code>. Consider a <code>SaveChanges</code> interceptor converting <code>Remove</code> on <code>ISoftDelete</code> into a soft delete.</dd>
+<dt>Verification method</dt><dd>Integration test: soft-delete an attachment; assert its absence from every attachment query and the share-link path. The count of manual <code>Deleted == null</code> predicates should fall toward zero.</dd>
+<dt>Related</dt><dd>F-003 (drifted orphan cleanup), F-018. Occurrences: ≥7 confirmed missing sites; 89 manual predicates at drift risk.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-High" id="F-003" data-sev="High" data-cls="Confirmed defect" data-conf="High" data-cat="Data integrity / duplication" data-sub="Application/Maintenance" data-phase="4">
+<summary><span class="fid">F-003</span><span class="ftitle">Orphan-cleanup permanently deletes blobs still referenced by soft-deleted (restorable) attachments</span><span class="badges"><span class="pill sev-High">High</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Data integrity via duplication drift · Maintenance commands/queries</dd>
+<dt>Evidence</dt><dd><div class="evidence">`GetAllKnownBlobPaths` copy-pasted in 3 files that have drifted:
+  CleanupOrphansCommand.cs:387-391 filters known paths to `a.Deleted == null`
+  GetOrphanStatsQuery.cs:828-831 / GetOrphanDetailsQuery.cs:708-711 do NOT filter Deleted
+Orphan criteria also differ: cleanup requires the linked item be non-deleted (269-273); stats/details require merely no link (772-778).</div></dd>
+<dt>Affected behavior &amp; path</dt><dd>Because the cleanup's "known paths" set excludes soft-deleted attachments, their blobs are classified as orphans and permanently deleted from storage — even though <code>DeleteCollectibleItemCommand</code> only <em>soft</em>-deletes attachments (implying they are restorable). The dashboard stats/details (which don't filter <code>Deleted</code>) therefore disagree with what cleanup actually purges.</dd>
+<dt>Root cause</dt><dd>Three hand-copied implementations of one query drifted apart.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Unrecoverable file loss after any soft-delete followed by an admin orphan-cleanup; UI counts mislead the operator about what will be deleted. Admin-triggered, but permanent.</dd>
+<dt>Violated invariant</dt><dd>Soft-deleted content must remain restorable; a single source of truth for "known/orphan" classification.</dd>
+<dt>Recommended correction</dt><dd>Extract one shared known-paths/orphan-criteria component; include soft-deleted attachments' paths in the "known" set; align criteria across stats, details, and cleanup.</dd>
+<dt>Verification method</dt><dd>Unit test with a soft-deleted attachment's blob present: cleanup must retain it and stats must equal what cleanup would delete.</dd>
+<dt>Related</dt><dd>F-002, F-001. Occurrences: 3 drifted copies.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-High" id="F-004" data-sev="High" data-cls="Confirmed defect" data-conf="High" data-cat="Data integrity" data-sub="Application/CollectibleItems" data-phase="4">
+<summary><span class="fid">F-004</span><span class="ftitle">Editing any item field silently wipes featured-attachment curation</span><span class="badges"><span class="pill sev-High">High</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Data integrity · CollectibleItems update</dd>
+<dt>Evidence</dt><dd><div class="evidence">UpdateCollectibleItemCommand.cs:143  collectibleItem.CollectibleItemAttachments.Clear();
+:152-156  re-adds junctions with only { CollectibleItem, Attachment } set —
+           IsFeatured, FeaturedDate, DisplayOrder revert to defaults.
+(Verified directly: ToggleAttachmentFeaturedCommand sets those columns; the update destroys them.)</div></dd>
+<dt>Affected behavior &amp; path</dt><dd>EditCollectibleItem → <code>UpdateCollectibleItemCommand</code>: any edit (even renaming) clears and rebuilds the attachment junction rows, discarding the featured flag, featured date, and display order the user curated via <code>ToggleAttachmentFeaturedCommand</code>.</dd>
+<dt>Root cause</dt><dd>Replace-all junction rebuild instead of diffing the attachment set and preserving payload columns for retained attachments.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>User-visible data loss on every item edit where featured attachments exist. Triggered by the most common edit action. (The parallel tag/related-tag <code>Clear()</code> is harmless — those junctions carry no payload.)</dd>
+<dt>Violated invariant</dt><dd>Junction payload (featured/order) must survive edits unrelated to attachment membership.</dd>
+<dt>Recommended correction</dt><dd>Diff <code>request.AttachmentIds</code> against existing junctions; add/remove only the delta and preserve <code>IsFeatured</code>/<code>FeaturedDate</code>/<code>DisplayOrder</code> on retained rows. (<code>MoveAttachmentCommand</code> re-creating junctions with <code>IsFeatured=false</code> shares this class of bug.)</dd>
+<dt>Verification method</dt><dd>Integration test: feature an attachment, update the item's name, assert <code>IsFeatured</code> persists.</dd>
+<dt>Related</dt><dd>F-014. Occurrences: 1 primary handler.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-High" id="F-005" data-sev="High" data-cls="Confirmed defect" data-conf="High" data-cat="Security / SSRF" data-sub="Infrastructure/LinkCapture" data-phase="4">
+<summary><span class="fid">F-005</span><span class="ftitle">Server-side request forgery: Playwright navigates to arbitrary user-supplied URLs</span><span class="badges"><span class="pill sev-High">High</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Security (SSRF) · Infrastructure link-capture background service</dd>
+<dt>Evidence</dt><dd><div class="evidence">ScopedLinkProcessorService.cs:65  await page.GotoAsync(cache.LinkInfo.Url);   // no scheme/host validation, redirects followed
+Input: AddLinkToCollectibleItemCommandHandler stores request.Url verbatim (no FluentValidation validator exists for the command).
+Served back: LinkCacheEndpoints.cs:69-75,119-125 (owner-only). Gated by ExternalLinks:Enabled=true (default ON).</div></dd>
+<dt>Affected behavior &amp; path</dt><dd>Any authenticated user adds a "link" (e.g. <code>http://169.254.169.254/…</code>, <code>http://localhost:port/…</code>, an internal hostname, or <code>file:///…</code>). The background Chromium fetches it server-side; the rendered HTML and full-page screenshot are stored and returned to the user — a read-back SSRF against internal networks and cloud metadata endpoints, with redirects followed. The page object is also never closed (leak) and the row is stuck in <code>Processing</code> if the process crashes (only <code>Pending</code> is re-queried).</dd>
+<dt>Root cause</dt><dd>No egress validation of the target URL (scheme allowlist, public-IP resolution, redirect re-check) before navigation.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Internal-network/metadata exfiltration from a privileged position; triggered by adding a link with external-links enabled (the default). Consequence scales with the host's network reachability (cloud metadata, internal admin panels).</dd>
+<dt>Violated invariant</dt><dd>Never fetch attacker-controlled URLs from a privileged network position without egress validation.</dd>
+<dt>Recommended correction</dt><dd>Validate scheme (http/https only); resolve DNS and reject loopback/link-local/private ranges; re-validate after each redirect (request interception); apply explicit navigation/screenshot timeouts; close the page per link.</dd>
+<dt>Verification method</dt><dd>In an isolated env, add a link to <code>http://169.254.169.254/</code> and observe the capture attempt; confirm rejection after the fix.</dd>
+<dt>Related</dt><dd>F-025 (link-processor lifecycle), F-020-adjacent. Occurrences: 1 primary path (+ <code>RefreshLinkCacheCommand</code> re-queues URLs).</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-High" id="F-006" data-sev="High" data-cls="Confirmed defect" data-conf="High" data-cat="Security / path traversal" data-sub="Infrastructure/FileStorage" data-phase="4">
+<summary><span class="fid">F-006</span><span class="ftitle">Path traversal via user-controlled filename in the default LocalFileSystem storage provider</span><span class="badges"><span class="pill sev-High">High</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Security (path traversal) · Infrastructure LocalFileStorage (default provider)</dd>
+<dt>Evidence</dt><dd><div class="evidence">LocalFileStorage.cs:30,74-81,97,141-148 — directory = Path.GetDirectoryName(fileName); Path.Combine(_basePath, directory); Directory.CreateDirectory(...) with no containment check.
+User input: ZipUpload UploadZipChunkCommand.cs:116 builds "zip-uploads/{JobId}/{request.FileName}" where FileName = client IBrowserFile.Name; same in CreateZipUploadJobCommand/StreamCommand; UpdateProfilePictureCommandHandler.cs:51 passes raw request.FileName.
+appsettings.json:11 Storage:Provider = "LocalFileSystem" (default).</div></dd>
+<dt>Affected behavior &amp; path</dt><dd>A filename like <code>..\..\..\x\evil.zip</code> causes directory creation and a file write outside <code>_basePath</code>. The leaf filename is GUID-randomized, so this is a directory-plus-extension-controlled out-of-sandbox write primitive rather than full path control. Read/delete paths <code>Path.Combine</code> without containment too, but their inputs are DB-derived.</dd>
+<dt>Root cause</dt><dd>Providers trust the directory portion of the caller's <code>fileName</code> ("preserve directory structure") without canonicalization/containment; the filename is not sanitized at the command boundary.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Out-of-root write on the (default) local provider; triggered by any upload with a crafted filename. Azure Blob has the same passthrough but blob names cannot escape the container (parity/hygiene only).</dd>
+<dt>Violated invariant</dt><dd>Never derive a filesystem path from a user-controlled name without canonical containment validation.</dd>
+<dt>Recommended correction</dt><dd>Canonicalize the final path and require <code>fullPath.StartsWith(canonical basePath)</code>; strip/deny <code>..</code> centrally in both <code>SaveFileAsync</code> overloads and all read/delete paths; sanitize <code>FileName</code> at the command boundary (replace with a server-generated name).</dd>
+<dt>Verification method</dt><dd>Unit test <code>SaveFileAsync(bytes, "a/../../b/evil.bin", …)</code> asserting rejection.</dd>
+<dt>Related</dt><dd>F-027 (ZIP limits). Occurrences: 2 overloads × LocalFileStorage; 4 user-controlled call sites.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-High" id="F-007" data-sev="High" data-cls="Confirmed defect" data-conf="High" data-cat="Authorization / CQRS consistency" data-sub="Application (cross-feature)" data-phase="4">
+<summary><span class="fid">F-007</span><span class="ftitle">Per-handler authorization is inconsistent — many mutating commands enforce nothing while their siblings do</span><span class="badges"><span class="pill sev-High">High</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Authorization / CQRS consistency · Application-wide (15+ handlers)</dd>
+<dt>Evidence</dt><dd><div class="evidence">CreateCollectibleItemCommand — verifies the showcase exists but never that the caller owns it (Update/Delete siblings do).
+UnassignQRCodeCommand — no item-ownership check; AssignQRCodeCommand checks it.
+ZipUpload: CreateZipUploadJob/Stream, InitializeChunkedUpload, CompleteZipDirectUpload, UploadZipChunk — accept ShowcaseId/job with NO ownership check; traced into ZipUploadJobService.ProcessJobAsync which also never validates job.UserId owns job.ShowcaseId.
+RecomputeCollagePreview, RefreshLinkCache — no ownership check (AddLink/DeleteLink in the same feature do check).
+Unchecked admin-power handlers: MigrateAttachmentsToAzure, VerifyAttachmentMigration, RetryEmail, GetEmailLogs, GetActivityOverview, GetOrphanStats/Details, GetItemsByTemplate, GetLinkCaches.</div></dd>
+<dt>Affected behavior &amp; path</dt><dd>Equivalent operations diverge: some verify resource ownership/role, some verify nothing. Most are dispatched from Blazor Server components (server-constructed requests), which reduces but does not eliminate exploitability because bound UI inputs (showcase pickers, IDs in component state) are attacker-influenceable over the circuit; the zip/attachment routes are additionally exposed over HTTP.</dd>
+<dt>Root cause</dt><dd>No enforced rule that every mutating handler self-validates ownership or role; enforcement was added case-by-case.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Cross-user writes/reads where checks are absent (e.g. bulk-import into a foreign showcase, exposing others' template field values, re-sending stored emails, reading recipients/storage paths). Blast radius spans multiple features.</dd>
+<dt>Violated invariant</dt><dd>Authorization must be applied consistently across similar features; least privilege.</dd>
+<dt>Recommended correction</dt><dd>Adopt a rule (the majority already follow it): every mutating handler validates resource ownership or role. Add the missing checks; gate or delete the admin-less migration/email/maintenance handlers. A pipeline behavior enforcing an explicit per-request authorization contract would prevent recurrence. Note: the 3 resource-based authorization handlers themselves have <em>zero</em> tests (see §7).</dd>
+<dt>Verification method</dt><dd>Per-handler authorization test with a non-owner principal; the full validator/authz/save matrix is in §6.</dd>
+<dt>Related</dt><dd>F-008, F-017, F-018, F-014. Occurrences: 15+ handlers.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-High" id="F-008" data-sev="High" data-cls="Probable risk" data-conf="High" data-cat="Security / identity boundary" data-sub="Application (cross-feature)" data-phase="4">
+<summary><span class="fid">F-008</span><span class="ftitle">Client-overridable <code>UserId</code> on commands/queries defeats the identity boundary</span><span class="badges"><span class="pill sev-High">High</span><span class="tag cls">Probable risk</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Security (impersonation / IDOR) · 9 request types across features</dd>
+<dt>Evidence</dt><dd><div class="evidence">Pattern `request.UserId ?? _currentUserService.UserId` used as the authorization/audit identity in:
+  CreateCollectibleItemCommand, CreateShowcaseCommand, GenerateQRCodesCommand, CreateZipUploadJobCommand/StreamCommand:49, InitializeChunkedUploadCommand, CompleteZipDirectUploadCommand, SyncUploadCommand, GetShowcasesListQuery:32.
+Verified: GetShowcasesListQuery.cs:43-45 — when request.UserId != null it returns s.UserId == request.UserId WITHOUT the !IsPrivate filter → a foreign UserId enumerates that user's PRIVATE showcases.
+SyncUploadCommandHandler authorizes by comparing showcase owner to the request-supplied UserId (owner id is exposed in ShowcaseCardDto.UserId).</div></dd>
+<dt>Affected behavior &amp; path</dt><dd>Identity is carried in the request contract rather than derived solely from the authenticated principal. Current callers populate it from claims, so no live UI exploit was demonstrated (hence Probable), but any new dispatch site (API endpoint, background job, test harness, crafted MediatR call) becomes an impersonation vector, and audit <code>CreatedBy</code> is spoofable by design.</dd>
+<dt>Root cause</dt><dd>Working around Blazor auth-context loss by moving identity into the request instead of fixing it once in <code>ICurrentUserService</code>/<code>IHttpContextDataService</code>.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Private-showcase enumeration and cross-user writes/audit-spoofing when a <code>UserId</code> is supplied. Exposure grows with every new caller.</dd>
+<dt>Violated invariant</dt><dd>Commands must derive identity from the authenticated principal only; identity is never a request parameter.</dd>
+<dt>Recommended correction</dt><dd>Remove <code>UserId</code> from all request contracts; resolve identity once server-side. Fix the Blazor context problem in one place.</dd>
+<dt>Verification method</dt><dd>Grep for <code>?? _currentUserService.UserId</code> → zero; auth test sending a foreign <code>UserId</code>.</dd>
+<dt>Related</dt><dd>F-007, F-032. Occurrences: 9 request types.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-High" id="F-009" data-sev="High" data-cls="Confirmed defect" data-conf="High" data-cat="Authorization / caching" data-sub="Application/Attachments" data-phase="4">
+<summary><span class="fid">F-009</span><span class="ftitle">Attachment content/preview queries lack the authorization their siblings enforce, and cache full content cross-user</span><span class="badges"><span class="pill sev-High">High</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Authorization + caching · Attachments queries</dd>
+<dt>Evidence</dt><dd><div class="evidence">GetAttachmentByIdQuery / GetAttachmentDetailQuery enforce ViewAttachmentRequirement.
+GetAttachmentForDownloadQuery / GetAttachmentForPreviewQuery — enforce NOTHING (the latter returns full Base64Content, not just a thumbnail).
+HTTP endpoints add their own duplicate check (CheckAttachmentAuthorizationWithUserIdAsync), but Blazor components call GetAttachmentForPreviewQuery directly (ImagePreviewModal.razor:181,342; AttachmentThumbnailView.razor:114) with no check on that path.
+GetAttachmentForPreviewQueryHandler caches the full DTO in IMemoryCache keyed only by attachment id for 30 min — no user scoping, no invalidation on update/delete.</div></dd>
+<dt>Affected behavior &amp; path</dt><dd>Whether an attachment's bytes are authorized depends on which of four code paths serves them; the direct component path is unauthorized, and the ID-keyed memory cache serves content cross-user and stays stale after rotate/update/delete.</dd>
+<dt>Root cause</dt><dd>Authorization implemented at the endpoint layer for some paths and in the query for others, with two paths omitted; cache key omits the requesting user and mutation invalidation.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Potential unauthorized content disclosure via the component path or the shared cache; stale previews after edits. Triggered by direct query dispatch or cache reuse.</dd>
+<dt>Violated invariant</dt><dd>A single authoritative visibility check per resource; caches must be scoped to the authorization principal and invalidated on mutation.</dd>
+<dt>Recommended correction</dt><dd>Move the <code>ViewAttachmentRequirement</code> check into both content queries; delete the Web-layer duplicate; scope/invalidate the cache (or remove it).</dd>
+<dt>Verification method</dt><dd>Unit test dispatching <code>GetAttachmentForDownloadQuery</code> for a foreign private attachment — expect denial.</dd>
+<dt>Related</dt><dd>F-007, F-011. Occurrences: 2 queries + 1 cache issue.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-High" id="F-010" data-sev="High" data-cls="Confirmed defect" data-conf="High" data-cat="Indexing / uniqueness" data-sub="Infrastructure/Persistence" data-phase="4">
+<summary><span class="fid">F-010</span><span class="ftitle">Share-link token is <code>nvarchar(max)</code>, unindexed, and non-unique — table-scanned on every anonymous visit</span><span class="badges"><span class="pill sev-High">High</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Indexing / uniqueness race · ShowcaseShareToken (no EF configuration)</dd>
+<dt>Evidence</dt><dd><div class="evidence">No configuration class for ShowcaseShareToken; snapshot shows Token as required nvarchar(max), only an index on ShowcaseId.
+Lookups by token: ShowcaseShareTokenRepository.cs:24-34,79-80,92-93.
+Uniqueness is a check-then-insert loop: GenerateShareLinkCommandHandler.cs:50-53.</div></dd>
+<dt>Affected behavior &amp; path</dt><dd>Every anonymous share-link visit (<code>GetByTokenAsync</code>, <code>IncrementViewCountAsync</code>) scans the whole table; <code>nvarchar(max)</code> cannot be indexed as-is. Two concurrent generators could insert duplicate tokens (astronomically unlikely at 44 random chars, but the DB does not enforce the invariant the code assumes).</dd>
+<dt>Root cause</dt><dd>Missing entity configuration: no bounded length, no index, no unique constraint on a security-sensitive lookup key.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Full-table scans on the public share path (scales with token count); uniqueness enforced only in memory. Triggered by every public share view.</dd>
+<dt>Violated invariant</dt><dd>Lookup keys need a bounded type and an index; uniqueness invariants belong in a DB unique constraint.</dd>
+<dt>Recommended correction</dt><dd><code>HasMaxLength(64)</code> + unique index on <code>Token</code>; migration to alter the column.</dd>
+<dt>Verification method</dt><dd>Execution plan for <code>WHERE Token = @p</code> shows an index seek after the change.</dd>
+<dt>Related</dt><dd>F-021. Occurrences: 5 query sites on <code>Token</code>.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-High" id="F-011" data-sev="High" data-cls="Confirmed defect" data-conf="High" data-cat="Performance / projection" data-sub="Application + Persistence" data-phase="4">
+<summary><span class="fid">F-011</span><span class="ftitle">Blob over-fetch: list/detail queries load full <code>AttachmentContent</code> originals to render cards</span><span class="badges"><span class="pill sev-High">High</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Performance / projection · Application queries + mapping services</dd>
+<dt>Evidence</dt><dd><div class="evidence">GetShowcasesListQuery.cs:38-41 & GetAllShowcasesQuery.cs:37-40 load PreviewImage.AttachmentContent for EVERY showcase in an unpaged list.
+GetShowcaseByIdQuery.cs:38-57 loads AttachmentContent for every attachment of every root item; GetCollectibleItemByIdQuery.cs:56-58 likewise.
+GetAttachmentForPreviewQuery.cs:52 loads full content and caches the base64 DTO.
+ShowcaseMappingService.cs:200-257 prefers the full-size image over the thumbnail and inlines it as a base64 data: URI into card DTOs held in Blazor circuit memory.
+AttachmentMappingService.MapWithContentAsync base64-encodes whole files (≥3.3× peak memory), decoded again in GetAttachmentForDownloadQuery.</div></dd>
+<dt>Affected behavior &amp; path</dt><dd>Server memory and SQL I/O scale with total original-image bytes rather than card count; a showcase page can pull hundreds of MB and hold base64 data-URIs in circuit state.</dd>
+<dt>Root cause</dt><dd>Loading full entities (including <code>varbinary(max)</code> content) where only metadata + a thumbnail is needed; content transported as base64 through DTOs.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>The largest scalability hazard in the persistence layer; triggered by normal browsing of showcases/items with images. Risk of OOM under Blazor Server on large collections.</dd>
+<dt>Violated invariant</dt><dd>Load only what the view needs; blobs are streamed by dedicated endpoint, previews come from <code>AttachmentPreview</code>/<code>PreviewPath</code> only.</dd>
+<dt>Recommended correction</dt><dd>Remove <code>AttachmentContent</code> includes from list/detail queries; project to DTOs with metadata + preview only; serve images via the existing hash-id attachment endpoints with response caching; stream downloads end-to-end.</dd>
+<dt>Verification method</dt><dd>Log generated SQL; assert <code>AttachmentContents</code> is not joined in list paths; measure page payload before/after.</dd>
+<dt>Related</dt><dd>F-009. Occurrences: 5 query sites + 2 mapping services.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-High" id="F-012" data-sev="High" data-cls="Confirmed defect" data-conf="High" data-cat="Partial failure / data integrity" data-sub="Application/Attachments" data-phase="4">
+<summary><span class="fid">F-012</span><span class="ftitle">UpdateAttachment deletes the old blob before saving new content (delete-then-save)</span><span class="badges"><span class="pill sev-High">High</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Partial-failure safety · Attachments update</dd>
+<dt>Evidence</dt><dd><div class="evidence">UpdateAttachmentCommand.cs:2274-2292 — DeleteFileAsync(entity.FilePath) BEFORE SaveFileAsync; same for previews at 2310-2347 (3 blocks).
+Contrast RotateAttachmentCommand.cs:2012-2035 which correctly saves first, deletes after.
+DeleteAttachmentCommand.cs:81-93 also deletes the physical file BEFORE SaveChangesAsync.</div></dd>
+<dt>Affected behavior &amp; path</dt><dd>If the new save throws (storage outage, cancellation) after the old blob is deleted, content is gone and the DB row is not updated — <code>FilePath</code> points at a deleted blob. In <code>DeleteAttachmentCommand</code>, a failed/aborted save leaves a surviving DB row referencing a destroyed file.</dd>
+<dt>Root cause</dt><dd>Irreversible storage deletion ordered before the transactional write, inconsistent with the correct Rotate handler.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Content loss / dangling references on storage or DB failure mid-operation. Triggered by any transient storage/DB error during update or delete.</dd>
+<dt>Violated invariant</dt><dd>Irreversible side effects must follow a committed write (save-new → SaveChanges → best-effort delete-old).</dd>
+<dt>Recommended correction</dt><dd>Reorder to the Rotate pattern across the three update blocks and the delete handler.</dd>
+<dt>Verification method</dt><dd>Fault-injection test forcing <code>SaveFileAsync</code>/<code>SaveChangesAsync</code> to throw; assert content still recoverable.</dd>
+<dt>Related</dt><dd>F-001, F-018. Occurrences: 3 blocks (content + preview ×2) + delete handler.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-High" id="F-013" data-sev="High" data-cls="Confirmed defect" data-conf="High" data-cat="Provider parity / correctness" data-sub="Infrastructure/Email" data-phase="4">
+<summary><span class="fid">F-013</span><span class="ftitle">Azure Communication email provider ignores templates — confirmation/reset emails send empty bodies</span><span class="badges"><span class="pill sev-High">High</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Provider parity / correctness · Infrastructure email (Azure &amp; Null providers)</dd>
+<dt>Evidence</dt><dd><div class="evidence">SMTP/SendGrid render via IEmailTemplateService (SmtpEmailService.cs:86-97; SendGridEmailService.cs:78-89).
+AzureCommunicationEmailService.cs:192-193,235-253 uses a private reflection ProcessTemplate(message.Body, model) and IGNORES TemplateName; NullEmailService.cs:65-66 same.
+AspNetIdentityEmailSender.cs:22-28 sends TemplatedEmailMessage with TemplateName="EmailConfirmation" and no Body → with the Azure provider, confirmation/password-reset emails go out with an EMPTY body.</div></dd>
+<dt>Affected behavior &amp; path</dt><dd>When <code>EmailSettings:Provider=AzureCommunication</code>, every templated email (account confirmation, password reset) is dispatched with no rendered body because the provider never resolves the named template.</dd>
+<dt>Root cause</dt><dd>Template rendering implemented per-provider instead of once in the <code>EmailService</code> facade; two providers never wired to <code>IEmailTemplateService</code>.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Broken account confirmation / password reset (users cannot complete flows) whenever the Azure provider is selected. Provider-gated but total for that configuration.</dd>
+<dt>Violated invariant</dt><dd>Pluggable providers must honor the same <code>SendTemplatedEmailAsync</code> contract.</dd>
+<dt>Recommended correction</dt><dd>Inject <code>IEmailTemplateService</code> into the Azure/Null providers, or hoist rendering into the facade so all providers receive a fully rendered body.</dd>
+<dt>Verification method</dt><dd>Unit test each provider's templated path asserting rendered HTML is non-empty.</dd>
+<dt>Related</dt><dd>F-015, F-039. Occurrences: 2 providers.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-High" id="F-014" data-sev="High" data-cls="Confirmed defect" data-conf="High" data-cat="Security / IDOR" data-sub="Application/Attachments (Sync)" data-phase="4">
+<summary><span class="fid">F-014</span><span class="ftitle">Broken object-level authorization on attachment "move" — any owned showcase can absorb another user's attachment</span><span class="badges"><span class="pill sev-High">High</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Security (IDOR / BOLA) · MoveAttachmentCommandHandler</dd>
+<dt>Evidence</dt><dd><div class="evidence">RenameAttachmentCommand.cs:48-69 — loads the attachment purely by request.AttachmentId (49-50) and authorizes ONLY the target showcase (showcase.UserId != current user, 66-68). It never checks the attachment currently belongs to the caller.
+When currentLink is null, the else/hierarchy branches create a new CollectibleItemAttachment linking the foreign attachment into the attacker's showcase (116-122) and rename it (92-93).
+Endpoint: POST /api/sync/attachments/{hash}/move (SyncEndpoints.cs:33-40, ApiKeyOrCookie).</div></dd>
+<dt>Affected behavior &amp; path</dt><dd>Decode an arbitrary attachment hash → <code>MoveAttachmentCommand</code> → the handler attaches/renames an attachment the caller does not own into a showcase they do own, exposing/altering another user's file.</dd>
+<dt>Root cause</dt><dd>Ownership verified on the destination resource only, not on the object being moved.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>An authenticated user with SyncTool access can absorb/rename any attachment (IDs enumerable after HashIds decode). Mitigated today by <code>SyncTool:Enabled=false</code> (default) and per-user <code>SyncToolEnabled</code>; the flaw is live the moment sync is enabled.</dd>
+<dt>Violated invariant</dt><dd>OWASP A01 — verify ownership of the object being mutated, not only the destination.</dd>
+<dt>Recommended correction</dt><dd>Before mutating, confirm the attachment is currently owned by the caller (its existing showcase(s) <code>UserId == current user</code>); reject otherwise.</dd>
+<dt>Verification method</dt><dd>Unit test: move an attachment the caller does not own → expect <code>UnauthorizedAccessException</code>.</dd>
+<dt>Related</dt><dd>F-007. Occurrences: 1.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-High" id="F-015" data-sev="High" data-cls="Confirmed defect" data-conf="High" data-cat="Concurrency / reliability" data-sub="Infrastructure/Email" data-phase="4">
+<summary><span class="fid">F-015</span><span class="ftitle">Duplicate email delivery — the dispatch pipeline has no atomic claim</span><span class="badges"><span class="pill sev-High">High</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Concurrency / reliability · EmailBackgroundService (Hangfire recurring, every minute)</dd>
+<dt>Evidence</dt><dd><div class="evidence">EmailBackgroundService.cs:37-57 — selects Pending + retryable Failed rows and enqueues per row WITHOUT marking them claimed; SendEmailWithRetryAsync:78-86 guards only Sent/Cancelled with a non-atomic read-then-write.
+HandleEmailFailure:206 schedules its own retry while the recurring scan also re-picks the same Failed row.
+Contrast ZipUploadJobService: atomic UPDATE...WHERE Status=Pending compare-and-swap.</div></dd>
+<dt>Affected behavior &amp; path</dt><dd>Any backlog &gt; 1 minute, a slow provider, or concurrent Hangfire workers causes the same <code>EmailLog</code> to be processed multiple times → users receive duplicate emails (including password resets); <code>AttemptCount</code> double-counted; the inline send path can also race the scanner.</dd>
+<dt>Root cause</dt><dd>No atomic state transition claiming a row before send; two overlapping retry mechanisms (recurring scan + scheduled retry).</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Duplicate transactional emails under load/slowness. Triggered whenever dispatch exceeds the poll interval.</dd>
+<dt>Violated invariant</dt><dd>At-least-once background execution requires idempotent handlers or atomic claims.</dd>
+<dt>Recommended correction</dt><dd>Claim rows with <code>UPDATE … SET Status=InProgress WHERE Id=@id AND Status IN (Pending,Failed)</code> and check rows-affected; consolidate to one retry mechanism.</dd>
+<dt>Verification method</dt><dd>Integration test with a delayed fake provider and two concurrent invocations; assert single delivery.</dd>
+<dt>Related</dt><dd>F-013, F-023. Occurrences: 3 interacting paths.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-High" id="F-016" data-sev="High" data-cls="Confirmed defect" data-conf="High" data-cat="Auth contract / functional" data-sub="SyncTool + Web endpoints" data-phase="4">
+<summary><span class="fid">F-016</span><span class="ftitle">SyncTool API key is never honored by thumbnail/download endpoints — preview and download fail for private showcases</span><span class="badges"><span class="pill sev-High">High</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Auth contract / functional · SyncTool client + Web attachment endpoints</dd>
+<dt>Evidence</dt><dd><div class="evidence">AttachmentEndpoints.cs:37-55 — /thumbnail and /download are AllowAnonymous, authorizing internally from HttpContext.User.
+ServiceCollectionExtensions.cs:135-144 — default authenticate scheme is the Identity cookie; the ApiKey scheme runs only via the ApiKeyOrCookie policy. No IClaimsTransformation / manual AuthenticateAsync("ApiKey").
+SyncTool sends only X-Api-Key → the ApiKey handler never executes on these endpoints → GetEffectiveUserId returns null → caller treated as anonymous → 401 for anything not public.</div></dd>
+<dt>Affected behavior &amp; path</dt><dd>The SyncTool authenticates with an API key, but on the anonymous-attributed download/thumbnail endpoints the API-key scheme is never invoked, so private-showcase previews/downloads return 401; the client swallows this into a null and shows a generic failure.</dd>
+<dt>Root cause</dt><dd>Endpoint opts out of the auth pipeline (<code>AllowAnonymous</code>) yet its internal check depends on a principal only the never-run API-key scheme could establish.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>SyncTool preview/download of any non-public attachment is broken. Triggered whenever the tool is used against private content (its primary use case).</dd>
+<dt>Violated invariant</dt><dd>Every credential an endpoint claims to accept must have its scheme run.</dd>
+<dt>Recommended correction</dt><dd>Attempt <code>AuthenticateAsync(ApiKeyScheme)</code> when the header is present (middleware/claims transformation), or expose authorized sync-specific download/thumbnail routes; surface 401 distinctly in the client.</dd>
+<dt>Verification method</dt><dd>Call <code>/api/attachments/{hash}/thumbnail</code> with a valid <code>X-Api-Key</code> for a private-showcase attachment; expect 401 today.</dd>
+<dt>Related</dt><dd>F-019. Occurrences: 2 endpoints × 2 client callers.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-High" id="F-017" data-sev="High" data-cls="Confirmed defect" data-conf="High" data-cat="HTTP reliability" data-sub="SyncTool" data-phase="4">
+<summary><span class="fid">F-017</span><span class="ftitle">SyncTool default 100-second HttpClient timeout aborts large uploads/downloads</span><span class="badges"><span class="pill sev-High">High</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>HTTP reliability · SyncTool CollectiblesApiClient / App</dd>
+<dt>Evidence</dt><dd><div class="evidence">App.xaml.cs:40-42 — new HttpClient() twice, no Timeout set.
+CollectiblesApiClient.cs:16-17 (8MB blocks, single PUT up to 200MB), :296 PutAsync, :159-177 buffered downloads.</div></dd>
+<dt>Affected behavior &amp; path</dt><dd>Any transfer segment slower than ~100 s (a 200MB single PUT needs sustained ≥2 MB/s; an 8MB block ≥80 KB/s; large video downloads) throws <code>TaskCanceledException</code>, reported as a generic error; block uploads leave uncommitted blocks.</dd>
+<dt>Root cause</dt><dd>Long-running transfer client left at the framework default 100 s timeout.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Large-file sync fails on normal connections. Triggered by any sufficiently large or slow transfer.</dd>
+<dt>Violated invariant</dt><dd>Transfer clients must use <code>Timeout.InfiniteTimeSpan</code> (or generous) and rely on per-request cancellation.</dd>
+<dt>Recommended correction</dt><dd>Infinite client timeout + per-request activity-based cancellation; lower the 200MB single-PUT threshold.</dd>
+<dt>Verification method</dt><dd>Throttled-network upload of a 200MB file.</dd>
+<dt>Related</dt><dd>F-042. Occurrences: both clients; 5 transfer methods.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-High" id="F-018" data-sev="High" data-cls="Confirmed defect" data-conf="High" data-cat="Soft delete / lifecycle" data-sub="Application/Infrastructure" data-phase="4">
+<summary><span class="fid">F-018</span><span class="ftitle">Delete semantics are inconsistent per aggregate — the same entity is hard-deleted in one path, soft-deleted in another</span><span class="badges"><span class="pill sev-High">High</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Soft delete / data lifecycle · Application delete commands</dd>
+<dt>Evidence</dt><dd><div class="evidence">DeleteAttachmentCommand.cs:91 hard-Removes an Attachment (a soft-delete entity), cascading its AttachmentContents/Previews.
+DeleteCollectibleItemCommand.cs:137-139 soft-deletes attachments instead.
+CollectibleItemTag/ShowcaseTag (soft-delete entities) are only ever hard-RemoveRange'd (104-105,213-214).
+No purge job exists for soft-deleted attachments (their storage files are never reclaimed).</div></dd>
+<dt>Affected behavior &amp; path</dt><dd>Restore/undelete is unreasonable: soft-deleted attachments from the item-delete path keep their storage files forever, while direct deletes destroy files immediately (and, per F-012, even when the DB write may fail).</dd>
+<dt>Root cause</dt><dd>No single delete policy per aggregate; irreversible file deletion not aligned with the soft-delete model.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Inconsistent recoverability and storage leakage; triggered by the two different delete paths for the same entity type.</dd>
+<dt>Violated invariant</dt><dd>One aggregate = one delete policy.</dd>
+<dt>Recommended correction</dt><dd>Choose soft delete for <code>Attachment</code> everywhere + a background purge of rows <code>Deleted</code> older than N days (which also deletes files after the DB commit).</dd>
+<dt>Verification method</dt><dd>Trace both delete paths in tests; verify recoverability and file lifecycle are consistent.</dd>
+<dt>Related</dt><dd>F-001, F-002, F-012. Occurrences: 2 conflicting attachment paths; 4+ hard-delete sites for soft-delete link entities.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-High" id="F-019" data-sev="High" data-cls="Confirmed defect" data-conf="High" data-cat="Contract / flow divergence" data-sub="SyncTool + Application" data-phase="4">
+<summary><span class="fid">F-019</span><span class="ftitle">SyncTool batch "Copy" uses the non-sync upload pipeline — attachments are created unlinked and invisible to the manifest</span><span class="badges"><span class="pill sev-High">High</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Contract / flow divergence · SyncTool batch copy + Application upload commands</dd>
+<dt>Evidence</dt><dd><div class="evidence">MainViewModel.cs:745 UploadFileAsync(path, showcaseHashId) vs CopySingleAsync:617-683 (sync initiate/complete with relative path + TargetItemId).
+CollectiblesApiClient.cs:251-285 UploadFileAsync → /api/attachments/initiate-upload + /complete-upload.
+CompleteDirectUploadCommand.cs:192-211 creates an Attachment only, NO CollectibleItemAttachment link.
+GetShowcaseManifestQuery.cs:104-118 joins through CollectibleItemAttachments → orphaned uploads are invisible.</div></dd>
+<dt>Affected behavior &amp; path</dt><dd>"Copy" on N selected rows uploads each file as an orphan attachment (no item link, folder path discarded, no ContentHash). The next Compare cannot see them, so rows stay <code>MovedCopied</code>; repeating re-uploads the bytes and accumulates orphaned blobs/rows.</dd>
+<dt>Root cause</dt><dd>The batch handler was not updated when the sync-upload path was introduced (the single-item path was).</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Batch copy silently produces orphaned attachments and never resolves; repeated attempts waste storage. Triggered by any batch-copy of "moved/copied" files.</dd>
+<dt>Violated invariant</dt><dd>The same user gesture must produce the same server state singly or in batch.</dd>
+<dt>Recommended correction</dt><dd>Make <code>CopySelectedAsync</code> use the initiate-sync/upload/complete sequence (extract the shared 3-step helper, already duplicated ×3).</dd>
+<dt>Verification method</dt><dd>Batch-copy a file, re-run Compare — row stays <code>MovedCopied</code> and the DB shows an unlinked attachment.</dd>
+<dt>Related</dt><dd>F-016, F-051. Occurrences: 1 command (duplicated flow ×3).</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-Medium" id="F-020" data-sev="Medium" data-cls="Probable risk" data-conf="High" data-cat="Concurrency" data-sub="Infrastructure/Persistence" data-phase="4">
+<summary><span class="fid">F-020</span><span class="ftitle">No optimistic-concurrency tokens on any user-editable entity</span><span class="badges"><span class="pill sev-Medium">Medium</span><span class="tag cls">Probable risk</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Concurrency · EF configurations</dd>
+<dt>Evidence</dt><dd>The only <code>IsConcurrencyToken</code> in the model is Identity's <code>ConcurrencyStamp</code>. No <code>rowversion</code> on <code>CollectibleItem</code>, <code>Showcase</code>, <code>ContentDefinition</code>, <code>Attachment</code>, <code>SiteConfiguration</code>, or <code>ZipUploadJob</code> (whose progress counters are written by Hangfire and read by the UI).</dd>
+<dt>Affected behavior &amp; path</dt><dd>Blazor Server is inherently multi-circuit; two editors of the same item/showcase silently last-write-wins, including whole-document overwrites of <code>ContentValue</code> JSON.</dd>
+<dt>Root cause</dt><dd>No concurrency token on mutable aggregates.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Silent lost updates under concurrent edits. Triggered by two users (or two circuits) editing one aggregate.</dd>
+<dt>Violated invariant</dt><dd>User-editable aggregates in a multi-user app need a concurrency token (EF guidance).</dd>
+<dt>Recommended correction</dt><dd>Add <code>rowversion</code> (<code>IsRowVersion()</code>) to the 5–6 user-edited aggregates; surface <code>DbUpdateConcurrencyException</code> as reload-and-retry.</dd>
+<dt>Verification method</dt><dd>Two-context update test expecting a concurrency exception.</dd>
+<dt>Related</dt><dd>F-034. Occurrences: all mutable aggregates.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-Medium" id="F-021" data-sev="Medium" data-cls="Probable risk" data-conf="High" data-cat="Uniqueness race" data-sub="Infrastructure/Persistence" data-phase="4">
+<summary><span class="fid">F-021</span><span class="ftitle">Get-or-create invariants enforced only by in-process locks/checks — duplicate rows under concurrency</span><span class="badges"><span class="pill sev-Medium">Medium</span><span class="tag cls">Probable risk</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Uniqueness race · services + commands (no DB unique constraints)</dd>
+<dt>Evidence</dt><dd><div class="evidence">ItemHierarchyService.cs:9,31-56 — folder dedupe via a static ConcurrentDictionary&lt;string,SemaphoreSlim&gt; keyed by full path; concurrent A/B and A/C both create parent A; dictionary grows unbounded (leak); useless across instances. No unique index on (ParentId, Name).
+CreateTagCommand.cs:27-33 — no duplicate check, no unique index on Tags.Name.
+SiteConfigurationRepository.cs:36-40 — ExistsAsync then CreateAsync; Key is nvarchar(max), no unique index.</div></dd>
+<dt>Affected behavior &amp; path</dt><dd>Concurrent operations create duplicate folders/tags/config keys; the hierarchy lock also leaks memory and does not span app instances.</dd>
+<dt>Root cause</dt><dd>Uniqueness enforced in application memory instead of by DB constraints.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Duplicate taxonomy/config rows under concurrent zip imports or multi-instance deployment.</dd>
+<dt>Violated invariant</dt><dd>Uniqueness that matters must be a DB constraint; app checks are only UX.</dd>
+<dt>Recommended correction</dt><dd>Unique indexes on <code>Tags(Name)</code> (after dedupe), <code>SiteConfigurations(Key)</code> (bounded), <code>ShowcaseShareTokens(Token)</code>, filtered unique <code>(Name, ParentId)</code> per showcase; catch <code>SqlException</code> 2601/2627 to convert races into fetch-existing.</dd>
+<dt>Verification method</dt><dd>Concurrency test hammering <code>ResolveOrCreateHierarchyAsync</code> with sibling paths.</dd>
+<dt>Related</dt><dd>F-010, F-022. Occurrences: 4 invariants.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-Medium" id="F-022" data-sev="Medium" data-cls="Confirmed defect" data-conf="High" data-cat="FK integrity / dual-write" data-sub="Domain + Application/QRCodes" data-phase="4">
+<summary><span class="fid">F-022</span><span class="ftitle"><code>CollectibleItem.QRCodeId</code> is a second, unconstrained source of truth; item deletion desyncs it</span><span class="badges"><span class="pill sev-Medium">Medium</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>FK integrity / dual-write · Domain model + QRCode commands</dd>
+<dt>Evidence</dt><dd><div class="evidence">Mapped relationship is QRCode.CollectibleItemId (unique filtered index, SetNull). CollectibleItem.QRCodeId (CollectibleItem.cs:26) is a plain scalar with no FK, no index (snapshot).
+AssignQRCodeCommand.cs:148-157 writes both sides in two separate SaveChanges (repository save then context save), no transaction.
+DeleteCollectibleItemCommand.cs nulls only item.QRCodeId, leaving the QRCode row Assigned and pointing at the soft-deleted item.</div></dd>
+<dt>Affected behavior &amp; path</dt><dd>After item delete, the QR code can never be reassigned; a failure between the two saves leaves the sides disagreeing; a dangling <code>QRCodeId</code> has no referential protection.</dd>
+<dt>Root cause</dt><dd>One relationship modeled twice; multi-write not atomic.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Orphaned/unreassignable QR codes and inconsistent state; triggered by assign-then-fail or item deletion.</dd>
+<dt>Violated invariant</dt><dd>One relationship = one FK; a single logical change is atomic.</dd>
+<dt>Recommended correction</dt><dd>Drop <code>CollectibleItem.QRCodeId</code> (derive from the inverse navigation) or map it as the FK; unassign the QRCode in the same save as item deletion.</dd>
+<dt>Verification method</dt><dd>Delete an item with a QR code; assert <code>QRCodes.CollectibleItemId</code> is null / <code>Available</code>.</dd>
+<dt>Related</dt><dd>F-040. Occurrences: 2 write paths, 1 delete path.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-Medium" id="F-023" data-sev="Medium" data-cls="Confirmed defect" data-conf="High" data-cat="Background work" data-sub="Infrastructure/Services" data-phase="4">
+<summary><span class="fid">F-023</span><span class="ftitle">Attachment-preview background job can starve permanently</span><span class="badges"><span class="pill sev-Medium">Medium</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Background work · AttachmentPreviewBackgroundService</dd>
+<dt>Evidence</dt><dd>AttachmentPreviewBackgroundService.cs:46-58 — takes the oldest N attachments with <code>PreviewPath == null</code>, then filters previewable types <em>client-side</em>. Non-previewable rows never get <code>PreviewPath</code> set.</dd>
+<dt>Affected behavior &amp; path</dt><dd>Once ≥N old non-previewable (or permanently failing) rows exist, every run selects the same rows, filters to zero, and newer previewable attachments are never processed.</dd>
+<dt>Root cause</dt><dd>Pagination applied before the type predicate; no failure/attempt marker.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Preview generation stalls indefinitely; the hash-indexing job shares the reprocess-forever trait for missing-file rows. Triggered by enough non-previewable uploads.</dd>
+<dt>Violated invariant</dt><dd>Batch workers must guarantee forward progress.</dd>
+<dt>Recommended correction</dt><dd>Push the content-type predicate into SQL and persist <code>PreviewAttemptedAt</code>/failure state (back off/park rows).</dd>
+<dt>Verification method</dt><dd>Seed N old non-previewable + 1 image; run job; image never gets a preview.</dd>
+<dt>Related</dt><dd>F-025, F-026. Occurrences: 1 job (+ indexing job reprocess-forever).</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-Medium" id="F-024" data-sev="Medium" data-cls="Confirmed defect" data-conf="High" data-cat="Async / lifetime" data-sub="Application/CollectibleItems" data-phase="4">
+<summary><span class="fid">F-024</span><span class="ftitle">Fire-and-forget <code>Task.Run</code> captures scoped services after the request scope disposes</span><span class="badges"><span class="pill sev-Medium">Medium</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Async patterns / DI lifetime · CollectibleItems update</dd>
+<dt>Evidence</dt><dd>UpdateCollectibleItemCommand.cs:220-231 — <code>_ = Task.Run(async () =&gt; await _previewService.GenerateCollagePreviewAsync(...))</code> after the handler returns; <code>_previewService</code> is scoped (AddScoped), so its scope/DbContext is disposed when the request ends; the exception is swallowed by an empty catch.</dd>
+<dt>Affected behavior &amp; path</dt><dd>Collage generation runs after the MediatR request completes, on a captured scoped service whose DbContext is disposed → intermittent <code>ObjectDisposedException</code>, silently missing collages.</dd>
+<dt>Root cause</dt><dd>Background work launched via <code>Task.Run</code> inside a handler instead of the existing Hangfire/background-queue infrastructure.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Non-deterministic failure of collage previews; empty catch hides it. Triggered when the scope disposes before the task runs.</dd>
+<dt>Violated invariant</dt><dd>Do not use a scoped service after its scope is disposed; do not swallow background exceptions.</dd>
+<dt>Recommended correction</dt><dd>Enqueue via <code>BackgroundJob.Enqueue</code> (behind an injected client) or a hosted queue with its own scope.</dd>
+<dt>Verification method</dt><dd>Concurrency test / log inspection for <code>ObjectDisposedException</code>.</dd>
+<dt>Related</dt><dd>F-035. Occurrences: 1 (ShowcaseMappingService's per-image <code>Task.Run</code> is awaited and scope-safe).</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-Medium" id="F-025" data-sev="Medium" data-cls="Confirmed defect" data-conf="High" data-cat="Background work / lifecycle" data-sub="Infrastructure/LinkCapture" data-phase="4">
+<summary><span class="fid">F-025</span><span class="ftitle">Link processor: overlapping runs, no cancellation/timeouts, stuck <code>Processing</code> rows, leaked pages</span><span class="badges"><span class="pill sev-Medium">Medium</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Background work / Playwright lifecycle · LinkProcessorService + ScopedLinkProcessorService</dd>
+<dt>Evidence</dt><dd><div class="evidence">LinkProcessorService.cs:24,28-45 — 1-minute Timer fires a fire-and-forget Task.Run with CancellationToken.None and NO overlap gate; StopAsync doesn't await in-flight work.
+ScopedLinkProcessorService.cs:59-114 — page never closed (64); no navigation/screenshot timeout; a crash between :59 (Processing) and finally leaves rows Processing forever (only Pending is queried); overlapped runs read the same Pending list → duplicate captures + two Chromium instances; SetEnvironmentVariable mutates process-global state each run.</div></dd>
+<dt>Affected behavior &amp; path</dt><dd>Reentrant timer + no recovery for the <code>Processing</code> state → duplicate captures, orphaned files, stuck rows, browser-page leaks, unbounded runtime.</dd>
+<dt>Root cause</dt><dd>Timer-based fire-and-forget without a non-reentrancy gate, cancellation, timeouts, or state recovery.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Resource leaks and duplicate/failed captures under load or on restart. Triggered whenever processing exceeds one minute or the process restarts mid-run.</dd>
+<dt>Violated invariant</dt><dd>Timer callbacks must be non-reentrant; every non-terminal state needs recovery; external browsers need bounded lifetimes; hosted services honor shutdown.</dd>
+<dt>Recommended correction</dt><dd>Replace the Timer with a <code>BackgroundService</code> loop or Hangfire recurring job with <code>DisallowConcurrentExecution</code>; pass the stopping token; close each page; set explicit timeouts; sweep stale <code>Processing</code> rows back to <code>Pending</code>.</dd>
+<dt>Verification method</dt><dd>Add many links, force &gt;1-min processing (duplicates); kill the app mid-run (stuck <code>Processing</code>).</dd>
+<dt>Related</dt><dd>F-005, F-023. Occurrences: 5 symptoms, one subsystem.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-Medium" id="F-026" data-sev="Medium" data-cls="Confirmed defect" data-conf="High" data-cat="Media / process lifecycle" data-sub="Infrastructure/FileProcessing" data-phase="4">
+<summary><span class="fid">F-026</span><span class="ftitle">FFmpeg snapshot has no timeout/cancellation and leaks a temp file per video</span><span class="badges"><span class="pill sev-Medium">Medium</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Media processing / process lifecycle · FileProcessingService</dd>
+<dt>Evidence</dt><dd>FileProcessingService.cs:131-139 — <code>Path.GetTempFileName()</code> creates a zero-byte file, then a different <code>.ext</code> path is used; the original <code>tmpXXXX.tmp</code> is never deleted (leaks per video). <code>FFMpeg.SnapshotAsync(...)</code> is called with no cancellation/timeout; a malformed video can hold an ffmpeg child process indefinitely. The whole video is buffered as <code>byte[]</code> first.</dd>
+<dt>Affected behavior &amp; path</dt><dd>Temp files accumulate; a hostile/malformed video can hang the ffmpeg process and is not killed on shutdown; large videos buffer fully into memory.</dd>
+<dt>Root cause</dt><dd>Unbounded external-process lifetime and un-cleaned temp artifacts.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Disk fill and hung processes under adversarial/large video uploads.</dd>
+<dt>Violated invariant</dt><dd>External processes need bounded lifetime; temp artifacts must be cleaned.</dd>
+<dt>Recommended correction</dt><dd><code>Path.Combine(Path.GetTempPath(), Guid + ext)</code>; wrap the snapshot in a timeout/cancellation (FFMpegCore <code>CancellableThrough</code>); stream video by path instead of buffering.</dd>
+<dt>Verification method</dt><dd>Generate video previews; inspect <code>%TEMP%</code> for orphaned <code>tmp*.tmp</code>.</dd>
+<dt>Related</dt><dd>F-027. Occurrences: 1 site (leak ×2 files/run).</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-Medium" id="F-027" data-sev="Medium" data-cls="Probable risk" data-conf="Medium" data-cat="Security / resource limits" data-sub="Infrastructure/Media+ZIP" data-phase="4">
+<summary><span class="fid">F-027</span><span class="ftitle">No decompression-bomb / resource limits on image decode and ZIP extraction</span><span class="badges"><span class="pill sev-Medium">Medium</span><span class="tag cls">Probable risk</span><span class="tag">Conf: Medium</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Security / resource limits · media processing + ZIP ingestion</dd>
+<dt>Evidence</dt><dd><div class="evidence">FileProcessingService.cs:85,435,523 — Image.LoadAsync/Load on user bytes with no dimension pre-check or DecoderOptions cap (a tiny PNG declaring 40k×40k allocates w×h×4).
+ZipUploadJobService.cs:239-243 — no cap on entry count / total uncompressed size / nesting depth; :543-560 copies ≤10MB entries to MemoryStream then Base64 (+33%). A 100k-entry ZIP creates 100k items with a SaveChanges + SignalR push per file.</div></dd>
+<dt>Affected behavior &amp; path</dt><dd>Adversarial images/archives can exhaust memory/DB. No ZIP-slip in extraction itself (<code>Path.GetFileName</code> strips directories) — but the pre-extraction upload filename is the F-006 traversal vector.</dd>
+<dt>Root cause</dt><dd>Missing input-size guards before decode/extract.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>DoS via memory/disk/DB exhaustion; triggered by a crafted image or zip bomb. (ImageSharp 3.x default allocator caps soften the worst case — verify the installed version's default.)</dd>
+<dt>Violated invariant</dt><dd>Untrusted media/archives must be processed under explicit resource limits.</dd>
+<dt>Recommended correction</dt><dd><code>Image.Identify</code> and reject absurd dimensions / configure bounded <code>DecoderOptions</code>; enforce max entries/total uncompressed bytes/depth before ZIP processing; drop the Base64 round-trip.</dd>
+<dt>Verification method</dt><dd>Process a large-dimension PNG and a 42.zip-style archive in an isolated env.</dd>
+<dt>Related</dt><dd>F-006, F-011. Occurrences: 3 decode sites + ZIP pipeline.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-Medium" id="F-028" data-sev="Medium" data-cls="Probable risk" data-conf="High" data-cat="Security / spoofing" data-sub="Web/Middleware" data-phase="4">
+<summary><span class="fid">F-028</span><span class="ftitle">Client-controlled <code>X-Forwarded-For</code> trusted with no proxy allowlist — IP-block bypass and log forgery</span><span class="badges"><span class="pill sev-Medium">Medium</span><span class="tag cls">Probable risk</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Security (spoofing / access control) · Web middleware</dd>
+<dt>Evidence</dt><dd>SecurityScanBlockingMiddleware.cs:96-126 (reads <code>CF-Connecting-IP</code>, then <code>X-Forwarded-For</code> first token, then <code>X-Real-IP</code>); same manual header trust in ExceptionHandlingMiddleware.cs:78-97 and RequestLoggingMiddleware.cs:155-174. No <code>UseForwardedHeaders</code> with <code>KnownProxies</code>/<code>KnownNetworks</code> anywhere; <code>SecurityScanBlocking:UseForwardedHeaders=true</code> (appsettings.json:167).</dd>
+<dt>Affected behavior &amp; path</dt><dd>The scan-blocker keys its per-IP throttle on the parsed value; without a known-proxy restriction, a forged header makes each request appear to come from a fresh IP → the block counter never accumulates. The same forged value is written as the client IP in audit logs.</dd>
+<dt>Root cause</dt><dd>Trusting forwarded headers without validating the immediate peer is a trusted proxy.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Defeats the abuse blocklist and poisons IP attribution; blast radius limited to abuse-mitigation/forensics (not primary authZ).</dd>
+<dt>Violated invariant</dt><dd>Restrict forwarded-header trust to known proxies (ASP.NET Core guidance).</dd>
+<dt>Recommended correction</dt><dd>Register <code>ForwardedHeadersMiddleware</code> with <code>KnownProxies</code>/<code>KnownNetworks</code> (Cloudflare/IIS ranges), derive client IP from <code>RemoteIpAddress</code> after that, and stop re-parsing raw headers in three places.</dd>
+<dt>Verification method</dt><dd>Send forged <code>X-Forwarded-For</code> values and confirm the block counter no longer accumulates today; confirm the fix ignores untrusted peers.</dd>
+<dt>Related</dt><dd>—. Occurrences: 3 middleware sites.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-Medium" id="F-029" data-sev="Medium" data-cls="Probable risk" data-conf="Medium" data-cat="Crypto key management" data-sub="Web/Startup" data-phase="4">
+<summary><span class="fid">F-029</span><span class="ftitle">No Data Protection key persistence configured (Blazor Server on IIS)</span><span class="badges"><span class="pill sev-Medium">Medium</span><span class="tag cls">Probable risk</span><span class="tag">Conf: Medium</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Availability / crypto key management · Web startup DI</dd>
+<dt>Evidence</dt><dd>No <code>AddDataProtection().PersistKeysTo*</code>/<code>SetApplicationName</code> anywhere (grep). Deployment is IIS <code>hostingModel="InProcess"</code> (web.config:27).</dd>
+<dt>Affected behavior &amp; path</dt><dd>The DP key ring protects Blazor component state, antiforgery tokens, and Identity auth cookies. With defaults under IIS in-process, keys land in the app-pool profile; on app-pool identity change, profile unload, or multi-instance, the ring is lost/unshared → forced logouts and antiforgery failures, and no path to scale-out.</dd>
+<dt>Root cause</dt><dd>Relying on environment-default key storage for a stateful auth surface.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Mass forced logouts / antiforgery failures on app-pool recycle with profile unload, server migration, or a second node.</dd>
+<dt>Violated invariant</dt><dd>Stateful auth needs durable, shared, named key persistence.</dd>
+<dt>Recommended correction</dt><dd><code>AddDataProtection().PersistKeysToFileSystem(shared path)</code> (or DB/Key Vault) with a fixed <code>SetApplicationName</code>; ensure profile loading if using profile storage.</dd>
+<dt>Verification method</dt><dd>Recycle the app pool and confirm existing auth cookies survive.</dd>
+<dt>Related</dt><dd>F-033. Occurrences: whole app.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-Medium" id="F-030" data-sev="Medium" data-cls="Confirmed defect" data-conf="High" data-cat="Schema integrity" data-sub="Infrastructure/Persistence" data-phase="3">
+<summary><span class="fid">F-030</span><span class="ftitle">Taxonomy configuration classes are swapped — physical tables are inverted</span><span class="badges"><span class="pill sev-Medium">Medium</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Schema integrity · EF configurations</dd>
+<dt>Evidence</dt><dd><div class="evidence">Verified directly:
+  file TaxonomyTermConfiguration.cs  → class TaxonomyVocabularyConfiguration : IEntityTypeConfiguration&lt;TaxonomyVocabulary&gt;, ToTable("TaxonomyTerms")
+  file TaxonomyVocabularyConfiguration.cs → class TaxonomyTermConfiguration : IEntityTypeConfiguration&lt;TaxonomyTerm&gt;, ToTable("TaxonomyVocabularies")
+Result: TaxonomyVocabulary entity → table "TaxonomyTerms"; TaxonomyTerm entity → table "TaxonomyVocabularies".</div></dd>
+<dt>Affected behavior &amp; path</dt><dd>EF is internally consistent so the app functions, but the physical schema is semantically inverted; any raw SQL, reporting, ETL, or DBA operation targets the wrong data.</dd>
+<dt>Root cause</dt><dd>Copy/paste swap when the two configuration classes were created; the class-in-wrong-file mismatch hid it.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Correct at the ORM layer; wrong for any out-of-band data access. Triggered by direct DB work.</dd>
+<dt>Violated invariant</dt><dd>Table names must denote their contents (least astonishment for the physical schema).</dd>
+<dt>Recommended correction</dt><dd>Rename via a migration (through a temp name in both directions) and place each class in its correctly named file.</dd>
+<dt>Verification method</dt><dd><code>SELECT TOP 5 *</code> against each table; confirm <code>VocabularyId</code>/<code>ParentId</code> live in <code>TaxonomyVocabularies</code>.</dd>
+<dt>Related</dt><dd>—. Occurrences: 2 tables.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-Medium" id="F-031" data-sev="Medium" data-cls="Confirmed defect" data-conf="High" data-cat="Correctness / robustness" data-sub="Application + Web" data-phase="4">
+<summary><span class="fid">F-031</span><span class="ftitle"><code>IHashIdsService.Decode</code> contract mismatch — throws, but callers guard <code>== 0</code></span><span class="badges"><span class="pill sev-Medium">Medium</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Correctness / robustness · HashIdsService + endpoints</dd>
+<dt>Evidence</dt><dd>Implementation <code>HashIdsService.cs:51-65</code> throws <code>ArgumentException</code> on an undecodable/empty hash; every endpoint instead guards <code>if (id == 0)</code> (AttachmentEndpoints.cs:135, SyncEndpoints.cs:77, CollectibleItemEndpoints.cs:34, PublicEndpoints.cs:160 …). <code>GetAttachmentContext</code> (AttachmentEndpoints.cs:105-118) has no try/catch, so a malformed hash throws → unhandled 500 instead of 404.</dd>
+<dt>Affected behavior &amp; path</dt><dd>The <code>== 0</code> checks are dead code; malformed hashes surface as 500s where no try/catch exists, and the interface documents no contract, so caller populations diverge.</dd>
+<dt>Root cause</dt><dd>Undocumented interface contract; two behaviors assumed by different callers.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Wrong status codes (500 vs 404) for malformed input; no security impact. Triggered by any malformed hash on the un-guarded endpoint.</dd>
+<dt>Violated invariant</dt><dd>A published interface must have a single documented failure contract.</dd>
+<dt>Recommended correction</dt><dd>Add <code>TryDecode(out long)</code>, document it, and map failure to <code>NotFound</code> uniformly.</dd>
+<dt>Verification method</dt><dd>Request any hash endpoint with <code>"!!!"</code>; expect 404 (currently 500 on the un-guarded route).</dd>
+<dt>Related</dt><dd>F-032. Occurrences: ~9 call sites.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-Medium" id="F-032" data-sev="Medium" data-cls="Confirmed defect" data-conf="High" data-cat="Security / repo rule" data-sub="Application/DTOs + Sync API" data-phase="4">
+<summary><span class="fid">F-032</span><span class="ftitle">Raw database IDs exposed at public and HTTP boundaries (HashIds rule violated)</span><span class="badges"><span class="pill sev-Medium">Medium</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Security / repository rule · DTOs and Sync API</dd>
+<dt>Evidence</dt><dd>Nearly every DTO exposes <code>long Id</code>. Worst cases: <code>PublicShowcaseDto</code>/<code>PublicCollectibleItemDto</code>/<code>PublicAttachmentDto</code> serve <em>anonymous</em> share-link visitors raw IDs; <code>CompleteSyncUploadCommand.TargetItemId</code> accepts a raw <code>long</code> from the HTTP body; <code>InitiateDirectUpload</code> accepts <code>request.ShowcaseId</code> as a raw long. The team knows the rule — <code>GetAttachmentContextQuery</code> encodes correctly.</dd>
+<dt>Affected behavior &amp; path</dt><dd>Sequential database IDs are exposed to anonymous and API callers, enabling enumeration and defeating the HashIds obfuscation the routes otherwise use.</dd>
+<dt>Root cause</dt><dd>DTOs expose the entity PK instead of a hash at the boundary.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Enumeration/information leakage, most acute on the anonymous public routes; low direct exploit but broad rule violation.</dd>
+<dt>Violated invariant</dt><dd>Repo rule: never expose database IDs — HashIds at all boundaries.</dd>
+<dt>Recommended correction</dt><dd>Hash-encode IDs in public/HTTP DTOs first (Public*, Sync API), then internal DTOs opportunistically.</dd>
+<dt>Verification method</dt><dd>Contract review of <code>PublicEndpoints</code>/<code>SyncEndpoints</code> responses for raw longs.</dd>
+<dt>Related</dt><dd>F-008, F-031. Occurrences: ~25 DTO types; 3 HTTP-boundary cases confirmed.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-Medium" id="F-033" data-sev="Medium" data-cls="Probable risk" data-conf="Medium" data-cat="Security / CSRF" data-sub="Web/Endpoints" data-phase="4">
+<summary><span class="fid">F-033</span><span class="ftitle">State-changing POST APIs disable antiforgery and accept cookie auth — CSRF rests on implicit cookie SameSite</span><span class="badges"><span class="pill sev-Medium">Medium</span><span class="tag cls">Probable risk</span><span class="tag">Conf: Medium</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Security (CSRF) · Web endpoints + Identity cookie config</dd>
+<dt>Evidence</dt><dd><code>.DisableAntiforgery()</code> + <code>RequireAuthorization("ApiKeyOrCookie")</code> on <code>/api/attachments/{hash}/delete</code>, initiate/complete-upload, <code>/api/collectible-items/{hash}/delete</code>, and all <code>/api/sync/*</code> POSTs. The <code>ApiKeyOrCookie</code> policy accepts the Identity cookie scheme, so a browser session authenticates these POSTs with no antiforgery token. Cookies are never explicitly configured (<code>AddIdentityCookies()</code> only) — protection rests on the framework default <code>SameSite=Lax</code>.</dd>
+<dt>Affected behavior &amp; path</dt><dd>A cross-site page could auto-POST to a destructive route; the browser attaches the Identity cookie; antiforgery is disabled. Default Lax happens to block cross-site POST, but this is implicit and would break silently if cookie policy were ever loosened to <code>None</code>.</dd>
+<dt>Root cause</dt><dd>Antiforgery disabled for API-key callers, but the same routes also accept ambient cookie auth; the CSRF control is delegated to an unconfigured default.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Low today (Lax default); becomes live CSRF sinks (destructive deletes/uploads) if cookie <code>SameSite</code> is ever changed.</dd>
+<dt>Violated invariant</dt><dd>Don't rely on implicit defaults for a security control.</dd>
+<dt>Recommended correction</dt><dd>Split policies: require antiforgery (or restrict to the API-key scheme only) for state-changing cookie-reachable routes; pin cookie <code>SameSite</code>/<code>SecurePolicy</code> explicitly via <code>ConfigureApplicationCookie</code>.</dd>
+<dt>Verification method</dt><dd>Confirm current cookie <code>SameSite</code>; attempt a cross-site POST in a test env.</dd>
+<dt>Related</dt><dd>F-029. Occurrences: 8 endpoints.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-Medium" id="F-034" data-sev="Medium" data-cls="Confirmed defect" data-conf="High" data-cat="DbContext concurrency" data-sub="Web/Blazor" data-phase="4">
+<summary><span class="fid">F-034</span><span class="ftitle">Blazor components use the circuit-scoped <code>DbContext</code> directly, incl. a timer that races user DB work</span><span class="badges"><span class="pill sev-Medium">Medium</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>DbContext concurrency / CQRS bypass · Blazor admin components</dd>
+<dt>Evidence</dt><dd>MigrateAttachments.razor:16 injects circuit-scoped <code>IApplicationDbContext</code> and drives it from user clicks <em>and</em> a <code>System.Timers.Timer</code> (30s refresh + 1s progress, :885-887,938) whose <code>Elapsed</code> runs on a thread-pool thread. Diagnostics.razor:9 injects concrete <code>ApplicationDbContext</code> and performs <code>RemoveRange</code> deletes directly from the page.</dd>
+<dt>Affected behavior &amp; path</dt><dd>If a refresh tick overlaps a running migration batch on the same context, EF throws "A second operation was started on this context instance" → circuit crash. Diagnostics performs unauthorized-at-handler-level deletes from the UI.</dd>
+<dt>Root cause</dt><dd>Components talk to EF directly (bypassing MediatR/factory) and share one scoped context across concurrent operations.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Runtime <code>InvalidOperationException</code>/circuit crash under timer overlap; admin-only but destructive. <code>AttachmentUpload</code> uses the factory and is concurrency-safe (CQRS-bypass concern only).</dd>
+<dt>Violated invariant</dt><dd>Never share a scoped <code>DbContext</code> across concurrent Blazor operations; route data access through CQRS.</dd>
+<dt>Recommended correction</dt><dd>Convert these pages to <code>IMediator</code> or per-operation <code>IApplicationDbContextFactory</code> contexts; give timer ticks their own context.</dd>
+<dt>Verification method</dt><dd>Trigger the 30s refresh during a migration batch; observe the concurrency exception.</dd>
+<dt>Related</dt><dd>F-007, F-020. Occurrences: 3 components (MigrateAttachments is the unsafe one).</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-Medium" id="F-035" data-sev="Medium" data-cls="Confirmed defect" data-conf="High" data-cat="Async / lifecycle" data-sub="Web/Blazor" data-phase="4">
+<summary><span class="fid">F-035</span><span class="ftitle">Blazor <code>async void</code> event handlers and fire-and-forget task discards swallow exceptions and race UI</span><span class="badges"><span class="pill sev-Medium">Medium</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Lifecycle / async · list &amp; filter pages</dd>
+<dt>Evidence</dt><dd><code>private async void</code> handlers bound to events: AdminShowcases.razor:216,227,239; PublicShowcases.razor:263,276,290; ShowcaseDetail.razor:412,513; UsersList.razor:399. Fire-and-forget <code>_ = LoadUsers()</code> at UsersList.razor:390,396,405; <code>Task.Run</code> mutating component state in ShowcaseDetail.razor:368-384 and CollectibleItemDetail.razor:943-952. (14 <code>async void</code> total across components incl. SyncTool handlers.)</dd>
+<dt>Affected behavior &amp; path</dt><dd>An exception after the first <code>await</code> (e.g. a logging/DB hiccup) escapes as an unobserved circuit exception rather than the ErrorBoundary; a discarded task may not trigger a final re-render; <code>Task.Run</code> touches circuit-owned state off-thread without <code>InvokeAsync</code>.</dd>
+<dt>Root cause</dt><dd>Event handlers declared <code>async void</code> and tasks discarded to keep handlers synchronous.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Circuit teardown / stale UI / data races on interactive admin/list pages; triggered by an error during search/sort/clear/background work.</dd>
+<dt>Violated invariant</dt><dd>Blazor event handlers must return <code>Task</code>; component state is mutated only on the circuit (via <code>InvokeAsync</code>).</dd>
+<dt>Recommended correction</dt><dd>Change signatures to <code>async Task</code> and await; offload true background work to a hosted service; wrap timer <code>Elapsed</code> bodies in try/catch.</dd>
+<dt>Verification method</dt><dd>Grep <code>async void</code> under Components; confirm each is an event binding; force a logging failure and observe error routing.</dd>
+<dt>Related</dt><dd>F-024. Occurrences: 9 handlers + ~5 discards.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-Medium" id="F-036" data-sev="Medium" data-cls="Probable risk" data-conf="High" data-cat="Observability / performance" data-sub="Infrastructure/Logging" data-phase="4">
+<summary><span class="fid">F-036</span><span class="ftitle">Serilog database sink writes synchronously per event and swallows all failures</span><span class="badges"><span class="pill sev-Medium">Medium</span><span class="tag cls">Probable risk</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Observability / performance · DatabaseLoggerSink</dd>
+<dt>Evidence</dt><dd>DatabaseLoggerSink.cs:26-71 — <code>Emit</code> (inline on the logging thread) creates a DI scope + <code>ApplicationDbContext</code> and does a synchronous <code>SaveChanges</code> per Information+ event; <code>catch {}</code> (38-46) hides persistence failures and flips a flag causing an extra probe query per subsequent event during outages.</dd>
+<dt>Affected behavior &amp; path</dt><dd>High-volume logging blocks request threads (one DbContext + save per event); DB-logging failures are invisible; an outage triggers repeated probes.</dd>
+<dt>Root cause</dt><dd>A non-batched, synchronous DB sink with a silent catch.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Request-thread stalls under log spikes; lost log-failure signal. Triggered by Information-level throughput.</dd>
+<dt>Violated invariant</dt><dd>Serilog DB sinks must batch asynchronously (<code>IBatchedLogEventSink</code>/periodic batching).</dd>
+<dt>Recommended correction</dt><dd>Wrap in a periodic-batching / channel-based background writer with a bounded queue; log sink failures.</dd>
+<dt>Verification method</dt><dd>Load-test request throughput with Information logging enabled.</dd>
+<dt>Related</dt><dd>F-037. Occurrences: 1 sink.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-Medium" id="F-037" data-sev="Medium" data-cls="Confirmed defect" data-conf="High" data-cat="Indexing / performance" data-sub="Infrastructure/Persistence" data-phase="4">
+<summary><span class="fid">F-037</span><span class="ftitle">Log/audit tables are unindexed with unbounded columns (<code>RequestLogs</code>, <code>PasswordHistories</code>)</span><span class="badges"><span class="pill sev-Medium">Medium</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Indexing / throughput · configurations (missing) + log services</dd>
+<dt>Evidence</dt><dd><code>RequestLogs</code> — zero indexes, every string <code>nvarchar(max)</code> (even <code>Method</code>, <code>Scheme</code>, <code>IPAddress</code>); queried by <code>Timestamp</code>/<code>UserId</code>/<code>Path</code>/<code>StatusCode</code> and retention-deleted by <code>Timestamp</code> (RequestLogService.cs:94-126,184). <code>PasswordHistories</code> — <code>UserId</code> <code>nvarchar(max)</code>, no index, no FK; scanned on every password change.</dd>
+<dt>Affected behavior &amp; path</dt><dd>High-volume request logging degrades to scans; retention deletes escalate to table scans; password-change verification scans.</dd>
+<dt>Root cause</dt><dd>No entity configuration (lengths/indexes) for hot append/query tables.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Query/retention performance degrades as log volume grows.</dd>
+<dt>Violated invariant</dt><dd>Hot tables need bounded columns + indexes matching their query/retention predicates.</dd>
+<dt>Recommended correction</dt><dd>Add configurations (lengths + indexes on <code>Timestamp</code>, <code>UserId</code>); add FK/index for <code>PasswordHistories.UserId</code>.</dd>
+<dt>Verification method</dt><dd>Execution plans for the request-log query and retention delete.</dd>
+<dt>Related</dt><dd>F-036. Occurrences: 2 tables.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-Medium" id="F-038" data-sev="Medium" data-cls="Probable risk" data-conf="High" data-cat="Culture / correctness" data-sub="Domain + Infrastructure" data-phase="4">
+<summary><span class="fid">F-038</span><span class="ftitle">Culture-sensitive parsing/formatting of stored values and provider/name comparisons</span><span class="badges"><span class="pill sev-Medium">Medium</span><span class="tag cls">Probable risk</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Modern C# / culture correctness · Domain value objects + Infrastructure</dd>
+<dt>Evidence</dt><dd><code>FieldValue.AsDecimal</code>/<code>AsDateTime</code> use culture-current <code>TryParse</code>; helpers duplicated in <code>GetItemsByTemplateQuery</code>. Values persisted as invariant JSON parse differently on <code>de-DE</code>-style cultures ("1.5" vs "1,5"). Name uniqueness uses <code>ToLower(CurrentCulture)</code>/bare <code>ToLower()</code> (Turkish-İ); <code>EmailServiceFactory.cs:22</code>/<code>EmailConfigurationService.cs:24</code> use <code>ToUpper/ToLower(CurrentCulture)</code> for provider selection (under tr-TR "AzureCommunication" mismatches → silent SMTP fallback). CA1305/CA1310 warnings corroborate (×34+×34 in the analyzer tally).</dd>
+<dt>Affected behavior &amp; path</dt><dd>On a non-invariant culture, stored decimals/dates parse wrong (sorting/inflation math), and email-provider selection silently falls back.</dd>
+<dt>Root cause</dt><dd>Culture-current parsing/formatting/case-folding on storage-format and configuration values.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Data misinterpretation and provider mis-selection on servers with a non-invariant culture.</dd>
+<dt>Violated invariant</dt><dd>Use <code>InvariantCulture</code> for storage-format parsing; <code>OrdinalIgnoreCase</code> for identifiers/config.</dd>
+<dt>Recommended correction</dt><dd>Switch all storage-format parsing/formatting to invariant; name/provider comparisons to ordinal.</dd>
+<dt>Verification method</dt><dd>Run parsing/provider tests under <code>de-DE</code>/<code>tr-TR</code> cultures.</dd>
+<dt>Related</dt><dd>F-013. Occurrences: ~8 sites (one root cause, duplicated).</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-Medium" id="F-039" data-sev="Medium" data-cls="Probable risk" data-conf="High" data-cat="HTTP / DI lifetime" data-sub="Infrastructure/Email+Storage" data-phase="4">
+<summary><span class="fid">F-039</span><span class="ftitle">SendGrid client and Azure Blob client re-created per DI scope (socket churn; blocking ctor call)</span><span class="badges"><span class="pill sev-Medium">Medium</span><span class="tag cls">Probable risk</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>HTTP client / DI lifetime · SendGrid + Azure Blob providers</dd>
+<dt>Evidence</dt><dd>SendGridEmailService.cs:27 — <code>new SendGridClient(apiKey)</code> in a scoped service allocates its own <code>HttpClient</code> per instance. FileStorageFactory (singleton) creates a new <code>AzureBlobFileStorage</code> per scope; AzureBlobFileStorage.cs:26-32 performs a blocking <code>CreateIfNotExists</code> network call in the constructor per scope.</dd>
+<dt>Affected behavior &amp; path</dt><dd>Under load each request scope creates a new client → TIME_WAIT socket accumulation and lost DNS rotation; the Azure provider also does a synchronous network round-trip per request that resolves <code>IFileStorage</code>.</dd>
+<dt>Root cause</dt><dd>Stateless thread-safe clients treated as scoped; eager existence check in the constructor.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Socket exhaustion / latency under load (provider-gated to SendGrid / Azure). Triggered per request that touches email/storage.</dd>
+<dt>Violated invariant</dt><dd>Reuse <code>HttpClient</code>/SDK clients via factory or singleton; do container setup once at startup.</dd>
+<dt>Recommended correction</dt><dd><code>AddHttpClient&lt;SendGridEmailService&gt;()</code> with the <code>SendGridClient(httpClient,options)</code> ctor; cache one storage provider instance in the factory (or register singleton) and create the container once at startup.</dd>
+<dt>Verification method</dt><dd><code>netstat</code>/ctor-invocation logging under load.</dd>
+<dt>Related</dt><dd>F-013. Occurrences: 2 providers.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-Medium" id="F-040" data-sev="Medium" data-cls="Probable risk" data-conf="High" data-cat="Transactions / audit" data-sub="Infrastructure + Application" data-phase="4">
+<summary><span class="fid">F-040</span><span class="ftitle">Audit/event logging is non-atomic with the mutations it describes; no transactions anywhere</span><span class="badges"><span class="pill sev-Medium">Medium</span><span class="tag cls">Probable risk</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Transactions / audit correctness · EventLogService + multi-save handlers</dd>
+<dt>Evidence</dt><dd><code>EventLogService.LogEventAsync</code> opens its own context and saves immediately. <code>DeleteCollectibleItemCommand</code> logs the delete <em>before</em> <code>SaveChangesAsync</code> — if the save fails, a Delete event exists for an item that was not deleted. Solution-wide there are <strong>no</strong> transactions (<code>BeginTransaction</code>/<code>TransactionScope</code>/<code>CreateExecutionStrategy</code>: 0 matches); multi-save flows (QR assign, zip incremental saves) are individually retried by <code>EnableRetryOnFailure</code> but not atomic as a unit.</dd>
+<dt>Affected behavior &amp; path</dt><dd>Audit rows can describe changes that never committed; multi-aggregate operations can partially persist.</dd>
+<dt>Root cause</dt><dd>Logging placed before save; no explicit transaction around multi-save operations.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Inaccurate audit trail and partial writes on failure. Triggered by a failed save after a pre-save log, or an interrupted multi-save.</dd>
+<dt>Violated invariant</dt><dd>Log after a committed save; genuinely multi-aggregate writes are atomic.</dd>
+<dt>Recommended correction</dt><dd>Log after successful save (most handlers already do); wrap true multi-aggregate writes in <code>CreateExecutionStrategy().ExecuteAsync(...)</code> + explicit transaction (required when combining user transactions with the retrying strategy — verify against EF Core 10 docs; behavior unchanged since 6.x).</dd>
+<dt>Verification method</dt><dd>Force a save failure after a pre-save log; assert no audit row is written.</dd>
+<dt>Related</dt><dd>F-022. Occurrences: 1 confirmed pre-save log; ~3 multi-save flows.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-Medium" id="F-041" data-sev="Medium" data-cls="Probable risk" data-conf="Medium" data-cat="Correctness" data-sub="Application/Showcases" data-phase="4">
+<summary><span class="fid">F-041</span><span class="ftitle">Deleting a showcase soft-deletes items that are shared with other showcases</span><span class="badges"><span class="pill sev-Medium">Medium</span><span class="tag cls">Probable risk</span><span class="tag">Conf: Medium</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Correctness · Showcase deletion</dd>
+<dt>Evidence</dt><dd><code>DeleteShowcaseCommand</code> soft-deletes every <code>showcase.CollectibleItems</code> unconditionally, though item↔showcase is many-to-many (<code>CollectibleItem.Showcases</code>); <code>DeleteCollectibleItemCommand</code> instead carefully detaches from showcases.</dd>
+<dt>Affected behavior &amp; path</dt><dd>An item legitimately in two showcases disappears from both when either is deleted.</dd>
+<dt>Root cause</dt><dd>Deletion treats the many-to-many relationship as a parent-child ownership.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Unexpected content loss for multi-showcase items. Medium confidence that multi-showcase membership is a supported real-world state (the model and <code>.Showcases.Any(...)</code> checks assume it).</dd>
+<dt>Violated invariant</dt><dd>Deleting one container must not remove content still referenced by another.</dd>
+<dt>Recommended correction</dt><dd>Only soft-delete items whose showcase membership becomes empty; otherwise just remove the association.</dd>
+<dt>Verification method</dt><dd>Test an item in 2 showcases; delete one; the item should survive.</dd>
+<dt>Related</dt><dd>F-018. Occurrences: 1.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-Medium" id="F-042" data-sev="Medium" data-cls="Confirmed defect" data-conf="High" data-cat="MVVM / concurrency" data-sub="SyncTool" data-phase="4">
+<summary><span class="fid">F-042</span><span class="ftitle">SyncTool mutation commands lack CanExecute guards — concurrent operations corrupt shared state</span><span class="badges"><span class="pill sev-Medium">Medium</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>MVVM / concurrency · SyncTool MainViewModel</dd>
+<dt>Evidence</dt><dd>MainViewModel.cs — only <code>CompareCommand</code> has a <code>CanExecute</code> guard (157); the other 10 commands (239,341,405,474,518,560,616,685,719,764) have none. Shared <code>_cts</code> field (19); <code>CollectiblesApiClient.Configure</code> mutates <code>HttpClient.DefaultRequestHeaders</code> (not thread-safe) while another operation has requests in flight.</dd>
+<dt>Affected behavior &amp; path</dt><dd>While a Compare runs, all action buttons stay enabled; starting Delete overwrites <code>_cts</code>, the first op's <code>finally</code> clears <code>IsOperationRunning</code> while the second runs, and default request headers mutate mid-flight → interleaved/corrupt state.</dd>
+<dt>Root cause</dt><dd>Per-command guards omitted; mutable shared CTS and default headers.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>State corruption / undefined behavior on overlapping operations in the desktop tool. Triggered by clicking a second action mid-operation.</dd>
+<dt>Violated invariant</dt><dd>Commands must be disabled while a mutually exclusive operation runs; <code>HttpHeaders</code> thread-safety.</dd>
+<dt>Recommended correction</dt><dd>Add <code>CanExecute = !IsOperationRunning</code> (+ item predicates) to all commands with <code>[NotifyCanExecuteChangedFor]</code>; set headers per-request via <code>HttpRequestMessage</code>.</dd>
+<dt>Verification method</dt><dd>Start Compare on a large folder, click Delete — buttons remain enabled today.</dd>
+<dt>Related</dt><dd>F-017. Occurrences: 10 commands.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-Low" id="F-043" data-sev="Low" data-cls="Confirmed defect" data-conf="High" data-cat="Docs drift" data-sub="Documentation" data-phase="1">
+<summary><span class="fid">F-043</span><span class="ftitle">Documentation describes a <code>Collectibles.Kernel</code> project that no longer exists</span><span class="badges"><span class="pill sev-Low">Low</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Docs drift · README, DEVELOPER_README, CONTRIBUTING</dd>
+<dt>Evidence</dt><dd>README.md:31,41 ("five layers", "Collectibles.Kernel/"), DEVELOPER_README.md:8, CONTRIBUTING.md:61,65,74,76. Reality: the solution has Domain/Application/Infrastructure/Web/SyncTool only; <code>ApplicationConstants</code> lives in Domain; an empty untracked <code>Source/Collectibles.Kernel/</code> husk remains; <code>REFACTORING_PLAN.md:9</code> records Kernel's removal.</dd>
+<dt>Affected behavior &amp; path</dt><dd>New contributors look for a project and constants location that don't exist; the architecture diagram misstates the layer count and omits SyncTool.</dd>
+<dt>Root cause</dt><dd>Kernel removal never propagated to three docs.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Onboarding confusion. Low.</dd>
+<dt>Violated invariant</dt><dd>Docs must match the solution.</dd>
+<dt>Recommended correction</dt><dd>Purge Kernel from all three docs; fix "five layers"; point constants/HashIds references to Domain; add SyncTool to the diagram; delete the husk directory.</dd>
+<dt>Verification method</dt><dd>Grep <code>Kernel</code> across Docs/README after edit.</dd>
+<dt>Related</dt><dd>F-046, F-047. Occurrences: 6 across 3 files.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-Low" id="F-044" data-sev="Low" data-cls="Confirmed defect" data-conf="High" data-cat="Docs / config drift" data-sub="Documentation/Configuration" data-phase="1">
+<summary><span class="fid">F-044</span><span class="ftitle">Configuration docs describe a phantom <code>ApiKey</code> section; real keys undocumented; onboarding steps fail</span><span class="badges"><span class="pill sev-Low">Low</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Docs / config drift · Configuration.md, CONTRIBUTING.md, DEVELOPER_README.md</dd>
+<dt>Evidence</dt><dd>Configuration.md:461-477 documents <code>ApiKey:Key</code>/<code>ApiKey:UserEmail</code> that no code reads (API keys are per-user, hash-stored, validated by ApiKeyAuthenticationHandler). Real <code>SyncTool</code>, <code>Playwright:BrowsersPath</code>, and <code>PlaywrightSeed:*</code> keys are undocumented. CONTRIBUTING.md:27-28 references a non-existent <code>appsettings.Development.json.example</code>; :118-123 names a non-existent <code>Test/Collectibles.PlaywrightTests</code> dotnet project (actual: Node suite at <code>Test/Playwright</code>). DEVELOPER_README wrong storage default, section shape (<code>StorageSettings:Provider:0</code> vs <code>Storage</code>/string), and type names (<code>HashIdConfiguration</code>, <code>CollectiblesDbContext</code> — actual <code>HashIdsService</code>, <code>ApplicationDbContext</code>). The E2E env's required <code>appsettings.Playwright.json</code> is git-ignored with no committed template.</dd>
+<dt>Affected behavior &amp; path</dt><dd>An operator setting the phantom keys sees no effect; contributors following setup/E2E steps hit missing files/projects; the "self-contained" E2E suite cannot start on a fresh clone.</dd>
+<dt>Root cause</dt><dd>Configuration docs drifted from code and templates; a required environment file is ignored without a template or documentation.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Setup friction and a misrepresented security model. Low.</dd>
+<dt>Violated invariant</dt><dd>Documented config/commands must be reproducible; security model must be stated accurately.</dd>
+<dt>Recommended correction</dt><dd>Delete the phantom <code>ApiKey</code> section (cross-link SyncTool.md); document the real keys; fix the setup/E2E steps; commit a sanitized <code>appsettings.Playwright.json</code> template and document <code>PlaywrightSeed:*</code>.</dd>
+<dt>Verification method</dt><dd>Dry-run the documented commands on a fresh clone.</dd>
+<dt>Related</dt><dd>F-043, F-048. Occurrences: multiple doc sections + 3 undocumented keys.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-Low" id="F-045" data-sev="Low" data-cls="Confirmed defect" data-conf="High" data-cat="Analyzer config" data-sub="Build" data-phase="1">
+<summary><span class="fid">F-045</span><span class="ftitle">Analyzer configuration conflict: <code>.editorconfig</code> and <code>stylecop.json</code> demand opposite using-directive ordering</span><span class="badges"><span class="pill sev-Low">Low</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Analyzer configuration · build</dd>
+<dt>Evidence</dt><dd><code>.editorconfig:126-127</code> — <code>dotnet_sort_system_directives_first = false:error</code>, <code>dotnet_separate_import_directive_groups = false:error</code>. <code>stylecop.json:22-23</code> — <code>systemUsingDirectivesFirst: true</code>, <code>blankLinesBetweenUsingGroups: "require"</code>. Directly contradictory. Also <code>.editorconfig:131</code> makes <code>SA1005</code> the solution's only style <em>error</em> while every other SA rule is warning/none and <code>TreatWarningsAsErrors=false</code>. Confirms the <code>dotnet format --verify</code> exit-2 drift.</dd>
+<dt>Affected behavior &amp; path</dt><dd>IDE cleanup and StyleCop fight over using ordering, producing formatting churn in PRs.</dd>
+<dt>Root cause</dt><dd>Two style authorities with opposing rules.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Churn and reviewer noise; triggered by any using-directive edit + format.</dd>
+<dt>Violated invariant</dt><dd>One consistent style convention across analyzers.</dd>
+<dt>Recommended correction</dt><dd>Pick one convention (stylecop.json is the more deliberate artifact) and align <code>.editorconfig</code>; demote or intentionally document SA1005-as-error.</dd>
+<dt>Verification method</dt><dd><code>dotnet format --verify-no-changes</code> returns 0 after reconciliation.</dd>
+<dt>Related</dt><dd>—. Occurrences: 3 conflicting settings.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-Low" id="F-046" data-sev="Low" data-cls="Confirmed defect" data-conf="High" data-cat="Build hygiene" data-sub="Solution" data-phase="1">
+<summary><span class="fid">F-046</span><span class="ftitle">Solution references missing files; dead Maui startup profile; stale obj husks</span><span class="badges"><span class="pill sev-Low">Low</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Build hygiene · solution files</dd>
+<dt>Evidence</dt><dd><code>Collectibles.sln:24-25</code> lists Solution Items <code>azure-pipelines.yml</code> and <code>CLAUDE.md</code>; neither exists. <code>Collectibles.sln.startup.json:61-65</code> defines a "Maui + Web" profile starting the deleted <code>Collectibles.Maui</code>. Untracked <code>Source/Collectibles.Client.Maui/obj/</code> and <code>Source/Collectibles.Kernel/obj/</code> husks remain on disk.</dd>
+<dt>Affected behavior &amp; path</dt><dd>Broken solution-explorer links, a dead startup profile, and stale obj folders that confuse tooling.</dd>
+<dt>Root cause</dt><dd>Maui/Kernel removal left dangling references.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Minor developer-tooling confusion.</dd>
+<dt>Violated invariant</dt><dd>Solution metadata must reference existing artifacts.</dd>
+<dt>Recommended correction</dt><dd>Remove the two solution items (or restore the files), delete the "Maui + Web" profile, delete husk obj folders.</dd>
+<dt>Verification method</dt><dd>Open the solution; confirm no missing-file links.</dd>
+<dt>Related</dt><dd>F-043, F-048. Occurrences: 3.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-Low" id="F-047" data-sev="Low" data-cls="Confirmed defect" data-conf="High" data-cat="Docs drift" data-sub="Documentation" data-phase="1">
+<summary><span class="fid">F-047</span><span class="ftitle">Untracked AI/agent instruction files are stale (".NET 8", dead links)</span><span class="badges"><span class="pill sev-Low">Low</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Docs drift · AGENTS.md, CLAUDE.local.md (untracked, git-ignored)</dd>
+<dt>Evidence</dt><dd>Both say ".NET 8 Blazor Server application" (actual: <code>net10.0</code> everywhere, <code>global.json</code> SDK 10.0.101). CLAUDE.local.md links <code>agent_docs/claude/*.md</code> and "See <code>agent_docs/</code>" — the directory does not exist. CLAUDE.local.md also repeats the wrong HTTPS port 7269 (actual launchSettings: 7231).</dd>
+<dt>Affected behavior &amp; path</dt><dd>AI-assisted and human onboarding is primed with the wrong framework version and dead links.</dd>
+<dt>Root cause</dt><dd>Local instruction files not updated after the .NET 10 upgrade and doc reorganization.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Misleading assistant/developer context. Low (files are local/ignored).</dd>
+<dt>Violated invariant</dt><dd>Instruction files must reflect the current stack.</dd>
+<dt>Recommended correction</dt><dd>Update both to .NET 10; restore or remove the <code>agent_docs</code> references; fix the HTTPS port.</dd>
+<dt>Verification method</dt><dd>Re-read the files after edit.</dd>
+<dt>Related</dt><dd>F-043, F-044. Occurrences: ~6.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-Low" id="F-048" data-sev="Low" data-cls="Confirmed defect" data-conf="Medium" data-cat="Delivery / build" data-sub="Build/CI" data-phase="1">
+<summary><span class="fid">F-048</span><span class="ftitle">No CI despite advertised pipeline; non-deterministic build timestamp; publish depends on an undefined TransformXml task</span><span class="badges"><span class="pill sev-Low">Low</span><span class="tag cls">Confirmed defect</span><span class="tag">Conf: Medium</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Delivery / build reproducibility · Web csproj + solution</dd>
+<dt>Evidence</dt><dd>No <code>azure-pipelines.yml</code> / <code>.github/workflows</code> exists, yet <code>Collectibles.Web.csproj:10</code> says "Updated by Azure Pipeline during CI/CD" and the .sln lists the missing pipeline. <code>Collectibles.Web.csproj:15</code> sets <code>SourceRevisionId</code> to a wall-clock timestamp (non-reproducible builds). <code>Collectibles.Web.csproj:63-73</code> invokes <code>&lt;TransformXml&gt;</code> AfterTargets Publish with no <code>UsingTask</code> in the repo and no task-providing package (<code>Microsoft.Web.Xdt</code> ships only the library) — <code>dotnet publish -c Release</code> from a non-VS machine likely fails.</dd>
+<dt>Affected behavior &amp; path</dt><dd>Version stamping never runs; tests/analyzers run only on dev machines; CLI/CI publish may fail on the transform task; every build differs.</dd>
+<dt>Root cause</dt><dd>CI/publish infrastructure referenced but not present; timestamp used where a git SHA is conventional.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Non-reproducible builds and a likely publish failure outside Visual Studio (Medium confidence — not run here).</dd>
+<dt>Violated invariant</dt><dd>Builds should be deterministic and publishable from CI.</dd>
+<dt>Recommended correction</dt><dd>Add the pipeline (or remove the comment/solution item and document the manual release); set <code>SourceRevisionId</code> from git in CI or drop it; add a <code>UsingTask</code> for the XDT transform (or use a dedicated NuGet).</dd>
+<dt>Verification method</dt><dd><code>dotnet publish -c Release</code> on a machine without Visual Studio.</dd>
+<dt>Related</dt><dd>F-046. Occurrences: 3 issues.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-Low" id="F-049" data-sev="Low" data-cls="Improvement opportunity" data-conf="High" data-cat="Repo hygiene" data-sub="Repository" data-phase="1">
+<summary><span class="fid">F-049</span><span class="ftitle">Repo hygiene: tracked backup file, runtime-rewritten CSS, and 172 MB of binaries in git</span><span class="badges"><span class="pill sev-Low">Low</span><span class="tag cls">Improvement opportunity</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Repository hygiene · Web + test data</dd>
+<dt>Evidence</dt><dd><code>Source/Collectibles.Web/web.Production.config.bak</code> is tracked (and the startup doc describes the <code>.bak</code>, not the live transform). <code>wwwroot/theme-config/theme-config.css</code> + <code>background.css</code> are tracked but rewritten at runtime (running the app + changing theme dirties the tree). <code>Test/Example Data/.../ShowcaseScreenshotsBulkZipUpload.zip</code> = 88.9 MB and the folder totals 172 MB, tracked as plain blobs with no Git LFS (provenance itself is exemplary via a Wikimedia README + <code>download.mjs</code>).</dd>
+<dt>Affected behavior &amp; path</dt><dd>Accidental commits of local theme state; permanent clone weight; a stale backup masquerading as documentation source.</dd>
+<dt>Root cause</dt><dd>Runtime-mutated and backup/binary artifacts committed as normal tracked files.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Clone bloat and accidental dirty commits. Low.</dd>
+<dt>Violated invariant</dt><dd>Generated/backup/large-binary artifacts should not be plain tracked files.</dd>
+<dt>Recommended correction</dt><dd>Delete the <code>.bak</code> (git preserves history); ship default theme files under a template name + git-ignore the live ones; move large binaries to Git LFS or generate the ZIP at test time.</dd>
+<dt>Verification method</dt><dd>Run the app, change a theme, confirm the tree stays clean; check clone size.</dd>
+<dt>Related</dt><dd>F-048. Occurrences: 1 backup + 2 CSS + ~55 images/1 zip.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-Low" id="F-050" data-sev="Low" data-cls="Probable risk" data-conf="Medium" data-cat="Info disclosure" data-sub="Web/Blazor" data-phase="4">
+<summary><span class="fid">F-050</span><span class="ftitle">Setup page renders the server-side setup-token file path to anonymous users</span><span class="badges"><span class="pill sev-Low">Low</span><span class="tag cls">Probable risk</span><span class="tag">Conf: Medium</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Information disclosure · Setup.razor (anonymous, pre-setup)</dd>
+<dt>Evidence</dt><dd>Setup.razor:66 renders <code>@tokenFilePath</code>; the page is <code>[AllowAnonymous]</code> guarded only by <code>IsSetupRequiredAsync</code>. Setup-token entropy is strong (32-byte CSPRNG), and the token file lives outside the web root; there is no HTTP-layer rate limiting on setup/login (only Identity lockout), and token comparison uses non-constant-time <code>string.Equals</code>.</dd>
+<dt>Affected behavior &amp; path</dt><dd>If setup state is ever mis-detected, the server filesystem path leaks to anonymous users; no defense-in-depth throttle on the setup gate.</dd>
+<dt>Root cause</dt><dd>Rendering an internal path to the client and relying on a single state check for a security-sensitive page.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Path disclosure only when setup is (re)enabled; brute-force is impractical given entropy but unthrottled at HTTP layer.</dd>
+<dt>Violated invariant</dt><dd>Don't render internal server paths to clients; defense-in-depth on bootstrap gates.</dd>
+<dt>Recommended correction</dt><dd>Remove/mask the token file path (instruct the operator to read the server console/logs); add rate limiting on <code>/Account/*</code> and <code>/Setup</code>; use a fixed-time token comparison.</dd>
+<dt>Verification method</dt><dd>Load <code>/Setup</code> when setup is required; confirm no path is rendered after the fix.</dd>
+<dt>Related</dt><dd>F-033. Occurrences: 1 notable + auth-surface hardening.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-Low" id="F-051" data-sev="Low" data-cls="Improvement opportunity" data-conf="High" data-cat="Dead code / abstractions" data-sub="Domain + Infrastructure + Web" data-phase="3">
+<summary><span class="fid">F-051</span><span class="ftitle">Dead code, unused abstractions, and a no-op status ternary</span><span class="badges"><span class="pill sev-Low">Low</span><span class="tag cls">Improvement opportunity</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Dead code / abstractions · cross-layer</dd>
+<dt>Evidence</dt><dd><div class="evidence">AddAttachmentsToCollectibleItemSystemCommand.cs — an authorization-less copy of the authorized command; unreferenced (a loaded footgun).
+Unimplemented/unconsumed: IRepository&lt;T,TId&gt;, IUnitOfWork, ISpecification/BaseSpecification, IDomainEventService, ICollectiblesDbContext, ICollectibleService, IAttachmentService; BaseEntity domain-events plumbing has no publisher.
+ScopedDatabaseFileStorage.GetFileAsync always returns null (DB read provider is a stub).
+ZipUploadJobService.cs:272 — job.Status = errors.Count != 0 ? JobStatus.Done : JobStatus.Done (a "DoneWithErrors" status was intended; verified verbatim).
+CreateTagCommand.Description is accepted and echoed but never persisted (Tag has no Description).
+Blazor ThemeLoader.razor + an unused CascadingValue.</div></dd>
+<dt>Affected behavior &amp; path</dt><dd>Navigation cost and traps: the System command silently bypasses authz for any first caller; the ternary discards partial-failure outcome (a failed zip import reports fully "Done").</dd>
+<dt>Root cause</dt><dd>Abstractions and copies introduced and abandoned; a copy/paste ternary bug.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Maintenance drag and latent footguns; the zip-status ternary is a real (Low) correctness bug.</dd>
+<dt>Violated invariant</dt><dd>Remove dead abstractions; every status branch must be meaningful.</dd>
+<dt>Recommended correction</dt><dd>Delete the System command and unused interfaces; fix the zip-status ternary to a distinct terminal status; drop the unpersisted <code>Description</code>; remove ThemeLoader/CascadingValue.</dd>
+<dt>Verification method</dt><dd>Grep for the removed symbols (zero refs); unit test a partially failed zip import → distinct status.</dd>
+<dt>Related</dt><dd>F-007, F-019. Occurrences: ~12 artifacts.</dd>
+</dl>
+</div>
+</details>
+
+<details class="finding s-Low" id="F-052" data-sev="Low" data-cls="Improvement opportunity" data-conf="High" data-cat="Accessibility" data-sub="Web/Blazor" data-phase="4">
+<summary><span class="fid">F-052</span><span class="ftitle">Accessibility: click handlers on non-interactive elements without keyboard support; missing alt text</span><span class="badges"><span class="pill sev-Low">Low</span><span class="tag cls">Improvement opportunity</span><span class="tag">Conf: High</span></span></summary>
+<div class="body">
+<dl>
+<dt>Category / Subsystem</dt><dd>Accessibility · cards, table rows, thumbnails, modals</dd>
+<dt>Evidence</dt><dd>~22 <code>@onclick</code> on <code>&lt;div&gt;</code>/<code>&lt;tr&gt;</code>/<code>&lt;td&gt;</code> without <code>tabindex</code>/<code>role=button</code>/<code>@onkeydown</code> (AttachmentThumbnailView.razor:8, CollectibleItemCard, TemplatedItemsList.razor:216,263, ShowcasesList, several modals). Data-URI <code>&lt;img&gt;</code> without <code>alt</code> (AttachmentDetailModal.razor:67,73; ImagePreviewModal.razor:59; CollectibleItemDetail.razor:380). Custom modals implement backdrop-click close but no Escape/focus-trap.</dd>
+<dt>Affected behavior &amp; path</dt><dd>Keyboard and screen-reader users cannot activate card/row navigation; some images lack alternative text.</dd>
+<dt>Root cause</dt><dd>Interactive behavior on non-semantic elements; missing <code>alt</code>.</dd>
+<dt>Impact &amp; triggering conditions</dt><dd>Reduced accessibility, broadly across list/detail UI. Low severity, wide occurrence.</dd>
+<dt>Violated invariant</dt><dd>Interactive controls must be keyboard-operable and images labeled (WCAG).</dd>
+<dt>Recommended correction</dt><dd>Use <code>&lt;button&gt;</code>/<code>&lt;a&gt;</code> or add <code>role="button"</code>+<code>tabindex="0"</code>+<code>@onkeydown</code> (Enter/Space); add <code>alt</code> to all <code>&lt;img&gt;</code>; consolidate the modal pattern with Escape + focus trap.</dd>
+<dt>Verification method</dt><dd>Keyboard-only walkthrough + an automated a11y scan.</dd>
+<dt>Related</dt><dd>—. Occurrences: ~22 click targets, ~4 images.</dd>
+</dl>
+</div>
+</details>
+
+</div>
+</section>
+
+<section id="duplication" class="section">
+<h2>6 · Systemic Duplication &amp; Inconsistencies</h2>
+<p>Several findings share a root cause of copy-pasted logic that has drifted apart. The highest-value systemic patterns:</p>
+<ul class="tight">
+<li><strong>Per-query soft-delete predicate</strong> — <code>Deleted == null</code> hand-written 89× across 37 files with no global filter; omissions are silent (F-002).</li>
+<li><strong>Orphan/known-blob classification</strong> — <code>GetAllKnownBlobPaths</code> triplicated and drifted, causing permanent blob loss (F-003).</li>
+<li><strong>Ownership/hash-decode/not-found block</strong> — near-identical "decode → query → compare <code>UserId</code>" copied into ≥5 Blazor pages, drifting on admin bypass and multi-showcase ordering (F-009-adjacent, Blazor cross-check).</li>
+<li><strong>Create/Update validator twins</strong> — description limits and rule sets duplicated as magic literals (Update showcase/item validators use 2000/200 literals vs the shared <code>ApplicationConstants</code> constants the Create validators reference); ~100 lines duplicated between the two ContentDefinition validators.</li>
+<li><strong>Storage-provider path assembly</strong> — the GUID-detection + path-combine block is copy-pasted 4× across Local/Azure × two overloads; a containment fix to one will miss the others (F-006).</li>
+<li><strong>Duplicated authorization check</strong> — attachment visibility is enforced by both an endpoint-local helper and a resource-based handler (two parallel implementations that can diverge; F-009).</li>
+<li><strong>Client/server DTO duplication</strong> — SyncTool hand-rolls request/response records that mirror server records with no shared contract, and full Application-layer reference dragged into the desktop client (F-019, and boundary note below).</li>
+<li><strong>Conflicting constants/defaults</strong> — <code>EmailLogRetentionDays=90</code> vs <code>LogRetentionDays=365</code>; duplicated <code>DirectUploadThreshold</code>/<code>SasExpiryMinutes</code>; <code>CpiData.MaxYear=2025</code> (already stale at 2026-08, silently clamping newer prices).</li>
+</ul>
+
+<h3>Per-handler consistency matrix (validator / authorization / save pattern)</h3>
+<p class="note">Legend — V: FluentValidation validator exists. A: authorization in handler (Own = ownership, Adm = admin/role, Res = resource-based, Vis = visibility filter, <strong>✗ = none</strong>). S: save pattern (F = factory context, C = injected context, R = repository). Grouped where uniform; the full matrix spans ~93 handlers.</p>
+<div class="scroll">
+<table class="grid">
+<thead><tr><th>Feature / handler group</th><th>V</th><th>A</th><th>S</th><th>Inconsistency</th></tr></thead>
+<tbody>
+<tr><td>Attachments: Create / <strong>CreateStream</strong></td><td>✓ / <strong>✗</strong></td><td><strong>✗</strong> (ShowcaseId unchecked)</td><td>F</td><td>Stream twin missing validator + ownership.</td></tr>
+<tr><td>Attachments: Initiate/CompleteDirectUpload</td><td>✓</td><td>Own(showcase)</td><td>F</td><td>Correct baseline (contrast ZipUpload).</td></tr>
+<tr><td>Attachments: Update / Delete / <strong>Rotate</strong> / Move</td><td>✓/✗/<strong>✗</strong>/✗</td><td>Own (Move checks wrong object → F-014)</td><td>F</td><td>Rotate un-validated; Move IDOR.</td></tr>
+<tr><td>Attachments: <strong>MigrateToAzure / VerifyMigration</strong></td><td>✓</td><td><strong>✗ (mutating, no Adm)</strong></td><td>F</td><td>Siblings (Cleanup/Rollback) require Adm.</td></tr>
+<tr><td>Attachments: GetForDownload / <strong>GetForPreview</strong></td><td>✗</td><td><strong>✗</strong></td><td>C/F</td><td>ById/Detail enforce Res; content twins do not (F-009).</td></tr>
+<tr><td>CollectibleItems: <strong>Create</strong> / Update / Delete</td><td>✓</td><td><strong>✗</strong>/Own/Own</td><td>F</td><td>Create omits showcase ownership (F-007).</td></tr>
+<tr><td>CollectibleItems: <strong>RefreshLinkCache / RecomputeCollagePreview</strong></td><td>✗</td><td><strong>✗</strong></td><td>C/Svc</td><td>AddLink/DeleteLink in same feature check Own.</td></tr>
+<tr><td>CollectibleItems: <strong>GetItemsByTemplate / GetLinkCaches</strong></td><td>✗</td><td><strong>✗</strong></td><td>F/C</td><td>Return names/field-values with no visibility filter.</td></tr>
+<tr><td>ContentDefinitions: Create / <strong>Update</strong></td><td>✓</td><td>Own(showcase) / Creator (<strong>scope change unchecked</strong>)</td><td>F</td><td>Update can re-scope/globalize without re-check (F-017-class).</td></tr>
+<tr><td>EmailLogs: <strong>RetryEmail / GetEmailLogs</strong></td><td>✗</td><td><strong>✗</strong></td><td>C</td><td>Re-sends stored email / exposes recipients, no Adm.</td></tr>
+<tr><td>Maintenance: CleanupOrphans (Adm) / <strong>GetActivityOverview, GetOrphanStats/Details</strong></td><td>✗</td><td>Adm / <strong>✗</strong></td><td>F</td><td>Read handlers expose storage paths without Adm.</td></tr>
+<tr><td>QRCodes: Assign (Own) / <strong>Unassign (✗)</strong> / Generate(inline)</td><td>✗</td><td>Own / <strong>✗</strong></td><td>R+C</td><td>Unassign no ownership; Assign non-atomic dual save.</td></tr>
+<tr><td>Showcases: Create / Update / Delete / <strong>GetTags</strong></td><td>✓/✓/✗/✗</td><td>authd / Res / Res / <strong>✗</strong></td><td>F/C</td><td>GetTags aggregates across private showcases.</td></tr>
+<tr><td>Sync: SyncUpload / CompleteSyncUpload / Manifest</td><td>✗</td><td>Own (via overridable UserId → F-008)</td><td>F</td><td>Identity trusted from request.</td></tr>
+<tr><td>ZipUpload: <strong>all 4 commands + UploadZipChunk</strong></td><td>✓ (1 of 5)</td><td><strong>✗ (no showcase/job ownership)</strong></td><td>F</td><td>End-to-end unenforced (F-007).</td></tr>
+<tr><td>Users (9 handlers)</td><td>5/9</td><td>self/Adm/UserManager</td><td>Svc</td><td>Most consistent feature.</td></tr>
+</tbody>
+</table>
+</div>
+<p class="callout"><strong>Boundary note.</strong> Three persistence patterns coexist (factory context ≈60%, injected context ≈25%, repository ≈15%), with two handlers mixing repository + context saves non-atomically. The 22 validators cover ~40% of commands. SyncTool references the entire <code>Collectibles.Application</code> assembly for two DTOs and one enum, dragging MediatR, FluentValidation, Hangfire.Core, EF Core, and Authorization into the desktop publish — a dependency-free <code>Collectibles.Contracts</code> project would fix both the coupling and the client/server DTO duplication.</p>
+</section>
+
+<section id="tests" class="section">
+<h2>7 · Test &amp; Behavioral Coverage Gaps</h2>
+<p>The suite is green (242 unit tests + 34 Playwright E2E) but coverage is concentrated in Application/Domain command-handler happy paths and authorization-<em>allow</em> cases. Coverage should be read as a map of unexamined behavior, not confidence: Infrastructure (1.3%) and Web (1.4%) are effectively untested.</p>
+<div class="scroll">
+<table class="grid">
+<thead><tr><th>Subsystem</th><th>Test presence</th><th>Highest-risk untested behavior</th></tr></thead>
+<tbody>
+<tr><td>Resource-authorization handlers (3 handlers / 9 requirements)</td><td><strong>None</strong> — all mock <code>IAuthorizationService</code> wholesale</td><td>Ownership/privacy/admin decision logic (an inverted <code>IsPrivate</code> would pass every test) — see F-007.</td></tr>
+<tr><td>Upload / ZIP processing (7 commands + service + 2 bg services)</td><td><strong>None (unit)</strong>; 1 E2E happy path</td><td>Chunked assembly, ZIP extraction, direct-upload completion, corrupt/oversized/duplicate handling — F-006, F-027.</td></tr>
+<tr><td>Setup token / password policy (5 services)</td><td><strong>None</strong>; E2E seeds users, bypassing setup</td><td>First-run admin bootstrap gate; password-reuse prevention — F-050.</td></tr>
+<tr><td>Infrastructure storage / media / email / link (~25 classes)</td><td><strong>None</strong> (always mocked)</td><td>Path-traversal safety, SSRF, provider parity, ffmpeg lifecycle — F-005, F-006, F-013, F-026.</td></tr>
+<tr><td>Web endpoints &amp; most middleware</td><td><strong>None</strong> (no WebApplicationFactory)</td><td>Download authorization at the HTTP boundary; sync API contract; exception→response mapping.</td></tr>
+<tr><td>Domain behavior (template JSON, field values, price math)</td><td><strong>None</strong> — 72 tautological property tests</td><td><code>ContentDefinition</code> template JSON round-trip; <code>InflationAdjustedPriceValue</code> math.</td></tr>
+<tr><td>Attachment delete / most validators</td><td>Weak — only allow cases; 7/9 validators untested</td><td>Delete <em>denial</em> case; storage-failure consistency; validation rules.</td></tr>
+</tbody>
+</table>
+</div>
+<h3>Test-quality issues</h3>
+<ul class="tight">
+<li><strong>Tautological Domain tests</strong> — 72 tests assert auto-property get/set that cannot fail, while the only real domain behavior (template JSON serialization) is untested.</li>
+<li><strong>EF InMemory realism</strong> — case-insensitive search, unique-index enforcement, transactions, split-query, and the retrying execution strategy are all no-ops on InMemory; two search tests pass on both providers while proving neither. Migrate integration-style tests to SQLite in-memory or Testcontainers SQL Server.</li>
+<li><strong>Over-mocking</strong> — handler tests prove "called <code>IFileStorage.SaveFileAsync</code>" while the storage implementation (the path-traversal surface) is owned by no test.</li>
+<li><strong>Brittle assertions</strong> — <code>Times.Exactly(6)</code> on Hangfire job registration breaks on any new job; unused AutoFixture/<code>HandlerMock</code>/<code>VerifyMocks</code> scaffolding; a duplicated factory-mock block copied into ~12 classes (3 bypass the disposal wrapper).</li>
+<li><strong>E2E</strong> — targets a properly isolated <code>Playwright</code> environment (LocalDB reset on startup, null email), but one admin spec mutates global state under <code>fullyParallel</code> (masked by CI <code>workers=1</code>); residual arbitrary <code>waitForTimeout</code> sleeps and Bootstrap-structural selectors. The 2 npm-audit high advisories are in this dev/test dependency.</li>
+</ul>
+</section>
+
+<section id="delivery" class="section">
+<h2>8 · Dependencies, Build, Configuration &amp; Delivery</h2>
+<ul class="tight">
+<li><strong>Packages.</strong> Central package management (<code>Directory.Packages.props</code>) with transitive pinning; versions internally consistent (EF/ASP.NET Core 10.0.6 across the board). <strong>No vulnerable or deprecated NuGet packages.</strong> Three pinned packages (<code>Microsoft.Extensions.Configuration</code>, <code>Microsoft.IdentityModel.Tokens</code>, <code>Newtonsoft.Json</code>) are referenced by no project — likely deliberate transitive/CVE-floor pins, but undocumented; comment or remove them.</li>
+<li><strong>npm (E2E).</strong> 2 high-severity advisories — <code>@playwright/test</code> 1.52.0 depends on <code>playwright &lt; 1.55.1</code> (GHSA-7mvr-c777-76hp). Dev/test only; bump the pinned version.</li>
+<li><strong>Analyzers.</strong> <code>EnableNETAnalyzers</code> + <code>AnalysisLevel latest-recommended</code> + StyleCop, with <code>TreatWarningsAsErrors=false</code> (603 build warnings tolerated). The <code>.editorconfig</code>↔<code>stylecop.json</code> using-directive conflict (F-045) is the root of the <code>dotnet format --verify</code> failure. Two real compiler signals hide in the warning volume: <strong>CS0108 ×32</strong> (members hiding inherited members) and <strong>CS8601 ×14</strong> (possible null reference assignment) — worth a triage pass.</li>
+<li><strong>Build reproducibility &amp; CI.</strong> No CI definition exists despite the csproj comment and solution item advertising an Azure pipeline; the build stamps a wall-clock <code>SourceRevisionId</code>; the Release publish depends on a <code>TransformXml</code> task with no in-repo <code>UsingTask</code> (F-048).</li>
+<li><strong>Configuration.</strong> The committed <code>appsettings.json</code> template is hygienic — every secret field is empty and <code>HashIds:Salt</code> is the placeholder the app refuses to start on. Defaults: <code>Storage:Provider=LocalFileSystem</code>, <code>ExternalLinks:Enabled=true</code> (SSRF path live), <code>DirectUpload:Enabled=true</code>, <code>SyncTool:Enabled=false</code> (gates the move-IDOR off). Config drift and a phantom <code>ApiKey</code> section are catalogued in F-044.</li>
+<li><strong>Secrets.</strong> The working-tree <code>appsettings.Development.json</code> holds four real-looking credentials (SQL, Azure Storage key, JWT/HashIds salt, SMTP password), but it is git-ignored and <strong>verified never committed across all refs</strong>. Rotate and relocate them (user-secrets / environment / Key Vault) as defense-in-depth; values were redacted from this report.</li>
+</ul>
+</section>
+
+<section id="roadmap" class="section">
+<h2>9 · Remediation Roadmap</h2>
+<p>Phased by risk and dependency, not calendar time. Each phase names its validation gate. Items that must not be combined are flagged.</p>
+
+<h3>Phase A — Stop data loss &amp; close authorization holes (Critical/High correctness &amp; security)</h3>
+<ul class="tight">
+<li><strong>Characterization first:</strong> before touching delete/rollback/soft-delete, add tests pinning current behavior of the attachment delete paths, migration rollback, and orphan cleanup (they are currently untested — §7).</li>
+<li>F-001 rollback precondition check; F-012 reorder save-before-delete; F-018 unify attachment delete semantics — <em>sequence these three together</em> (they touch the same content-lifecycle invariant) but land <strong>after</strong> the characterization tests.</li>
+<li>F-007 add missing per-handler ownership/role checks (ZipUpload, CreateItem, Unassign QR, RefreshLinkCache, email/maintenance reads); F-014 attachment-move object ownership; F-008 remove client-overridable <code>UserId</code>; F-009 move content-query authorization + scope/invalidate cache — <em>do F-008 and F-007 as one authorization pass</em>.</li>
+<li>F-005 SSRF egress validation; F-006 filesystem containment — independent, high priority.</li>
+<li><strong>Validation gate:</strong> new authorization-denial tests pass; SSRF/traversal rejection tests pass; content-lifecycle tests prove no path loses the last copy.</li>
+</ul>
+
+<h3>Phase B — Systemic data-integrity foundations</h3>
+<ul class="tight">
+<li>F-002 introduce global soft-delete query filters (then remove the 89 manual predicates incrementally) — <em>land the filter and the predicate removals as separate commits</em> so a filter regression is not masked by bulk deletions. F-003 consolidate orphan/known-blob logic on top of it.</li>
+<li>F-010, F-021, F-022 add DB constraints/indexes (share-token, tag/config/hierarchy uniqueness, QR relationship) — grouped as one migration set, sequenced <strong>before</strong> removing the in-memory checks they replace.</li>
+<li>F-020 concurrency tokens; F-040 transaction boundaries for multi-save flows.</li>
+<li><strong>Validation gate:</strong> integration tests (SQLite/Testcontainers, not InMemory) prove deleted content is invisible everywhere and uniqueness violations are DB-enforced.</li>
+</ul>
+
+<h3>Phase C — Reliability, performance &amp; provider correctness</h3>
+<ul class="tight">
+<li>F-011 remove blob over-fetch / stream downloads (largest scalability win); F-013 Azure email templating; F-015 atomic email claim; F-023/F-025/F-026 background-job progress/lifecycle/cleanup; F-036/F-037 async batched logging + log-table indexes; F-016/F-017/F-019/F-042 SyncTool fixes.</li>
+<li><strong>Validation gate:</strong> query-SQL assertions (no blob joins in lists); provider parity tests; load test on logging/email.</li>
+</ul>
+
+<h3>Phase D — Quality, hygiene &amp; documentation (low-risk, parallelizable)</h3>
+<ul class="tight">
+<li>F-030 Taxonomy rename migration; F-031/F-032 HashIds contract + boundary encoding; F-038 culture-invariant parsing; F-028/F-029/F-033/F-050 web hardening; F-034/F-035/F-052 Blazor lifecycle/a11y; F-045–F-049, F-051 build/docs/hygiene and dead-code removal; F-044/F-043/F-047 documentation reconciliation; bump the E2E Playwright dependency.</li>
+<li><strong>Do not combine</strong> the Taxonomy table rename (F-030) with unrelated schema changes — keep it an isolated, reviewable migration.</li>
+<li><strong>Validation gate:</strong> <code>dotnet format --verify-no-changes</code> clean; docs commands dry-run on a fresh clone; a11y scan.</li>
+</ul>
+<p class="note">Cross-cutting throughout: raise Infrastructure/Web test coverage (currently ~1%) as each subsystem is touched — most Phase A/B changes are risky precisely because no characterization tests exist today.</p>
+</section>
+
+<section id="ledger" class="section">
+<h2>10 · Coverage Ledger</h2>
+<div class="scroll">
+<table class="grid">
+<thead><tr><th>Audit unit</th><th>Scope</th><th>Files</th><th>Status</th><th>Diagnostics / method</th><th>Findings</th></tr></thead>
+<tbody>
+<tr><td>Domain</td><td>Entities, value objects, enums, interfaces, constants, config</td><td>79 cs</td><td>Fully inspected</td><td>All read (BootstrapIcons/CpiData literals skimmed)</td><td>F-004, F-018, F-022, F-032, F-038, F-051</td></tr>
+<tr><td>Application</td><td>Features (cmds/queries/handlers/validators), Authorization, Behaviors, Mappings, Services</td><td>218 cs</td><td>Fully inspected</td><td>All read; per-handler matrix built (§6)</td><td>F-004,7,8,9,11,12,17,18,24,31,32,40,41,51</td></tr>
+<tr><td>Infra · Persistence</td><td>DbContext, 21 configs, 2 factories, repositories</td><td>28 cs</td><td>Fully inspected</td><td>Configs + snapshot structural pass</td><td>F-002,10,20,21,22,30,37,40</td></tr>
+<tr><td>Infra · Migrations</td><td>37 migrations + snapshot</td><td>73 cs</td><td>Provenance/consistency only</td><td>Snapshot diffed to latest; scanned for Sql()/Drop</td><td>(no line-audit per scope)</td></tr>
+<tr><td>Infra · Services</td><td>Storage, media, email, link capture, background jobs, logging, identity</td><td>~58 cs</td><td>Fully inspected</td><td>45 read in full, rest skimmed + grep</td><td>F-005,6,13,15,23,25,26,27,36,39</td></tr>
+<tr><td>Web · Host/Security</td><td>Program, extensions, middleware, endpoints, auth, config, web.config, custom JS</td><td>37 cs + 13 js</td><td>Fully inspected</td><td>Attack-surface map + endpoint enumeration</td><td>F-028,29,31,33,50; F-014 endpoint trace</td></tr>
+<tr><td>Web · Blazor components</td><td>Pages, Shared, Account, Layout</td><td>135 razor</td><td>Fully inspected</td><td>Deep-read core; 13 UI-example galleries triaged</td><td>F-034,35,50,52; cross-checks resolved</td></tr>
+<tr><td>SyncTool (WPF)</td><td>App, VM, services, XAML, converters</td><td>19 files</td><td>Fully inspected (21/22)</td><td>Server contract cross-checked</td><td>F-016,17,19,42; boundary note</td></tr>
+<tr><td>Tests · Domain/Application</td><td>xUnit v3 suites</td><td>61 cs</td><td>Fully inspected</td><td>38/45 App files full; rest skimmed</td><td>§7 gaps</td></tr>
+<tr><td>Tests · Playwright E2E</td><td>Config, helpers, 18 specs</td><td>29 ts</td><td>Fully inspected</td><td>npm audit; config/isolation reviewed</td><td>§7; npm 2 high</td></tr>
+<tr><td>Docs / Build / Config</td><td>21 docs, README, solution, props, editorconfig, appsettings, web.config</td><td>58 files</td><td>Fully inspected</td><td>Every claim grep-verified vs code</td><td>F-030,43,44,45,46,47,48,49</td></tr>
+<tr><td>Excluded</td><td>.worktrees/, bin/, obj/, node_modules/, vendored wwwroot, Docs/Screenshots, Example Data</td><td>—</td><td>Inventoried only</td><td>Provenance assessed; not line-audited</td><td>—</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>Reconciliation.</strong> The coverage universe (1,028 tracked + non-ignored untracked files, worktrees excluded) reconciles with the units above: all custom C#/Razor/TS/JS/config/docs were content-inspected; generated migrations, vendored assets, and binary example data were inventoried and provenance-assessed per scope. <strong>Recorded limitations:</strong> the app was not run; the E2E suite and EF design-time commands were not executed (safety skips — no disposable environment); Infrastructure/Web automated coverage is ~1%, so several Probable-risk findings there rest on static tracing rather than runtime confirmation; two EF Core 10 / Blazor .NET 10 behavioral claims (F-040 execution-strategy, F-011/prerender double-execution) are Medium confidence pending runtime verification.</p>
+</section>
+
+<section id="commands" class="section">
+<h2>11 · Diagnostic Commands &amp; Primary References</h2>
+<h3>Commands executed (from repository root)</h3>
+<div class="evidence">dotnet --info
+dotnet restore Collectibles.sln
+dotnet build Collectibles.sln --no-restore
+dotnet build Collectibles.sln --no-restore -t:Rebuild        # analyzer-focused warning tally
+dotnet test Collectibles.sln --no-build --logger "console;verbosity=normal"
+dotnet test Collectibles.sln --no-build --collect "XPlat Code Coverage"
+dotnet format Collectibles.sln --verify-no-changes --no-restore
+dotnet package list --project Collectibles.sln --vulnerable --include-transitive --no-restore
+dotnet package list --project Collectibles.sln --deprecated --no-restore
+npm audit --package-lock-only        # in Test/Playwright (no lockfile mutation)
+git status --porcelain               # before and after — verified clean throughout</div>
+<h3>Primary references consulted</h3>
+<ul class="tight">
+<li>Microsoft Learn — EF Core 10 (global query filters, execution strategy + user transactions, concurrency tokens, owned types).</li>
+<li>Microsoft Learn — ASP.NET Core 10 (forwarded headers &amp; known proxies, Data Protection key persistence, antiforgery defaults, Identity cookie configuration, rate limiting).</li>
+<li>Microsoft Learn — Blazor Server (render modes &amp; prerendering, circuit concurrency &amp; scoped DbContext, component lifecycle/disposal, JS interop).</li>
+<li>OWASP — A01 Broken Access Control (BOLA/IDOR), A05 Security Misconfiguration, SSRF Prevention Cheat Sheet, Zip-Slip / decompression-bomb guidance.</li>
+<li>GHSA-7mvr-c777-76hp — Playwright browser download SSL-verification advisory.</li>
+<li>xUnit v3 analyzer rules (xUnit1051); .NET code-analysis rules CA1848, CA1305/CA1310, CA1852, CS0108, CS8601.</li>
+</ul>
+<p class="note">Version-sensitive claims should be re-verified against the exact installed package versions (EF Core / ASP.NET Core 10.0.6, MediatR 14.1, Hangfire 1.8.23, FluentValidation 12.1.1) before implementing fixes.</p>
+</section>
+
+<footer>
+<p><strong>Collectibles Application Audit</strong> — generated 2026-08-29 · repository <code>Collectibles</code>, branch <code>FullAudit</code>, commit <code>0ad2acc</code>. Read-only assessment; 52 findings. No overall quality score is asserted. This report is the sole intended repository output; no application source, configuration, dependency, migration, test, or documentation file was modified. Sensitive values (credentials, tokens, connection details) were redacted — presence reported, never the value.</p>
+</footer>
+
+</main>
+
+<script>
+(function(){
+  "use strict";
+  document.documentElement.classList.add("js");
+  var root=document.documentElement;
+  // theme toggle (fails safe)
+  try{
+    var stored=localStorage.getItem("audit-theme");
+    if(stored==="dark"||stored==="light"){root.setAttribute("data-theme",stored);}
+  }catch(e){}
+  var tb=document.getElementById("themeBtn");
+  if(tb){tb.addEventListener("click",function(){
+    var cur=root.getAttribute("data-theme");
+    var next=cur==="dark"?"light":(cur==="light"?"dark":(window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches?"light":"dark"));
+    root.setAttribute("data-theme",next);
+    try{localStorage.setItem("audit-theme",next);}catch(e){}
+  });}
+
+  var list=document.getElementById("findingList");
+  if(!list) return;
+  var findings=Array.prototype.slice.call(list.querySelectorAll(".finding"));
+
+  // populate subsystem + category filters from data
+  function fill(id,attr){
+    var sel=document.getElementById(id);
+    if(!sel) return;
+    var vals={};
+    findings.forEach(function(f){var v=f.getAttribute(attr);if(v)vals[v]=1;});
+    Object.keys(vals).sort().forEach(function(v){
+      var o=document.createElement("option");o.value=v;o.textContent=v;sel.appendChild(o);
+    });
+  }
+  fill("fSub","data-sub");
+  fill("fCat","data-cat");
+
+  var q=document.getElementById("q"),
+      fSev=document.getElementById("fSev"),fCls=document.getElementById("fCls"),
+      fConf=document.getElementById("fConf"),fSub=document.getElementById("fSub"),
+      fCat=document.getElementById("fCat"),fPhase=document.getElementById("fPhase"),
+      status=document.getElementById("filterStatus");
+
+  function apply(){
+    var term=(q.value||"").toLowerCase().trim();
+    var sev=fSev.value,cls=fCls.value,conf=fConf.value,sub=fSub.value,cat=fCat.value,ph=fPhase.value;
+    var shown=0;
+    findings.forEach(function(f){
+      var ok=true;
+      if(sev&&f.getAttribute("data-sev")!==sev)ok=false;
+      if(ok&&cls&&f.getAttribute("data-cls")!==cls)ok=false;
+      if(ok&&conf&&f.getAttribute("data-conf")!==conf)ok=false;
+      if(ok&&sub&&f.getAttribute("data-sub")!==sub)ok=false;
+      if(ok&&cat&&f.getAttribute("data-cat")!==cat)ok=false;
+      if(ok&&ph&&f.getAttribute("data-phase")!==ph)ok=false;
+      if(ok&&term){ok=(f.textContent||"").toLowerCase().indexOf(term)!==-1;}
+      f.hidden=!ok;
+      if(ok)shown++;
+    });
+    status.textContent=shown+" of "+findings.length+" findings shown"+
+      (shown<findings.length?" (filtered)":"");
+  }
+  [q,fSev,fCls,fConf,fSub,fCat,fPhase].forEach(function(el){
+    if(!el)return;
+    el.addEventListener("input",apply);
+    el.addEventListener("change",apply);
+  });
+  var clr=document.getElementById("clearBtn");
+  if(clr){clr.addEventListener("click",function(){
+    q.value="";[fSev,fCls,fConf,fSub,fCat,fPhase].forEach(function(s){if(s)s.value="";});
+    apply();
+  });}
+  // deep-link: open a finding if the URL has its fragment
+  function openHash(){
+    if(location.hash){
+      var el=document.querySelector(location.hash);
+      if(el&&el.classList&&el.classList.contains("finding")){el.open=true;el.hidden=false;el.scrollIntoView();}
+    }
+  }
+  window.addEventListener("hashchange",openHash);
+  apply();
+  openHash();
+})();
+</script>
+</body>
+</html>
