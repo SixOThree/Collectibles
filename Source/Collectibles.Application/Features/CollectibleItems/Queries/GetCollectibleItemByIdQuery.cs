@@ -1,7 +1,9 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Application.Mappings.Explicit;
 using Collectibles.Domain.Entities;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.CollectibleItems.Queries;
@@ -39,23 +41,23 @@ public class GetCollectibleItemByIdQueryHandler : IRequestHandler<GetCollectible
             .Include(ci => ci.PreviewImage)
                 .ThenInclude(a => a!.AttachmentPreview)
             .Include(ci => ci.Parent)
-            .Include(ci => ci.Children.Where(child => child.Deleted == null))
+            .Include(ci => ci.Children)
                 .ThenInclude(child => child.PreviewImage)
                     .ThenInclude(a => a!.AttachmentPreview)
-            .Include(ci => ci.Children.Where(child => child.Deleted == null))
+            .Include(ci => ci.Children)
                 .ThenInclude(child => child.CollectibleItemAttachments)
                     .ThenInclude(cia => cia.Attachment)
                         .ThenInclude(a => a!.AttachmentPreview)
-            .Include(ci => ci.Children.Where(child => child.Deleted == null))
+            .Include(ci => ci.Children)
                 .ThenInclude(child => child.CollectibleItemTags)
                     .ThenInclude(cit => cit.Tag)
-            .Include(ci => ci.Children.Where(child => child.Deleted == null))
+            .Include(ci => ci.Children)
                 .ThenInclude(child => child.ContentType)
-            .Include(ci => ci.Children.Where(child => child.Deleted == null))
-                .ThenInclude(child => child.Children.Where(grandchild => grandchild.Deleted == null))
-            .Include(ci => ci.CollectibleItemAttachments)
-                .ThenInclude(cia => cia.Attachment)
-                .ThenInclude(a => a.AttachmentContent)
+            .Include(ci => ci.Children)
+                .ThenInclude(child => child.Children)
+
+            // Attachment originals are served by the attachment endpoints, never inlined
+            // into this DTO, so only the thumbnail is loaded here.
             .Include(ci => ci.CollectibleItemAttachments)
                 .ThenInclude(cia => cia.Attachment)
                 .ThenInclude(a => a.AttachmentPreview)
@@ -66,7 +68,7 @@ public class GetCollectibleItemByIdQueryHandler : IRequestHandler<GetCollectible
             .Include(ci => ci.ExternalReferences)
             .Include(ci => ci.Showcases)
             .Include(ci => ci.ContentType)
-            .FirstOrDefaultAsync(ci => ci.Id == request.Id && ci.Deleted == null, cancellationToken);
+            .FirstOrDefaultAsync(ci => ci.Id == request.Id, cancellationToken);
 
         if (collectibleItem == null)
         {
@@ -121,7 +123,7 @@ public class GetCollectibleItemByIdQueryHandler : IRequestHandler<GetCollectible
             visitedIds.Add(currentParentId.Value);
 
             var parent = await _context.CollectibleItems
-                .Where(ci => ci.Id == currentParentId.Value && ci.Deleted == null)
+                .Where(ci => ci.Id == currentParentId.Value)
                 .Select(ci => new { ci.Id, ci.Name, ci.ParentId })
                 .FirstOrDefaultAsync(cancellationToken);
 

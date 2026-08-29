@@ -14,14 +14,18 @@ public class SecurityScanBlockingMiddleware : IDisposable
     private readonly List<Regex> _suspiciousPatterns;
     private readonly Timer _cleanupTimer;
 
+    private readonly IClientIpResolver _clientIpResolver;
+
     public SecurityScanBlockingMiddleware(
         RequestDelegate next,
         ILogger<SecurityScanBlockingMiddleware> logger,
-        SecurityScanBlockingOptions options)
+        SecurityScanBlockingOptions options,
+        IClientIpResolver clientIpResolver)
     {
         _next = next;
         _logger = logger;
         _options = options;
+        _clientIpResolver = clientIpResolver;
         _ipTracking = new ConcurrentDictionary<string, IpTrackingInfo>();
         _blockedIps = new ConcurrentDictionary<string, DateTime>();
         _suspiciousPatterns = CompilePatterns(options.SuspiciousPatterns);
@@ -43,7 +47,7 @@ public class SecurityScanBlockingMiddleware : IDisposable
             return;
         }
 
-        var ipAddress = GetClientIpAddress(context);
+        var ipAddress = _clientIpResolver.Resolve(context);
 
         if (string.IsNullOrEmpty(ipAddress))
         {
@@ -91,38 +95,6 @@ public class SecurityScanBlockingMiddleware : IDisposable
         }
 
         await _next(context);
-    }
-
-    private string GetClientIpAddress(HttpContext context)
-    {
-        if (_options.UseForwardedHeaders)
-        {
-            // Prefer CF-Connecting-IP when behind Cloudflare — it's set by Cloudflare
-            // to the true client IP and cannot be spoofed by the client.
-            var cfConnectingIp = context.Request.Headers["CF-Connecting-IP"].FirstOrDefault();
-            if (!string.IsNullOrEmpty(cfConnectingIp))
-            {
-                return cfConnectingIp;
-            }
-
-            var xForwardedFor = context.Request.Headers["X-Forwarded-For"].FirstOrDefault();
-            if (!string.IsNullOrEmpty(xForwardedFor))
-            {
-                var ips = xForwardedFor.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                if (ips.Length > 0)
-                {
-                    return ips[0];
-                }
-            }
-
-            var xRealIp = context.Request.Headers["X-Real-IP"].FirstOrDefault();
-            if (!string.IsNullOrEmpty(xRealIp))
-            {
-                return xRealIp;
-            }
-        }
-
-        return context.Connection.RemoteIpAddress?.ToString() ?? string.Empty;
     }
 
     private bool IsSuspiciousRequest(string path)

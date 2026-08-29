@@ -1,7 +1,11 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Common.Enums;
+using Collectibles.Domain.Constants;
 using Collectibles.Domain.Entities;
 using Collectibles.Domain.Interfaces;
+
+using FluentValidation;
+
 using MediatR;
 
 namespace Collectibles.Application.Features.Attachments.Commands;
@@ -18,6 +22,29 @@ public class CreateAttachmentStreamCommand : IRequest<long>
     public long? ShowcaseId { get; set; }
 }
 
+/// <summary>
+/// Mirrors <see cref="CreateAttachmentCommandValidator"/>: the streaming twin previously
+/// had no validator at all, so its inputs were unchecked.
+/// </summary>
+public class CreateAttachmentStreamCommandValidator : AbstractValidator<CreateAttachmentStreamCommand>
+{
+    public CreateAttachmentStreamCommandValidator()
+    {
+        RuleFor(v => v.Name)
+            .MaximumLength(ApplicationConstants.ValidationLengths.FileNameMaxLength)
+            .NotEmpty();
+
+        RuleFor(v => v.OriginalFilename)
+            .MaximumLength(ApplicationConstants.ValidationLengths.FileNameMaxLength);
+
+        RuleFor(v => v.FileType)
+            .MaximumLength(ApplicationConstants.ValidationLengths.TypeMaxLength);
+
+        RuleFor(v => v.FileSize)
+            .GreaterThanOrEqualTo(0);
+    }
+}
+
 public class CreateAttachmentStreamCommandHandler : IRequestHandler<CreateAttachmentStreamCommand, long>
 {
     private readonly IApplicationDbContextFactory _contextFactory;
@@ -25,24 +52,29 @@ public class CreateAttachmentStreamCommandHandler : IRequestHandler<CreateAttach
     private readonly IFileProcessingService _fileProcessingService;
     private readonly IEventLogService _eventLogService;
     private readonly IAttachmentHashService _hashService;
+    private readonly ICurrentUserService _currentUserService;
 
     public CreateAttachmentStreamCommandHandler(
         IApplicationDbContextFactory contextFactory,
         IFileStorage fileStorage,
         IFileProcessingService fileProcessingService,
         IEventLogService eventLogService,
-        IAttachmentHashService hashService)
+        IAttachmentHashService hashService,
+        ICurrentUserService currentUserService)
     {
         _contextFactory = contextFactory;
         _fileStorage = fileStorage;
         _fileProcessingService = fileProcessingService;
         _eventLogService = eventLogService;
         _hashService = hashService;
+        _currentUserService = currentUserService;
     }
 
     public async Task<long> Handle(CreateAttachmentStreamCommand request, CancellationToken cancellationToken)
     {
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+        await AttachmentAuthorization.EnsureShowcaseOwnedAsync(context, request.ShowcaseId, _currentUserService, cancellationToken);
 
         string? filePath = null;
         string? previewPath = null;

@@ -4,8 +4,11 @@ using Collectibles.Domain.Configuration.Storage;
 using Collectibles.Domain.Entities;
 using Collectibles.Domain.Enums;
 using Collectibles.Domain.Interfaces;
+
 using FluentValidation;
+
 using MediatR;
+
 using Microsoft.Extensions.Options;
 
 namespace Collectibles.Application.Features.Attachments.Commands;
@@ -73,6 +76,7 @@ public class CreateAttachmentCommandHandler : IRequestHandler<CreateAttachmentCo
     private readonly IEventLogService _eventLogService;
     private readonly IAttachmentHashService _hashService;
     private readonly StorageSettings _storageSettings;
+    private readonly ICurrentUserService _currentUserService;
 
     public CreateAttachmentCommandHandler(
         IApplicationDbContextFactory contextFactory,
@@ -80,7 +84,8 @@ public class CreateAttachmentCommandHandler : IRequestHandler<CreateAttachmentCo
         IFileStorage fileStorage,
         IEventLogService eventLogService,
         IAttachmentHashService hashService,
-        IOptions<StorageSettings> storageOptions)
+        IOptions<StorageSettings> storageOptions,
+        ICurrentUserService currentUserService)
     {
         _contextFactory = contextFactory;
         _fileProcessingService = fileProcessingService;
@@ -88,11 +93,14 @@ public class CreateAttachmentCommandHandler : IRequestHandler<CreateAttachmentCo
         _eventLogService = eventLogService;
         _hashService = hashService;
         _storageSettings = storageOptions.Value;
+        _currentUserService = currentUserService;
     }
 
     public async Task<long> Handle(CreateAttachmentCommand request, CancellationToken cancellationToken)
     {
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+        await AttachmentAuthorization.EnsureShowcaseOwnedAsync(context, request.ShowcaseId, _currentUserService, cancellationToken);
 
         byte[]? content = null;
         byte[]? previewThumbnail = null;

@@ -1,6 +1,7 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Common.Enums;
 using Collectibles.Domain.Interfaces;
+
 using MediatR;
 
 namespace Collectibles.Application.Features.QRCodes.Queries;

@@ -1,5 +1,6 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Entities;
+
 using MediatR;
 
 namespace Collectibles.Application.Features.Showcases.Commands;
@@ -11,7 +12,6 @@ public record CreateShowcaseCommand : IRequest<long>
     public long? PreviewImageId { get; init; }
     public bool IsPrivate { get; init; } = true;
     public List<long> TagIds { get; init; } = new();
-    public string? UserId { get; init; } // Optional UserId to handle Blazor context issues
 }
 
 public class CreateShowcaseCommandHandler : IRequestHandler<CreateShowcaseCommand, long>
@@ -34,8 +34,8 @@ public class CreateShowcaseCommandHandler : IRequestHandler<CreateShowcaseComman
     {
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
 
-        // Use the provided UserId if available, otherwise fall back to CurrentUserService
-        var userId = request.UserId ?? _currentUserService.UserId;
+        // Identity always comes from the authenticated principal, never the request.
+        var userId = _currentUserService.UserId;
 
         if (string.IsNullOrEmpty(userId))
         {

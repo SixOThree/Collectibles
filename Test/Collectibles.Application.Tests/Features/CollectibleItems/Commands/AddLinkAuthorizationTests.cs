@@ -1,6 +1,7 @@
 using Collectibles.Application.Features.CollectibleItems.Commands;
 using Collectibles.Application.Tests.Common;
 using Collectibles.Domain.Configuration;
+
 using Microsoft.Extensions.Options;
 
 namespace Collectibles.Application.Tests.Features.CollectibleItems.Commands;

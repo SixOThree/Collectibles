@@ -1,7 +1,9 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Constants;
 using Collectibles.Domain.Entities;
+
 using FluentValidation;
+
 using MediatR;
 
 namespace Collectibles.Application.Features.Users.Commands;

@@ -1,7 +1,9 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Application.Services;
 using Collectibles.Domain.Entities;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.Attachments.Queries;
@@ -56,7 +58,7 @@ public class GetAttachmentContextQueryHandler : IRequestHandler<GetAttachmentCon
                 ItemName = cia.CollectibleItem.Name,
                 ParentName = cia.CollectibleItem.Parent != null ? cia.CollectibleItem.Parent.Name : null,
                 cia.CollectibleItem.DetailedDescription,
-                cia.CollectibleItem.QRCodeId,
+                HasQrCode = cia.CollectibleItem.QRCode != null,
                 ChildCount = cia.CollectibleItem.Children.Count(c => c.Deleted == null),
                 OtherAttachments = cia.CollectibleItem.CollectibleItemAttachments
                     .Count(a => a.AttachmentId != request.AttachmentId && a.Attachment.Deleted == null),
@@ -100,7 +102,7 @@ public class GetAttachmentContextQueryHandler : IRequestHandler<GetAttachmentCon
             HasCustomFields = hasCustomFields,
             HasTags = itemAttachment.HasTags,
             HasExternalLinks = itemAttachment.HasExternalLinks,
-            HasQrCode = itemAttachment.QRCodeId != null,
+            HasQrCode = itemAttachment.HasQrCode,
         };
 
         // Log the context view event

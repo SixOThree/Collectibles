@@ -1,4 +1,4 @@
-@page "/templates/new"
+﻿@page "/templates/new"
 @rendermode InteractiveServerWithoutPrerender
 @attribute [Authorize]
 @inherits LoggablePageBase
@@ -196,7 +196,7 @@
                             var field = _command.Fields[index];
                             
                             <div class="field-editor @(_expandedFieldIndex == index ? "expanded" : "")">
-                                <div class="field-header" @onclick="() => ToggleFieldExpansion(index)">
+                                <div class="field-header" @onclick="() => ToggleFieldExpansion(index)" role="button" tabindex="0" @onkeydown="@(e => { if (e.Key == "Enter" || e.Key == " ") ToggleFieldExpansion(index); })">
                                     <div class="field-info">
                                         <span class="field-name">@(!string.IsNullOrEmpty(field.Label) ? field.Label : "New Field")</span>
                                         <span class="field-type badge bg-secondary">@field.FieldType</span>

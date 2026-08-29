@@ -1,9 +1,12 @@
 using System.Security.Claims;
+
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Constants;
 using Collectibles.Infrastructure.Persistence;
+
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+
 using Moq;
 
 namespace Collectibles.Application.Tests.Infrastructure.Persistence;

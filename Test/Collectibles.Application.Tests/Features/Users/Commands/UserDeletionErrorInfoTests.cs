@@ -1,5 +1,7 @@
 using Collectibles.Infrastructure.Services;
+
 using FluentValidation;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Tests.Features.Users.Commands;

@@ -1,10 +1,12 @@
 using System.IO;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using System.Xml.Linq;
+
 using Collectibles.Application.Features.Attachments.Commands;
 using Collectibles.Application.Features.Sync.Queries;
 using Collectibles.SyncTool.Models;
@@ -51,17 +53,22 @@ public class CollectiblesApiClient
         [".7z"] = "application/x-7z-compressed",
     };
 
-    public CollectiblesApiClient(HttpClient httpClient, HttpClient azureClient)
+    private readonly ApiKeyProvider _apiKeyProvider;
+
+    public CollectiblesApiClient(HttpClient httpClient, HttpClient azureClient, ApiKeyProvider apiKeyProvider)
     {
         _httpClient = httpClient;
         _azureClient = azureClient;
+        _apiKeyProvider = apiKeyProvider;
     }
 
     public void Configure(string baseUrl, string apiKey)
     {
+        // The key is stamped onto each request by ApiKeyMessageHandler rather than being
+        // written into DefaultRequestHeaders, which is not safe to mutate while other
+        // operations have requests in flight.
         _baseUrl = baseUrl.TrimEnd('/');
-        _httpClient.DefaultRequestHeaders.Remove("X-Api-Key");
-        _httpClient.DefaultRequestHeaders.Add("X-Api-Key", apiKey);
+        _apiKeyProvider.ApiKey = apiKey;
     }
 
     private string Url(string path) => $"{_baseUrl}{path}";
@@ -139,40 +146,52 @@ public class CollectiblesApiClient
     public async Task<byte[]?> GetAttachmentThumbnailAsync(
         string attachmentHashId, CancellationToken ct = default)
     {
-        try
-        {
-            var response = await _httpClient.GetAsync(
-                Url($"/api/attachments/{attachmentHashId}/thumbnail"), ct);
-            if (!response.IsSuccessStatusCode)
-            {
-                return null;
-            }
-
-            return await response.Content.ReadAsByteArrayAsync(ct);
-        }
-        catch
-        {
-            return null;
-        }
+        return await GetAttachmentBytesAsync(
+            Url($"/api/attachments/{attachmentHashId}/thumbnail"), "thumbnail", ct);
     }
 
     public async Task<byte[]?> GetAttachmentDownloadAsync(
         string attachmentHashId, CancellationToken ct = default)
     {
+        return await GetAttachmentBytesAsync(
+            Url($"/api/attachments/{attachmentHashId}/download"), "download", ct);
+    }
+
+    /// <summary>
+    /// Fetches attachment bytes, distinguishing "not available" from "not authorized".
+    /// </summary>
+    /// <remarks>
+    /// Both of these endpoints previously collapsed every non-success response into
+    /// <c>null</c>, so the 401 the server returned for private content surfaced in the UI
+    /// as an indistinct failure with no hint that the API key was the problem.
+    /// </remarks>
+    /// <exception cref="UnauthorizedAccessException">The server rejected the credentials.</exception>
+    private async Task<byte[]?> GetAttachmentBytesAsync(string url, string operation, CancellationToken ct)
+    {
+        HttpResponseMessage response;
         try
         {
-            var response = await _httpClient.GetAsync(
-                Url($"/api/attachments/{attachmentHashId}/download"), ct);
+            response = await _httpClient.GetAsync(url, ct);
+        }
+        catch (HttpRequestException ex)
+        {
+            throw new InvalidOperationException($"Could not reach the server to {operation} this attachment.", ex);
+        }
+
+        using (response)
+        {
+            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+            {
+                throw new UnauthorizedAccessException(
+                    $"The server rejected the request to {operation} this attachment. Check that the API key is valid and that sync is enabled for your account.");
+            }
+
             if (!response.IsSuccessStatusCode)
             {
                 return null;
             }
 
             return await response.Content.ReadAsByteArrayAsync(ct);
-        }
-        catch
-        {
-            return null;
         }
     }
 
@@ -188,7 +207,7 @@ public class CollectiblesApiClient
                 RelativePath = relativePath,
                 ContentHash = contentHash,
                 FileSize = fileSize,
-                ContentType = contentType
+                ContentType = contentType,
             }, ct);
 
         response.EnsureSuccessStatusCode();
@@ -198,7 +217,7 @@ public class CollectiblesApiClient
 
     public async Task<long> CompleteSyncUploadAsync(
         string uploadId, string blobName, string originalFileName,
-        string contentType, long fileSize, long targetItemId,
+        string contentType, long fileSize, string targetItemHashId,
         string showcaseHashId, string? contentHash,
         string? attachmentType, CancellationToken ct = default)
     {
@@ -211,10 +230,10 @@ public class CollectiblesApiClient
                 OriginalFileName = originalFileName,
                 ContentType = contentType,
                 FileSize = fileSize,
-                TargetItemId = targetItemId,
+                TargetItemHashId = targetItemHashId,
                 ShowcaseHashId = showcaseHashId,
                 ContentHash = contentHash,
-                AttachmentTypeString = attachmentType
+                AttachmentTypeString = attachmentType,
             }, ct);
 
         response.EnsureSuccessStatusCode();
@@ -226,6 +245,7 @@ public class CollectiblesApiClient
     /// Uploads a file to Azure Blob Storage via SAS URL.
     /// Uses block upload for files larger than 200MB.
     /// </summary>
+    /// <returns><placeholder>A <see cref="Task"/> representing the asynchronous operation.</placeholder></returns>
     public async Task UploadToAzureAsync(
         string sasUrl,
         string filePath,
@@ -243,45 +263,6 @@ public class CollectiblesApiClient
         {
             await SingleUploadAsync(sasUrl, filePath, contentType, fileInfo.Length, progress, ct);
         }
-    }
-
-    /// <summary>
-    /// Full upload flow: initiate, upload to Azure, complete.
-    /// </summary>
-    public async Task UploadFileAsync(
-        string filePath,
-        string showcaseHashId,
-        IProgress<double>? progress = null,
-        CancellationToken ct = default)
-    {
-        var fileName = Path.GetFileName(filePath);
-        var fileInfo = new FileInfo(filePath);
-        var contentType = GetContentType(filePath);
-        var attachmentType = GetAttachmentType(filePath);
-
-        // Step 1: Initiate
-        var initiation = await InitiateUploadAsync(new InitiateUploadRequest
-        {
-            FileName = fileName,
-            FileSize = fileInfo.Length,
-            ContentType = contentType,
-            ShowcaseHashId = showcaseHashId,
-        }, ct);
-
-        // Step 2: Upload to Azure
-        await UploadToAzureAsync(initiation.SasUrl, filePath, contentType, progress, ct);
-
-        // Step 3: Complete
-        await CompleteUploadAsync(new CompleteUploadRequest
-        {
-            UploadId = initiation.UploadId,
-            BlobName = initiation.BlobName,
-            OriginalFileName = fileName,
-            ContentType = contentType,
-            FileSize = fileInfo.Length,
-            AttachmentType = attachmentType,
-            ShowcaseHashId = showcaseHashId,
-        }, ct);
     }
 
     private async Task SingleUploadAsync(
@@ -333,7 +314,8 @@ public class CollectiblesApiClient
         }
 
         // Commit block list
-        var blockListXml = new XElement("BlockList",
+        var blockListXml = new XElement(
+            "BlockList",
             blockIds.Select(id => new XElement("Latest", id)));
 
         var commitUrl = $"{sasUrl}&comp=blocklist";
@@ -379,6 +361,6 @@ public class SyncUploadInitiationResult
     public string? UploadId { get; set; }
     public string? SasUrl { get; set; }
     public string? BlobName { get; set; }
-    public long? TargetItemId { get; set; }
+    public string? TargetItemHashId { get; set; }
     public DateTime? ExpiresAt { get; set; }
 }

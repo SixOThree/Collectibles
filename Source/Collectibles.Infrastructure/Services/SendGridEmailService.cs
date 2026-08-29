@@ -2,8 +2,10 @@ using Collectibles.Application.Common.Models.Email;
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Configuration.Email;
 using Collectibles.Domain.Constants;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
 using SendGrid;
 using SendGrid.Helpers.Mail;
 
@@ -19,12 +21,17 @@ public class SendGridEmailService : IEmailService
     public SendGridEmailService(
         IOptions<EmailSettings> emailSettings,
         ILogger<SendGridEmailService> logger,
-        IEmailTemplateService templateService)
+        IEmailTemplateService templateService,
+        ISendGridClient sendGridClient)
     {
         _emailSettings = emailSettings.Value;
         _logger = logger;
         _templateService = templateService;
-        _sendGridClient = new SendGridClient(_emailSettings.SendGrid.ApiKey);
+
+        // Injected rather than constructed here. `new SendGridClient(apiKey)` allocates its
+        // own HttpClient, and this service is scoped, so under load every request scope
+        // created a fresh client - accumulating TIME_WAIT sockets and pinning stale DNS.
+        _sendGridClient = sendGridClient;
     }
 
     public async Task<EmailResult> SendEmailAsync(EmailMessage message, CancellationToken cancellationToken = default)

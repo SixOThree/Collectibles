@@ -1,6 +1,8 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Entities;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.Maintenance.Queries;
@@ -27,14 +29,24 @@ public record GetActivityOverviewQuery(int Days = 7) : IRequest<ActivityOverview
 public class GetActivityOverviewQueryHandler : IRequestHandler<GetActivityOverviewQuery, ActivityOverviewDto>
 {
     private readonly IApplicationDbContextFactory _contextFactory;
+    private readonly ICurrentUserService _currentUserService;
 
-    public GetActivityOverviewQueryHandler(IApplicationDbContextFactory contextFactory)
+    public GetActivityOverviewQueryHandler(
+        IApplicationDbContextFactory contextFactory,
+        ICurrentUserService currentUserService)
     {
         _contextFactory = contextFactory;
+        _currentUserService = currentUserService;
     }
 
     public async Task<ActivityOverviewDto> Handle(GetActivityOverviewQuery request, CancellationToken cancellationToken)
     {
+        // Aggregates event, error, and request activity across all users.
+        if (!_currentUserService.IsAdministrator)
+        {
+            throw new UnauthorizedAccessException("Only administrators can view the activity overview.");
+        }
+
         var endDate = DateTime.UtcNow;
         var startDate = endDate.Date.AddDays(-(request.Days - 1));
 

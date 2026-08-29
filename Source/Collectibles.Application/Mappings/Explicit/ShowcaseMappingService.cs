@@ -138,14 +138,13 @@ public class ShowcaseMappingService : IShowcaseMappingService
 
             // Get all item IDs for batch preview resolution
             var itemIds = entity.CollectibleItems
-                .Where(ci => ci.Deleted == null)
                 .Select(ci => ci.Id)
                 .ToList();
 
             // Batch get preview URLs
             var previewUrls = await _previewResolver.GetPreviewUrlsAsync(itemIds, cancellationToken);
 
-            foreach (var item in entity.CollectibleItems.Where(ci => ci.Deleted == null))
+            foreach (var item in entity.CollectibleItems)
             {
                 var itemDto = new Features.CollectibleItems.CollectibleItemCardDto
                 {
@@ -197,12 +196,53 @@ public class ShowcaseMappingService : IShowcaseMappingService
         return dto;
     }
 
+    /// <summary>
+    /// Builds the data URI used for a card thumbnail, preferring the generated preview.
+    /// </summary>
+    /// <remarks>
+    /// This used to prefer the full-size original and only fall back to the thumbnail, so
+    /// a page of cards inlined every original image as base64 into circuit memory and the
+    /// payload scaled with total image bytes rather than card count. The original is now
+    /// only a last resort for attachments that have no preview yet.
+    /// </remarks>
     private async Task<string?> GetPreviewImageUrlAsync(Attachment previewImage, CancellationToken cancellationToken)
     {
         byte[]? imageData = null;
+        var isThumbnail = false;
 
-        // First try to get the full-size image from storage (disk or Azure)
-        if (!string.IsNullOrEmpty(previewImage.FilePath))
+        // Preferred: the generated thumbnail held in the database.
+        if (previewImage.AttachmentPreview?.PreviewThumbnail != null)
+        {
+            imageData = previewImage.AttachmentPreview.PreviewThumbnail;
+            isThumbnail = true;
+        }
+
+        // Next: the generated thumbnail in external storage.
+        if (imageData == null && !string.IsNullOrEmpty(previewImage.PreviewPath))
+        {
+            try
+            {
+                var previewContent = await _fileStorage.GetFileAsync(previewImage.PreviewPath, cancellationToken);
+                if (previewContent != null && previewContent.Length > 0)
+                {
+                    imageData = previewContent;
+                    isThumbnail = true;
+                }
+            }
+            catch
+            {
+                // Fail silently for preview thumbnails since they are not critical
+            }
+        }
+
+        // Last resort: the original, for attachments whose preview has not been generated
+        // yet (the preview background job fills these in).
+        if (imageData == null && previewImage.AttachmentContent?.Content != null)
+        {
+            imageData = previewImage.AttachmentContent.Content;
+        }
+
+        if (imageData == null && !string.IsNullOrEmpty(previewImage.FilePath))
         {
             try
             {
@@ -214,46 +254,15 @@ public class ShowcaseMappingService : IShowcaseMappingService
             }
             catch
             {
-                // If full image fails, fall back to preview
-            }
-        }
-
-        // If full image not available, check if full image is in database
-        if (imageData == null && previewImage.AttachmentContent?.Content != null)
-        {
-            imageData = previewImage.AttachmentContent.Content;
-        }
-
-        // Fall back to preview thumbnail if full image not available
-        if (imageData == null)
-        {
-            // Check if preview is in database
-            if (previewImage.AttachmentPreview?.PreviewThumbnail != null)
-            {
-                imageData = previewImage.AttachmentPreview.PreviewThumbnail;
-            }
-
-            // If preview path exists, load from external storage
-            else if (!string.IsNullOrEmpty(previewImage.PreviewPath))
-            {
-                try
-                {
-                    var previewContent = await _fileStorage.GetFileAsync(previewImage.PreviewPath, cancellationToken);
-                    if (previewContent != null && previewContent.Length > 0)
-                    {
-                        imageData = previewContent;
-                    }
-                }
-                catch
-                {
-                    // Fail silently for preview thumbnails since they're not critical
-                }
+                // No image available for this card.
             }
         }
 
         if (imageData != null)
         {
-            return $"data:{previewImage.FileType ?? "image/jpeg"};base64,{Convert.ToBase64String(imageData)}";
+            // Generated thumbnails are always JPEG regardless of the source file type.
+            var mediaType = isThumbnail ? "image/jpeg" : previewImage.FileType ?? "image/jpeg";
+            return $"data:{mediaType};base64,{Convert.ToBase64String(imageData)}";
         }
 
         return null;

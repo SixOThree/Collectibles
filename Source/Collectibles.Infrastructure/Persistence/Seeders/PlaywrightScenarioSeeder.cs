@@ -1,7 +1,9 @@
 using System.Text.Json;
+
 using Collectibles.Application.Services;
 using Collectibles.Domain.Entities;
 using Collectibles.Infrastructure.Persistence;
+
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
@@ -184,4 +186,3 @@ public sealed class PlaywrightScenarioSeeder
         return Task.CompletedTask;
     }
 }
-

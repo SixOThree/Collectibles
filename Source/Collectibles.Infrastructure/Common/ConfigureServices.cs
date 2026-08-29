@@ -15,10 +15,14 @@ using Collectibles.Infrastructure.Repositories;
 using Collectibles.Infrastructure.Services;
 using Collectibles.Infrastructure.Services.Email;
 using Collectibles.Infrastructure.Services.Logging;
+
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+
+using SendGrid;
 
 namespace Collectibles.Infrastructure.Common;
 
@@ -40,6 +44,7 @@ public static class ConfigureServices
                         maxRetryDelay: TimeSpan.FromSeconds(ApplicationConstants.Database.MaxRetryDelaySeconds),
                         errorNumbersToAdd: null);
                     sqlOptions.CommandTimeout(60);
+
                     // Use split query by default to prevent cartesian explosion with complex Include chains
                     // Queries can still opt-in to single query behavior with AsSingleQuery() if needed
                     sqlOptions.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
@@ -138,9 +143,26 @@ public static class ConfigureServices
         services.AddHostedService<LinkProcessorService>();
         services.AddScoped<ILinkProcessorService, ScopedLinkProcessorService>();
 
+        // Egress validation for user-supplied URLs the server fetches (SSRF guard)
+        services.AddSingleton<IUrlEgressGuard, UrlEgressGuard>();
+
+        // Background work queued from handlers (never Task.Run on scoped services)
+        services.AddScoped<IBackgroundJobScheduler, HangfireBackgroundJobScheduler>();
+
         // Register email services
         services.AddScoped<IEmailTemplateService, EmailTemplateService>();
         services.AddScoped<SmtpEmailService>();
+        // One SendGrid client for the process, built on a pooled HttpClient. The service
+        // itself stays scoped; only the transport is shared.
+        services.AddHttpClient(nameof(SendGridEmailService));
+        services.AddSingleton<ISendGridClient>(provider =>
+        {
+            var settings = provider.GetRequiredService<IOptions<EmailSettings>>().Value;
+            var httpClientFactory = provider.GetRequiredService<IHttpClientFactory>();
+            return new SendGridClient(
+                httpClientFactory.CreateClient(nameof(SendGridEmailService)),
+                settings.SendGrid?.ApiKey ?? string.Empty);
+        });
         services.AddScoped<SendGridEmailService>();
         services.AddScoped<AzureCommunicationEmailService>();
         services.AddScoped<NullEmailService>();
@@ -160,6 +182,7 @@ public static class ConfigureServices
         services.AddScoped<IAttachmentDuplicateDetectionService, AttachmentDuplicateDetectionService>();
         services.AddScoped<AttachmentIndexingBackgroundService>();
         services.AddScoped<AttachmentPreviewBackgroundService>();
+        services.AddScoped<AttachmentPurgeBackgroundService>();
 
         return services;
     }

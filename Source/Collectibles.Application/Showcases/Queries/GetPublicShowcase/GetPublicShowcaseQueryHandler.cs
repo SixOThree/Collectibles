@@ -1,6 +1,7 @@
 using Collectibles.Application.Services;
 using Collectibles.Domain.Constants;
 using Collectibles.Domain.Interfaces;
+
 using MediatR;
 
 namespace Collectibles.Application.Showcases.Queries.GetPublicShowcase;
@@ -36,7 +37,7 @@ public class GetPublicShowcaseQueryHandler : IRequestHandler<GetPublicShowcaseQu
         // Map to DTO
         var dto = new PublicShowcaseDto
         {
-            Id = showcase.Id,
+            HashId = _hashIdsService.Encode(showcase.Id),
             Name = showcase.Name,
             Description = showcase.Description,
             PreviewImageUrl = showcase.PreviewImage != null
@@ -50,7 +51,7 @@ public class GetPublicShowcaseQueryHandler : IRequestHandler<GetPublicShowcaseQu
         {
             dto.CollectibleItems = showcase.CollectibleItems.Select(item => new PublicCollectibleItemDto
             {
-                Id = item.Id,
+                HashId = _hashIdsService.Encode(item.Id),
                 Name = item.Name,
                 Description = item.DetailedDescription,
                 PreviewImageUrl = item.PreviewImage != null
@@ -58,7 +59,7 @@ public class GetPublicShowcaseQueryHandler : IRequestHandler<GetPublicShowcaseQu
                     : null,
                 Attachments = item.CollectibleItemAttachments?.Select(cia => new PublicAttachmentDto
                 {
-                    Id = cia.Attachment.Id,
+                    HashId = _hashIdsService.Encode(cia.Attachment.Id),
                     FileName = cia.Attachment.OriginalFilename ?? cia.Attachment.Name,
                     Description = cia.Attachment.Name,
                     ContentType = cia.Attachment.FileType,

@@ -1,9 +1,11 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Configuration;
 using Collectibles.Domain.Interfaces;
+
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+
 using Serilog;
 
 namespace Collectibles.Web.Endpoints;

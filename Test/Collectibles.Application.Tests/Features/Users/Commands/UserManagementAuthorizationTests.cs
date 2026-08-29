@@ -3,6 +3,7 @@ using Collectibles.Application.Features.Users.Dtos;
 using Collectibles.Application.Features.Users.Queries;
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Constants;
+
 using Moq;
 
 namespace Collectibles.Application.Tests.Features.Users.Commands;
@@ -30,12 +31,13 @@ public class UserManagementAuthorizationTests
             _eventLogServiceMock.Object,
             CreateCurrentUser(isAdmin: false).Object);
 
-        var act = async () => await handler.Handle(new CreateUserCommand
-        {
-            Email = "new@example.com",
-            Password = "password123",
-            Roles = new List<string> { ApplicationConstants.Roles.Viewer },
-        }, CancellationToken.None);
+        var act = async () => await handler.Handle(
+            new CreateUserCommand
+            {
+                Email = "new@example.com",
+                Password = "password123",
+                Roles = new List<string> { ApplicationConstants.Roles.Viewer },
+            }, CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
         _userManagementServiceMock.Verify(
@@ -59,12 +61,13 @@ public class UserManagementAuthorizationTests
             _eventLogServiceMock.Object,
             CreateCurrentUser(isAdmin: true).Object);
 
-        var result = await handler.Handle(new CreateUserCommand
-        {
-            Email = "new@example.com",
-            Password = "password123",
-            Roles = new List<string> { ApplicationConstants.Roles.Viewer },
-        }, CancellationToken.None);
+        var result = await handler.Handle(
+            new CreateUserCommand
+            {
+                Email = "new@example.com",
+                Password = "password123",
+                Roles = new List<string> { ApplicationConstants.Roles.Viewer },
+            }, CancellationToken.None);
 
         result.Should().Be("new-user-id");
     }
@@ -77,12 +80,13 @@ public class UserManagementAuthorizationTests
             _eventLogServiceMock.Object,
             CreateCurrentUser(isAdmin: false, isUserManager: false).Object);
 
-        var act = async () => await handler.Handle(new UpdateUserCommand
-        {
-            Id = "other-user",
-            Email = "other@example.com",
-            Roles = new List<string>(),
-        }, CancellationToken.None);
+        var act = async () => await handler.Handle(
+            new UpdateUserCommand
+            {
+                Id = "other-user",
+                Email = "other@example.com",
+                Roles = new List<string>(),
+            }, CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
     }
@@ -95,12 +99,13 @@ public class UserManagementAuthorizationTests
             _eventLogServiceMock.Object,
             CreateCurrentUser(isAdmin: false, isUserManager: true).Object);
 
-        await handler.Handle(new UpdateUserCommand
-        {
-            Id = "other-user",
-            Email = "other@example.com",
-            Roles = new List<string> { ApplicationConstants.Roles.Viewer },
-        }, CancellationToken.None);
+        await handler.Handle(
+            new UpdateUserCommand
+            {
+                Id = "other-user",
+                Email = "other@example.com",
+                Roles = new List<string> { ApplicationConstants.Roles.Viewer },
+            }, CancellationToken.None);
 
         _userManagementServiceMock.Verify(
             x => x.UpdateUserAsync(
@@ -117,12 +122,13 @@ public class UserManagementAuthorizationTests
             _eventLogServiceMock.Object,
             CreateCurrentUser(userId: "user-1", isAdmin: false, isUserManager: true).Object);
 
-        var act = async () => await handler.Handle(new UpdateUserCommand
-        {
-            Id = "user-1",
-            Email = "self@example.com",
-            Roles = new List<string> { ApplicationConstants.Roles.Administrator },
-        }, CancellationToken.None);
+        var act = async () => await handler.Handle(
+            new UpdateUserCommand
+            {
+                Id = "user-1",
+                Email = "self@example.com",
+                Roles = new List<string> { ApplicationConstants.Roles.Administrator },
+            }, CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>()
             .WithMessage("You cannot grant yourself the Administrator role.");
@@ -141,12 +147,13 @@ public class UserManagementAuthorizationTests
             _eventLogServiceMock.Object,
             CreateCurrentUser(userId: "user-1", isAdmin: true).Object);
 
-        await handler.Handle(new UpdateUserCommand
-        {
-            Id = "user-1",
-            Email = "self@example.com",
-            Roles = new List<string> { ApplicationConstants.Roles.Administrator },
-        }, CancellationToken.None);
+        await handler.Handle(
+            new UpdateUserCommand
+            {
+                Id = "user-1",
+                Email = "self@example.com",
+                Roles = new List<string> { ApplicationConstants.Roles.Administrator },
+            }, CancellationToken.None);
 
         _userManagementServiceMock.Verify(
             x => x.UpdateUserAsync(
@@ -207,11 +214,12 @@ public class UserManagementAuthorizationTests
             _userManagementServiceMock.Object,
             CreateCurrentUser(isAdmin: false, isUserManager: false).Object);
 
-        var act = async () => await handler.Handle(new LockUnlockUserCommand
-        {
-            UserId = "other-user",
-            IsLocked = true,
-        }, CancellationToken.None);
+        var act = async () => await handler.Handle(
+            new LockUnlockUserCommand
+            {
+                UserId = "other-user",
+                IsLocked = true,
+            }, CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
     }
@@ -223,11 +231,12 @@ public class UserManagementAuthorizationTests
             _userManagementServiceMock.Object,
             CreateCurrentUser(userId: "user-1", isAdmin: true).Object);
 
-        var act = async () => await handler.Handle(new LockUnlockUserCommand
-        {
-            UserId = "user-1",
-            IsLocked = true,
-        }, CancellationToken.None);
+        var act = async () => await handler.Handle(
+            new LockUnlockUserCommand
+            {
+                UserId = "user-1",
+                IsLocked = true,
+            }, CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>()
             .WithMessage("You cannot lock or unlock your own account.");

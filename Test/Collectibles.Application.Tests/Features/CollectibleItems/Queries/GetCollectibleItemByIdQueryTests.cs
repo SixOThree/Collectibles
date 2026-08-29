@@ -3,6 +3,7 @@ using Collectibles.Application.Mappings.Explicit;
 using Collectibles.Application.Services;
 using Collectibles.Application.Tests.Common;
 using Collectibles.Domain.ValueObjects.Templates;
+
 using Microsoft.Extensions.Logging;
 
 namespace Collectibles.Application.Tests.Features.CollectibleItems.Queries;

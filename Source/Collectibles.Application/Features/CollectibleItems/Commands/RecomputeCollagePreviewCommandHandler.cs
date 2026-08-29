@@ -3,7 +3,9 @@ using System.Text.Json;
 using Collectibles.Application.Interfaces;
 using Collectibles.Application.Services;
 using Collectibles.Domain.Entities;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -15,17 +17,20 @@ public class RecomputeCollagePreviewCommandHandler : IRequestHandler<RecomputeCo
     private readonly IApplicationDbContext _context;
     private readonly ILogger<RecomputeCollagePreviewCommandHandler> _logger;
     private readonly IEventLogService _eventLogService;
+    private readonly ICurrentUserService _currentUserService;
 
     public RecomputeCollagePreviewCommandHandler(
         ICollectibleItemPreviewService previewService,
         IApplicationDbContext context,
         ILogger<RecomputeCollagePreviewCommandHandler> logger,
-        IEventLogService eventLogService)
+        IEventLogService eventLogService,
+        ICurrentUserService currentUserService)
     {
         _previewService = previewService;
         _context = context;
         _logger = logger;
         _eventLogService = eventLogService;
+        _currentUserService = currentUserService;
     }
 
     public async Task<RecomputeCollagePreviewResult> Handle(RecomputeCollagePreviewCommand request, CancellationToken cancellationToken)
@@ -33,7 +38,7 @@ public class RecomputeCollagePreviewCommandHandler : IRequestHandler<RecomputeCo
         try
         {
             var item = await _context.CollectibleItems
-                .FirstOrDefaultAsync(i => i.Id == request.CollectibleItemId && i.Deleted == null, cancellationToken);
+                .FirstOrDefaultAsync(i => i.Id == request.CollectibleItemId, cancellationToken);
             if (item == null)
             {
                 return new RecomputeCollagePreviewResult
@@ -41,6 +46,18 @@ public class RecomputeCollagePreviewCommandHandler : IRequestHandler<RecomputeCo
                     Success = false,
                     ErrorMessage = "Collectible item not found.",
                 };
+            }
+
+            // Mutating an item's preview requires ownership, as the item's other
+            // mutating commands do.
+            var ownsItem = await _context.CollectibleItems
+                .Where(ci => ci.Id == request.CollectibleItemId)
+                .SelectMany(ci => ci.Showcases)
+                .AnyAsync(s => s.UserId == _currentUserService.UserId, cancellationToken);
+
+            if (!ownsItem && !_currentUserService.IsAdministrator)
+            {
+                throw new UnauthorizedAccessException("You are not authorized to recompute this item's preview.");
             }
 
             var success = await _previewService.GenerateCollagePreviewAsync(request.CollectibleItemId, cancellationToken, useRandomSelection: true);

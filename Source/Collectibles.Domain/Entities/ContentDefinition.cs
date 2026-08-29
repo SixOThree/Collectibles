@@ -74,4 +74,10 @@ public class ContentDefinition : BaseAuditableEntity
     /// Gets or sets navigation property for collectible items using this content definition.
     /// </summary>
     public ICollection<CollectibleItem> CollectibleItems { get; set; } = new List<CollectibleItem>();
+
+    /// <summary>
+    /// Gets or sets the optimistic-concurrency token. Without it, two editors of the same
+    /// aggregate silently last-write-wins.
+    /// </summary>
+    public byte[]? RowVersion { get; set; }
 }

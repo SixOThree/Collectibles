@@ -1,8 +1,11 @@
 using System.Security.Claims;
+
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Constants;
 using Collectibles.Infrastructure.Services;
+
 using Microsoft.AspNetCore.Http;
+
 using Moq;
 
 namespace Collectibles.Application.Tests.Infrastructure.Services;

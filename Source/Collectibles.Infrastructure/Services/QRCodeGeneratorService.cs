@@ -1,4 +1,5 @@
 using Collectibles.Application.Services;
+
 using QRCoder;
 
 namespace Collectibles.Infrastructure.Services;

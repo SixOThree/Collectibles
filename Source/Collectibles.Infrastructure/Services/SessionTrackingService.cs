@@ -14,6 +14,7 @@ public class SessionTrackingService : ISessionTrackingService
             {
                 _trackingId = Guid.NewGuid().ToString("N");
             }
+
             return _trackingId;
         }
         private set => _trackingId = value;

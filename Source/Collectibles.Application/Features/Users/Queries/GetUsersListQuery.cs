@@ -2,6 +2,7 @@ using Collectibles.Application.Common.Models;
 using Collectibles.Application.Features.Users.Dtos;
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Constants;
+
 using MediatR;
 
 namespace Collectibles.Application.Features.Users.Queries;

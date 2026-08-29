@@ -1,5 +1,7 @@
 using System.Windows.Media;
+
 using Collectibles.SyncTool.Models;
+
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Collectibles.SyncTool.ViewModels;
@@ -64,7 +66,7 @@ public partial class SyncItemViewModel : ObservableObject
 
     private static readonly HashSet<string> PreviewableExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".tiff", ".tif"
+        ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".tiff", ".tif",
     };
 
     public bool IsPreviewableImage
@@ -72,7 +74,11 @@ public partial class SyncItemViewModel : ObservableObject
         get
         {
             var fileName = _item.LocalFileName ?? _item.ServerFileName;
-            if (fileName == null) return false;
+            if (fileName == null)
+            {
+                return false;
+            }
+
             var ext = System.IO.Path.GetExtension(fileName);
             return PreviewableExtensions.Contains(ext);
         }

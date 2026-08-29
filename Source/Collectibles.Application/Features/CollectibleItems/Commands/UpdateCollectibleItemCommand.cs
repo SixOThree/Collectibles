@@ -2,7 +2,9 @@ using Collectibles.Application.Interfaces;
 using Collectibles.Application.Services;
 using Collectibles.Domain.Entities;
 using Collectibles.Domain.ValueObjects.Templates;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.CollectibleItems.Commands;
@@ -29,17 +31,20 @@ public class UpdateCollectibleItemCommandHandler : IRequestHandler<UpdateCollect
     private readonly ICurrentUserService _currentUserService;
     private readonly IEventLogService _eventLogService;
     private readonly ICollectibleItemPreviewService _previewService;
+    private readonly IBackgroundJobScheduler _backgroundJobScheduler;
 
     public UpdateCollectibleItemCommandHandler(
         IApplicationDbContextFactory contextFactory,
         ICurrentUserService currentUserService,
         IEventLogService eventLogService,
-        ICollectibleItemPreviewService previewService)
+        ICollectibleItemPreviewService previewService,
+        IBackgroundJobScheduler backgroundJobScheduler)
     {
         _contextFactory = contextFactory;
         _currentUserService = currentUserService;
         _eventLogService = eventLogService;
         _previewService = previewService;
+        _backgroundJobScheduler = backgroundJobScheduler;
     }
 
     public async Task<Unit> Handle(UpdateCollectibleItemCommand request, CancellationToken cancellationToken)
@@ -51,7 +56,7 @@ public class UpdateCollectibleItemCommandHandler : IRequestHandler<UpdateCollect
                 .ThenInclude(cia => cia.Attachment)
             .Include(ci => ci.CollectibleItemTags)
             .Include(ci => ci.CollectibleItemRelatedTags)
-            .FirstOrDefaultAsync(ci => ci.Id == request.Id && ci.Deleted == null, cancellationToken);
+            .FirstOrDefaultAsync(ci => ci.Id == request.Id, cancellationToken);
 
         if (collectibleItem == null)
         {
@@ -139,12 +144,31 @@ public class UpdateCollectibleItemCommandHandler : IRequestHandler<UpdateCollect
             collectibleItem.ContentValue = null;
         }
 
-        // Update attachments
-        collectibleItem.CollectibleItemAttachments.Clear();
-        if (request.AttachmentIds.Count != 0)
+        // Update attachments by diffing against the existing junction rows. A clear-and-
+        // rebuild would discard the payload those rows carry (IsFeatured, FeaturedDate,
+        // DisplayOrder), so curating a featured attachment and then renaming the item
+        // silently wiped the curation.
+        var requestedAttachmentIds = request.AttachmentIds.ToHashSet();
+
+        var removedLinks = collectibleItem.CollectibleItemAttachments
+            .Where(cia => !requestedAttachmentIds.Contains(cia.AttachmentId))
+            .ToList();
+
+        foreach (var removed in removedLinks)
+        {
+            collectibleItem.CollectibleItemAttachments.Remove(removed);
+        }
+
+        var retainedAttachmentIds = collectibleItem.CollectibleItemAttachments
+            .Select(cia => cia.AttachmentId)
+            .ToHashSet();
+
+        var addedAttachmentIds = requestedAttachmentIds.Except(retainedAttachmentIds).ToList();
+
+        if (addedAttachmentIds.Count != 0)
         {
             var attachments = await context.Attachments
-                .Where(a => request.AttachmentIds.Contains(a.Id))
+                .Where(a => addedAttachmentIds.Contains(a.Id))
                 .ToListAsync(cancellationToken);
 
             foreach (var attachment in attachments)
@@ -216,19 +240,12 @@ public class UpdateCollectibleItemCommandHandler : IRequestHandler<UpdateCollect
             var hasChildrenWithImages = await _previewService.NeedsCollagePreviewAsync(collectibleItem.Id, cancellationToken);
             if (hasChildrenWithImages)
             {
-                // Generate collage preview asynchronously
-                _ = Task.Run(
-                    async () =>
-                {
-                    try
-                    {
-                        await _previewService.GenerateCollagePreviewAsync(collectibleItem.Id);
-                    }
-                    catch
-                    {
-                        // Collage generation is non-critical, log but don't fail the operation
-                    }
-                }, cancellationToken);
+                // Queue the collage generation so it runs in its own scope. Running it via
+                // Task.Run captured this request's scoped preview service, whose DbContext
+                // is disposed once the request ends.
+                var itemId = collectibleItem.Id;
+                _backgroundJobScheduler.Enqueue<ICollectibleItemPreviewService>(
+                    service => service.GenerateCollagePreviewAsync(itemId, CancellationToken.None, false, null));
             }
         }
 

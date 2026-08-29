@@ -11,4 +11,10 @@ public class LinkCache : BaseAuditableEntity
     public string? CachedContentPath { get; set; }
     public string? ScreenshotPath { get; set; }
     public string? FailureReason { get; set; }
+
+    /// <summary>
+    /// Gets or sets when the capture attempt claimed this row. Used to sweep rows abandoned
+    /// in <see cref="LinkCacheStatus.Processing"/> by a crash or restart back to Pending.
+    /// </summary>
+    public DateTime? ProcessingStartedAt { get; set; }
 }

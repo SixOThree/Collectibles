@@ -33,32 +33,32 @@ public interface IAttachmentDuplicateDetectionService
 public record DuplicateCheckResult
 {
     /// <summary>
-    /// True if a duplicate exists within the same collectible item.
+    /// Gets a value indicating whether true if a duplicate exists within the same collectible item.
     /// </summary>
     public bool IsDuplicateWithinItem { get; init; }
 
     /// <summary>
-    /// True if a duplicate exists in a different collectible item.
+    /// Gets a value indicating whether true if a duplicate exists in a different collectible item.
     /// </summary>
     public bool IsDuplicateElsewhere { get; init; }
 
     /// <summary>
-    /// The ID of the duplicate attachment, if found.
+    /// Gets the ID of the duplicate attachment, if found.
     /// </summary>
     public long? DuplicateAttachmentId { get; init; }
 
     /// <summary>
-    /// The name of the duplicate attachment, if found.
+    /// Gets the name of the duplicate attachment, if found.
     /// </summary>
     public string? DuplicateAttachmentName { get; init; }
 
     /// <summary>
-    /// The ID of the collectible item containing the duplicate, if applicable.
+    /// Gets the ID of the collectible item containing the duplicate, if applicable.
     /// </summary>
     public long? DuplicateCollectibleItemId { get; init; }
 
     /// <summary>
-    /// The name of the collectible item containing the duplicate, if applicable.
+    /// Gets the name of the collectible item containing the duplicate, if applicable.
     /// </summary>
     public string? DuplicateCollectibleItemName { get; init; }
 }
@@ -69,22 +69,22 @@ public record DuplicateCheckResult
 public record AttachmentIndexingStats
 {
     /// <summary>
-    /// Total number of attachments with file paths.
+    /// Gets total number of attachments with file paths.
     /// </summary>
     public int TotalAttachments { get; init; }
 
     /// <summary>
-    /// Number of attachments that have been indexed (hash computed).
+    /// Gets number of attachments that have been indexed (hash computed).
     /// </summary>
     public int IndexedAttachments { get; init; }
 
     /// <summary>
-    /// Number of attachments pending indexing.
+    /// Gets number of attachments pending indexing.
     /// </summary>
     public int PendingAttachments { get; init; }
 
     /// <summary>
-    /// Percentage of indexing complete (0-100).
+    /// Gets percentage of indexing complete (0-100).
     /// </summary>
     public double PercentComplete { get; init; }
 }

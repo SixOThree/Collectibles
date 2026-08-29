@@ -1,6 +1,7 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Security;
 using Collectibles.Infrastructure.Persistence;
+
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;

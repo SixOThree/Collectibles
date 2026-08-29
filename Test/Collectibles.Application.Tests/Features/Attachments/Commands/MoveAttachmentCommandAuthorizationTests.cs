@@ -59,12 +59,13 @@ public class MoveAttachmentCommandAuthorizationTests : BaseTestFixture
             Mock.Of<IItemHierarchyService>(),
             _currentUserServiceMock.Object);
 
-        await handler.Handle(new MoveAttachmentCommand
-        {
-            AttachmentId = attachment.Id,
-            RelativePath = "renamed.jpg",
-            ShowcaseId = showcase.Id,
-        }, CancellationToken);
+        await handler.Handle(
+            new MoveAttachmentCommand
+            {
+                AttachmentId = attachment.Id,
+                RelativePath = "renamed.jpg",
+                ShowcaseId = showcase.Id,
+            }, CancellationToken);
 
         attachment.OriginalFilename.Should().Be("renamed.jpg");
         attachment.Name.Should().Be("renamed");
@@ -109,12 +110,13 @@ public class MoveAttachmentCommandAuthorizationTests : BaseTestFixture
             Mock.Of<IItemHierarchyService>(),
             _currentUserServiceMock.Object);
 
-        var act = async () => await handler.Handle(new MoveAttachmentCommand
-        {
-            AttachmentId = attachment.Id,
-            RelativePath = "blocked.jpg",
-            ShowcaseId = showcase.Id,
-        }, CancellationToken);
+        var act = async () => await handler.Handle(
+            new MoveAttachmentCommand
+            {
+                AttachmentId = attachment.Id,
+                RelativePath = "blocked.jpg",
+                ShowcaseId = showcase.Id,
+            }, CancellationToken);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>()
             .WithMessage("You are not authorized to move attachments in this showcase.");

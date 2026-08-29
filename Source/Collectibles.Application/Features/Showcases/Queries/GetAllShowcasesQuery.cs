@@ -1,6 +1,8 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Application.Mappings.Explicit;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.Showcases.Queries;
@@ -33,12 +35,12 @@ public class GetAllShowcasesQueryHandler : IRequestHandler<GetAllShowcasesQuery,
         var showcases = await _context.Showcases
             .Include(s => s.ShowcaseTags)
                 .ThenInclude(st => st.Tag)
-            .Include(s => s.CollectibleItems.Where(ci => ci.Deleted == null))
-            .Include(s => s.PreviewImage)
-                .ThenInclude(p => p!.AttachmentContent)
+            .Include(s => s.CollectibleItems)
+
+            // Card rendering uses the thumbnail; loading every original here made memory
+            // and SQL I/O scale with total image bytes rather than showcase count.
             .Include(s => s.PreviewImage)
                 .ThenInclude(p => p!.AttachmentPreview)
-            .Where(s => s.Deleted == null)
             .OrderBy(s => s.Name)
             .ToListAsync(cancellationToken);
 

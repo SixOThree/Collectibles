@@ -74,7 +74,7 @@ public static class CollectibleItemMappingExtensions
             RelatedTags = new List<Features.Tags.TagDto>(), // Mapped separately
             ExternalReferences = new List<LinkInfoDto>(), // Mapped separately
             Showcases = new List<ShowcaseBriefDto>(), // Mapped separately
-            QRCodeId = entity.QRCodeId,
+            QRCodeId = entity.QRCode?.Id,
             ShowRelatedItemsFirst = entity.ShowRelatedItemsFirst,
             Created = entity.Created ?? DateTime.MinValue,
             CreatedBy = entity.CreatedBy,

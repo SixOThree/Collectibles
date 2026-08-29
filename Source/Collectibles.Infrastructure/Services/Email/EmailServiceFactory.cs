@@ -19,7 +19,10 @@ public class EmailServiceFactory
 
     public IEmailService CreateEmailService()
     {
-        return _emailSettings.Provider.ToUpper(System.Globalization.CultureInfo.CurrentCulture) switch
+        // Provider names are configuration identifiers, not user-facing text: case-folding
+        // them with the current culture made "AzureCommunication" fail to match under
+        // tr-TR (dotless i) and silently fall through to SMTP.
+        return _emailSettings.Provider.ToUpperInvariant() switch
         {
             "SENDGRID" => _serviceProvider.GetRequiredService<SendGridEmailService>(),
             "SMTP" => _serviceProvider.GetRequiredService<SmtpEmailService>(),

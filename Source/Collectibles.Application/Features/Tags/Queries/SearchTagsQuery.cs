@@ -1,6 +1,8 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Application.Mappings.Explicit;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.Tags.Queries;
@@ -24,8 +26,7 @@ public class SearchTagsQueryHandler : IRequestHandler<SearchTagsQuery, List<TagD
     {
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
 
-        var query = context.Tags
-            .Where(t => t.Deleted == null);
+        var query = context.Tags.AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(request.SearchTerm))
         {

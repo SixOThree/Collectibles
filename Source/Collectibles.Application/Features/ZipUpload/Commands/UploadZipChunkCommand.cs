@@ -1,6 +1,9 @@
 using Collectibles.Application.Interfaces;
+using Collectibles.Domain.Common;
 using Collectibles.Domain.Interfaces;
+
 using MediatR;
+
 using Microsoft.Extensions.Logging;
 
 namespace Collectibles.Application.Features.ZipUpload.Commands;
@@ -26,16 +29,19 @@ public class UploadZipChunkCommandHandler : IRequestHandler<UploadZipChunkComman
 {
     private readonly IApplicationDbContextFactory _contextFactory;
     private readonly IFileStorage _fileStorage;
+    private readonly ICurrentUserService _currentUserService;
     private readonly ILogger<UploadZipChunkCommandHandler> _logger;
     private readonly string _tempDirectory = Path.Combine(Path.GetTempPath(), "collectibles-chunks");
 
     public UploadZipChunkCommandHandler(
         IApplicationDbContextFactory contextFactory,
         IFileStorage fileStorage,
+        ICurrentUserService currentUserService,
         ILogger<UploadZipChunkCommandHandler> logger)
     {
         _contextFactory = contextFactory;
         _fileStorage = fileStorage;
+        _currentUserService = currentUserService;
         _logger = logger;
 
         // Ensure temp directory exists
@@ -51,8 +57,14 @@ public class UploadZipChunkCommandHandler : IRequestHandler<UploadZipChunkComman
         {
             await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
 
-            // Get the job
-            var job = await context.ZipUploadJobs.FindAsync(new object[] { request.JobId }, cancellationToken);
+            var userId = _currentUserService.UserId;
+            if (string.IsNullOrEmpty(userId))
+            {
+                throw new UnauthorizedAccessException("User context not available. Please ensure you are logged in.");
+            }
+
+            // Get the job, confirming it belongs to the caller
+            var job = await ZipUploadAuthorization.GetOwnedJobAsync(context, request.JobId, userId, cancellationToken);
             if (job == null)
             {
                 return new UploadZipChunkResult
@@ -113,7 +125,7 @@ public class UploadZipChunkCommandHandler : IRequestHandler<UploadZipChunkComman
                 // Upload to storage
                 using (var fileStream = new FileStream(tempFilePath, FileMode.Open, FileAccess.Read, FileShare.Read))
                 {
-                    var requestedPath = $"zip-uploads/{request.JobId}/{request.FileName}";
+                    var requestedPath = $"zip-uploads/{request.JobId}/{SafeFileName.Sanitize(request.FileName)}";
                     var actualStoragePath = await _fileStorage.SaveFileAsync(fileStream, requestedPath, "application/zip", null, cancellationToken);
 
                     // Update job with storage path and mark as pending
@@ -144,6 +156,12 @@ public class UploadZipChunkCommandHandler : IRequestHandler<UploadZipChunkComman
                 Success = true,
                 ChunkIndex = request.ChunkIndex,
             };
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Authorization failures propagate rather than being reported as a chunk error,
+            // so the caller cannot mistake a denial for a transient upload problem.
+            throw;
         }
         catch (Exception ex)
         {

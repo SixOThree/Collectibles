@@ -1,14 +1,16 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Application.Mappings.Explicit;
 using Collectibles.Domain.Entities;
+
 using MediatR;
+
+using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.Tags.Commands;
 
 public record CreateTagCommand : IRequest<TagDto>
 {
     public string Name { get; init; } = string.Empty;
-    public string? Description { get; init; }
 }
 
 public class CreateTagCommandHandler : IRequestHandler<CreateTagCommand, TagDto>
@@ -24,16 +26,46 @@ public class CreateTagCommandHandler : IRequestHandler<CreateTagCommand, TagDto>
     {
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
 
+        var name = request.Name.Trim();
+
+        // Tag names carry a unique index. The validator reports the duplicate for a normal
+        // request; this handles the concurrent-create race by returning the winner rather
+        // than failing or creating a second row.
+        var existing = await context.Tags
+            .FirstOrDefaultAsync(t => t.Name == name, cancellationToken);
+
+        if (existing != null)
+        {
+            return existing.ToDto();
+        }
+
         var tag = new Tag
         {
-            Name = request.Name.Trim(),
+            Name = name,
         };
 
         context.Tags.Add(tag);
-        await context.SaveChangesAsync(cancellationToken);
 
-        return request.Description != null
-            ? tag.ToDtoWithDescription(request.Description)
-            : tag.ToDto();
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            context.Tags.Remove(tag);
+
+            var raced = await context.Tags
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.Name == name, cancellationToken);
+
+            if (raced == null)
+            {
+                throw;
+            }
+
+            return raced.ToDto();
+        }
+
+        return tag.ToDto();
     }
 }

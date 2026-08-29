@@ -5,6 +5,8 @@ public class AttachmentConfiguration : IEntityTypeConfiguration<Attachment>
     public void Configure(EntityTypeBuilder<Attachment> builder)
     {
         builder.ToTable("Attachments");
+
+        builder.Property(a => a.RowVersion).IsRowVersion();
         builder.Ignore(e => e.DomainEvents);
         builder.Property(a => a.Name).HasMaxLength(200).IsRequired();
         builder.Property(a => a.OriginalFilename).HasMaxLength(256);

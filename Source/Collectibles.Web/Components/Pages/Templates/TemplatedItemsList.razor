@@ -1,4 +1,4 @@
-@page "/showcase/{Hash}/templates/items"
+﻿@page "/showcase/{Hash}/templates/items"
 @page "/showcase/{Hash}/templates/{TemplateIdParam:long}/items"
 @rendermode InteractiveServerWithoutPrerender
 @attribute [Authorize]
@@ -213,7 +213,7 @@ else
                                 {
                                     var entryValues = item.AllEntries[entryIdx];
                                     var idx = entryIdx; // capture for lambda
-                                    <tr class="item-row" @onclick="@(() => NavigateToItem(item.Id))">
+                                    <tr class="item-row" @onclick="@(() => NavigateToItem(item.Id))" role="button" tabindex="0" @onkeydown="@(e => { if (e.Key == "Enter" || e.Key == " ") NavigateToItem(item.Id); })">
                                         <td class="fw-medium">@item.Name</td>
                                         @foreach (var field in _result.Fields)
                                         {
@@ -260,7 +260,7 @@ else
                             else
                             {
                                 // Single entry or no entries: one row
-                                <tr class="item-row" @onclick="@(() => NavigateToItem(item.Id))">
+                                <tr class="item-row" @onclick="@(() => NavigateToItem(item.Id))" role="button" tabindex="0" @onkeydown="@(e => { if (e.Key == "Enter" || e.Key == " ") NavigateToItem(item.Id); })">
                                     <td class="fw-medium">@item.Name</td>
                                     @foreach (var field in _result.Fields)
                                     {
@@ -513,7 +513,7 @@ else
         }
     }
 
-    private void SortBy(string column)
+    private async Task SortBy(string column)
     {
         if (_sortBy == column)
         {
@@ -525,13 +525,13 @@ else
             _sortDescending = false;
         }
         _pageNumber = 1;
-        _ = LoadItems();
+        await LoadItems();
     }
 
-    private void ChangePage(int pageNumber)
+    private async Task ChangePage(int pageNumber)
     {
         _pageNumber = pageNumber;
-        _ = LoadItems();
+        await LoadItems();
     }
 
     private async Task ClearFilters()

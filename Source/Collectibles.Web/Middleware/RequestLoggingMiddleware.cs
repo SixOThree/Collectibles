@@ -1,4 +1,5 @@
 using System.Diagnostics;
+
 using Collectibles.Application.Interfaces;
 using Collectibles.Web.Services;
 
@@ -42,18 +43,22 @@ public class RequestLoggingMiddleware
         ".eot",
     };
 
+    private readonly IClientIpResolver _clientIpResolver;
+
     public RequestLoggingMiddleware(
         RequestDelegate next,
         ILogger<RequestLoggingMiddleware> logger,
         IServiceProvider serviceProvider,
         IConfiguration configuration,
-        RequestLogQueue requestLogQueue)
+        RequestLogQueue requestLogQueue,
+        IClientIpResolver clientIpResolver)
     {
         _next = next;
         _logger = logger;
         _serviceProvider = serviceProvider;
         _configuration = configuration;
         _requestLogQueue = requestLogQueue;
+        _clientIpResolver = clientIpResolver;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -152,24 +157,9 @@ public class RequestLoggingMiddleware
         return false;
     }
 
-    private static string? GetIPAddress(HttpContext context)
+    private string? GetIPAddress(HttpContext context)
     {
-        var ipAddress = context.Request.Headers["X-Forwarded-For"].FirstOrDefault();
-        if (!string.IsNullOrEmpty(ipAddress))
-        {
-            var addresses = ipAddress.Split(',');
-            if (addresses.Length > 0)
-            {
-                return addresses[0].Trim();
-            }
-        }
-
-        ipAddress = context.Request.Headers["X-Real-IP"].FirstOrDefault();
-        if (!string.IsNullOrEmpty(ipAddress))
-        {
-            return ipAddress;
-        }
-
-        return context.Connection.RemoteIpAddress?.ToString();
+        // Resolved centrally so the logged address cannot be chosen by the client.
+        return _clientIpResolver.Resolve(context);
     }
 }

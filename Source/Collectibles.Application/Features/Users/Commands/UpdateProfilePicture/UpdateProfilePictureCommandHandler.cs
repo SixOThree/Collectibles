@@ -1,6 +1,9 @@
 using Collectibles.Application.Interfaces;
+using Collectibles.Domain.Common;
 using Collectibles.Domain.Interfaces;
+
 using MediatR;
+
 using Microsoft.Extensions.Logging;
 
 namespace Collectibles.Application.Features.Users.Commands.UpdateProfilePicture;
@@ -48,7 +51,7 @@ public class UpdateProfilePictureCommandHandler : IRequestHandler<UpdateProfileP
         try
         {
             // Process the uploaded file
-            var fileUrl = await _fileStorage.SaveFileAsync(request.FileStream, request.FileName, request.ContentType, null, cancellationToken);
+            var fileUrl = await _fileStorage.SaveFileAsync(request.FileStream, SafeFileName.Sanitize(request.FileName), request.ContentType, null, cancellationToken);
 
             // Update the user's profile picture URL
             var result = await _userManagementService.UpdateUserProfileAsync(request.UserId, null, null, fileUrl);

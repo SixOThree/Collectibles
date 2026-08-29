@@ -45,6 +45,12 @@ public class EmailService : IEmailService
 
     public async Task<EmailResult> SendTemplatedEmailAsync(TemplatedEmailMessage message, CancellationToken cancellationToken = default)
     {
+        // Rendering happens once here, in the facade, so every provider receives a fully
+        // rendered body. It used to be implemented per provider, and the Azure and Null
+        // providers never resolved TemplateName at all - so with the Azure provider
+        // selected, confirmation and password-reset emails went out with an empty body.
+        await RenderTemplateAsync(message, cancellationToken);
+
         if (_emailSettings.EnableEmailLogging)
         {
             return await SendEmailWithLoggingAsync(message, message.TemplateName, cancellationToken);
@@ -52,6 +58,35 @@ public class EmailService : IEmailService
 
         var emailService = _emailServiceFactory.CreateEmailService();
         return await emailService.SendTemplatedEmailAsync(message, cancellationToken);
+    }
+
+    /// <summary>
+    /// Fills in the message's body (and subject, when the caller left it blank) from its
+    /// named template. Idempotent: a message that already carries a rendered body is left
+    /// alone, so re-sends from the email log do not re-render.
+    /// </summary>
+    private async Task RenderTemplateAsync(TemplatedEmailMessage message, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(message.TemplateName))
+        {
+            return;
+        }
+
+        if (string.IsNullOrEmpty(message.Body))
+        {
+            message.Body = await _templateService.RenderTemplateAsync(
+                message.TemplateName,
+                message.TemplateModel,
+                cancellationToken);
+        }
+
+        if (string.IsNullOrEmpty(message.Subject))
+        {
+            message.Subject = await _templateService.GetTemplateSubjectAsync(
+                message.TemplateName,
+                message.TemplateModel,
+                cancellationToken);
+        }
     }
 
     public async Task<List<EmailResult>> SendBulkEmailAsync(List<EmailMessage> messages, CancellationToken cancellationToken = default)
@@ -83,18 +118,11 @@ public class EmailService : IEmailService
 
         if (templatedMessage != null)
         {
-            renderedBody = await _templateService.RenderTemplateAsync(
-                templatedMessage.TemplateName,
-                templatedMessage.TemplateModel,
-                cancellationToken);
-
-            if (string.IsNullOrEmpty(renderedSubject))
-            {
-                renderedSubject = await _templateService.GetTemplateSubjectAsync(
-                    templatedMessage.TemplateName,
-                    templatedMessage.TemplateModel,
-                    cancellationToken);
-            }
+            // Rendering is idempotent, and the rendered values are written back onto the
+            // message so the log row and the message actually dispatched agree.
+            await RenderTemplateAsync(templatedMessage, cancellationToken);
+            renderedBody = templatedMessage.Body;
+            renderedSubject = templatedMessage.Subject;
         }
 
         var emailLog = new EmailLog

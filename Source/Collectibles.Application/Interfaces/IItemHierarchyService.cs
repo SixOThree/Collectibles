@@ -12,6 +12,7 @@ public interface IItemHierarchyService
     /// name + parentId + showcase membership. Creates if missing.
     /// Returns the ID of the deepest (leaf) item.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     Task<long> ResolveOrCreateHierarchyAsync(
         long showcaseId,
         string[] folderSegments,
@@ -23,6 +24,7 @@ public interface IItemHierarchyService
     /// Links an attachment to an item via CollectibleItemAttachment.
     /// Skips if already linked. Does not set PreviewImageId.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     Task LinkAttachmentAsync(long itemId, long attachmentId, CancellationToken ct);
 
     /// <summary>
@@ -31,6 +33,7 @@ public interface IItemHierarchyService
     /// image can legitimately appear under different items.
     /// Returns the attachment ID if found, null otherwise.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     Task<long?> FindDuplicateAttachmentAsync(
         long itemId, string contentHash, CancellationToken ct);
 
@@ -38,5 +41,6 @@ public interface IItemHierarchyService
     /// Walks up the parent chain from the given item, soft-deleting items
     /// that have no attachments and no non-deleted children.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     Task CleanupEmptyParentsAsync(long itemId, long showcaseId, CancellationToken ct);
 }

@@ -1,7 +1,9 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Entities;
 using Collectibles.Domain.Interfaces;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.Attachments.Commands;
@@ -77,18 +79,23 @@ public class DeleteAttachmentCommandHandler : IRequestHandler<DeleteAttachmentCo
             AssociatedItems = attachmentItems.Select(i => new { i.Id, i.Name }).ToList(),
         };
 
-        // Delete files from external storage if they exist
-        if (!string.IsNullOrEmpty(entity.FilePath))
-        {
-            await _fileStorage.DeleteFileAsync(entity.FilePath, cancellationToken);
-        }
+        // Soft delete, matching DeleteCollectibleItemCommand. Attachments are a soft-delete
+        // aggregate: hard-deleting here (and destroying the blob before the save committed)
+        // made the same entity recoverable through one path and unrecoverable through another.
+        // AttachmentPurgeBackgroundService reclaims the rows and their blobs after the
+        // retention window, deleting files only after the database delete is committed.
+        entity.Deleted = DateTime.UtcNow;
+        entity.DeletedBy = _currentUserService.UserId;
 
-        if (!string.IsNullOrEmpty(entity.PreviewPath))
-        {
-            await _fileStorage.DeleteFileAsync(entity.PreviewPath, cancellationToken);
-        }
+        // Detach from any items so the attachment stops appearing in their listings.
+        var links = await context.CollectibleItemAttachments
+            .Where(cia => cia.AttachmentId == entity.Id)
+            .ToListAsync(cancellationToken);
 
-        context.Attachments.Remove(entity);
+        if (links.Count != 0)
+        {
+            context.CollectibleItemAttachments.RemoveRange(links);
+        }
 
         await context.SaveChangesAsync(cancellationToken);
 

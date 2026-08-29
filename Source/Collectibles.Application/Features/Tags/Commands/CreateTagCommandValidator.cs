@@ -1,6 +1,8 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Constants;
+
 using FluentValidation;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.Tags.Commands;
@@ -22,7 +24,7 @@ public class CreateTagCommandValidator : AbstractValidator<CreateTagCommand>
 
     private async Task<bool> BeUniqueName(string name, CancellationToken cancellationToken)
     {
-        var normalizedName = name.Trim().ToLower();
+        var normalizedName = name.Trim().ToLowerInvariant();
 
         return !await _context.Tags
             .AnyAsync(t => t.Name.ToLower() == normalizedName, cancellationToken);

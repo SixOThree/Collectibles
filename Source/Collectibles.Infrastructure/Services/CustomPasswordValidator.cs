@@ -1,6 +1,8 @@
 using System.Text.RegularExpressions;
+
 using Collectibles.Application.Interfaces;
 using Collectibles.Infrastructure.Persistence;
+
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 

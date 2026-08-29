@@ -6,6 +6,8 @@ public class ContentDefinitionConfiguration : BaseEntityConfiguration<ContentDef
     {
         builder.ToTable("ContentDefinitions");
 
+        builder.Property(cd => cd.RowVersion).IsRowVersion();
+
         builder.Property(cd => cd.Name)
             .HasMaxLength(200)
             .IsRequired();

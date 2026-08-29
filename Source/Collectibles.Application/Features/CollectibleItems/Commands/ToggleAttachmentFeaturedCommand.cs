@@ -1,5 +1,7 @@
 using Collectibles.Application.Interfaces;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.CollectibleItems.Commands;
@@ -27,7 +29,7 @@ public class ToggleAttachmentFeaturedCommandHandler : IRequestHandler<ToggleAtta
 
         // Check if the current user has permission to edit this collectible item
         var hasPermission = await context.CollectibleItems
-            .Where(ci => ci.Id == request.CollectibleItemId && ci.Deleted == null)
+            .Where(ci => ci.Id == request.CollectibleItemId)
             .SelectMany(ci => ci.Showcases)
             .AnyAsync(s => s.UserId == _currentUserService.UserId, cancellationToken);
 

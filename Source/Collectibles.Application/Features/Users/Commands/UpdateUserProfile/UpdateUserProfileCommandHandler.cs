@@ -1,5 +1,7 @@
 using Collectibles.Application.Interfaces;
+
 using MediatR;
+
 using Microsoft.Extensions.Logging;
 
 namespace Collectibles.Application.Features.Users.Commands.UpdateUserProfile;

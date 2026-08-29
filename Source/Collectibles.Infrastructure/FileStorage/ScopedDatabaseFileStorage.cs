@@ -1,4 +1,5 @@
 using Collectibles.Domain.Interfaces;
+
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Collectibles.Infrastructure.FileStorage;

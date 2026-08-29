@@ -3,7 +3,11 @@ using Collectibles.Domain.Configuration.Storage;
 using Collectibles.Domain.Entities;
 using Collectibles.Domain.Enums;
 using Collectibles.Domain.Interfaces;
+
+using FluentValidation;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -13,6 +17,25 @@ public class RotateAttachmentCommand : IRequest<bool>
 {
     public long AttachmentId { get; set; }
     public int RotationDegrees { get; set; } // 90, -90, 180, 270
+}
+
+/// <summary>
+/// Rotation is one of the few attachment commands that had no validator, so an arbitrary
+/// angle reached the image pipeline.
+/// </summary>
+public class RotateAttachmentCommandValidator : AbstractValidator<RotateAttachmentCommand>
+{
+    private static readonly int[] AllowedRotations = [90, 180, 270, -90, -180, -270];
+
+    public RotateAttachmentCommandValidator()
+    {
+        RuleFor(v => v.AttachmentId)
+            .GreaterThan(0);
+
+        RuleFor(v => v.RotationDegrees)
+            .Must(degrees => Array.IndexOf(AllowedRotations, degrees) >= 0)
+            .WithMessage("Rotation must be one of 90, 180, 270, -90, -180, or -270 degrees.");
+    }
 }
 
 public class RotateAttachmentCommandHandler : IRequestHandler<RotateAttachmentCommand, bool>
@@ -79,7 +102,7 @@ public class RotateAttachmentCommandHandler : IRequestHandler<RotateAttachmentCo
             {
                 var collectibleItem = attachment.CollectibleItemAttachments.First().CollectibleItem;
                 var showcase = await context.Showcases
-                    .Where(s => s.Deleted == null && s.CollectibleItems.Any(ci => ci.Id == collectibleItem.Id))
+                    .Where(s => s.CollectibleItems.Any(ci => ci.Id == collectibleItem.Id))
                     .OrderBy(s => s.Id)
                     .FirstOrDefaultAsync(cancellationToken);
                 showcaseId = showcase?.Id;
@@ -88,13 +111,13 @@ public class RotateAttachmentCommandHandler : IRequestHandler<RotateAttachmentCo
             {
                 // Check if this attachment is used as a preview image
                 var itemWithPreview = await context.CollectibleItems
-                    .Where(ci => ci.Deleted == null && ci.PreviewImageId == attachment.Id)
+                    .Where(ci => ci.PreviewImageId == attachment.Id)
                     .FirstOrDefaultAsync(cancellationToken);
 
                 if (itemWithPreview != null)
                 {
                     var showcase = await context.Showcases
-                        .Where(s => s.Deleted == null && s.CollectibleItems.Any(ci => ci.Id == itemWithPreview.Id))
+                        .Where(s => s.CollectibleItems.Any(ci => ci.Id == itemWithPreview.Id))
                         .OrderBy(s => s.Id)
                         .FirstOrDefaultAsync(cancellationToken);
                     showcaseId = showcase?.Id;

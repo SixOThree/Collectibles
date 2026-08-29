@@ -2,6 +2,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+
 using Collectibles.SyncTool.Models;
 
 namespace Collectibles.SyncTool.Services;

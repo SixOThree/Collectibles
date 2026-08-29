@@ -21,7 +21,7 @@ public class EmailConfigurationService : IEmailConfigurationService
             return false;
         }
 
-        return _emailSettings.Provider.ToLower(System.Globalization.CultureInfo.CurrentCulture) switch
+        return _emailSettings.Provider.ToLowerInvariant() switch
         {
             "smtp" => !string.IsNullOrEmpty(_emailSettings.Smtp?.Host) &&
                       !string.IsNullOrEmpty(_emailSettings.Smtp?.Username),

@@ -1,12 +1,17 @@
 using Collectibles.Domain.Configuration;
 using Collectibles.Domain.Constants;
 using Collectibles.Domain.Interfaces;
+
 using DocumentFormat.OpenXml.Packaging;
-using Microsoft.Extensions.Options;
 using DocumentFormat.OpenXml.Presentation;
+
 using FFMpegCore;
+
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+
 using PDFtoImage;
+
 using SixLabors.Fonts;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Drawing;
@@ -77,8 +82,41 @@ public class FileProcessingService : IFileProcessingService
         }
     }
 
+    /// <summary>
+    /// Reads only the image header and rejects declared dimensions that would force an
+    /// unreasonable allocation on decode (width x height x 4 bytes).
+    /// </summary>
+    /// <remarks>
+    /// A few hundred bytes of PNG can declare 40,000 x 40,000, so the size of the uploaded
+    /// file is no guard at all. Checking the header first keeps a decompression bomb from
+    /// exhausting server memory.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">The image is too large to process.</exception>
+    private static void EnsureImageWithinLimits(byte[] imageContent)
+    {
+        ImageInfo info;
+        try
+        {
+            info = Image.Identify(imageContent);
+        }
+        catch (Exception ex) when (ex is UnknownImageFormatException or InvalidImageContentException)
+        {
+            throw new InvalidOperationException("The file is not a readable image.", ex);
+        }
+
+        if (info.Width > ApplicationConstants.Media.MaxImageDimension
+            || info.Height > ApplicationConstants.Media.MaxImageDimension
+            || (long)info.Width * info.Height > ApplicationConstants.Media.MaxImagePixels)
+        {
+            throw new InvalidOperationException(
+                $"Image dimensions {info.Width}x{info.Height} exceed the supported maximum.");
+        }
+    }
+
     private static async Task<byte[]> GenerateImageThumbnailAsync(byte[] imageContent, CancellationToken cancellationToken)
     {
+        EnsureImageWithinLimits(imageContent);
+
         using var input = new MemoryStream(imageContent);
         using var output = new MemoryStream();
 
@@ -126,17 +164,36 @@ public class FileProcessingService : IFileProcessingService
     {
         try
         {
-            // Save video to temporary file with correct extension for FFMpeg
+            // Save video to temporary file with correct extension for FFMpeg.
+            //
+            // Path.GetTempFileName() creates a zero-byte tmpXXXX.tmp file and then a
+            // *different* path (with the extension appended) was used, so the original
+            // file was never deleted - leaking two temp files per video processed.
             var videoExtension = GetVideoExtension(contentType);
-            var tempVideoPath = System.IO.Path.GetTempFileName() + videoExtension;
-            var tempImagePath = System.IO.Path.GetTempFileName() + ".png";
+            var tempDirectory = System.IO.Path.GetTempPath();
+            var tempStem = Guid.NewGuid().ToString("N");
+            var tempVideoPath = System.IO.Path.Combine(tempDirectory, tempStem + videoExtension);
+            var tempImagePath = System.IO.Path.Combine(tempDirectory, tempStem + ".png");
 
             try
             {
                 await File.WriteAllBytesAsync(tempVideoPath, videoContent, cancellationToken);
 
+                // A malformed or hostile video can hold an ffmpeg child process open
+                // indefinitely, so the snapshot runs under an explicit timeout that also
+                // observes the caller's cancellation.
+                using var snapshotCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                snapshotCts.CancelAfter(TimeSpan.FromSeconds(ApplicationConstants.Media.VideoThumbnailTimeoutSeconds));
+
                 // Extract frame at 1 second mark (or beginning if video is shorter)
-                await FFMpeg.SnapshotAsync(tempVideoPath, tempImagePath, new System.Drawing.Size(ThumbnailWidth, ThumbnailHeight), TimeSpan.FromSeconds(ApplicationConstants.Media.VideoThumbnailCaptureSeconds));
+                await FFMpegArguments
+                    .FromFileInput(tempVideoPath, verifyExists: true)
+                    .OutputToFile(tempImagePath, overwrite: true, options => options
+                        .Seek(TimeSpan.FromSeconds(ApplicationConstants.Media.VideoThumbnailCaptureSeconds))
+                        .WithFrameOutputCount(1)
+                        .Resize(ThumbnailWidth, ThumbnailHeight))
+                    .CancellableThrough(snapshotCts.Token)
+                    .ProcessAsynchronously();
 
                 if (File.Exists(tempImagePath))
                 {
@@ -432,6 +489,7 @@ public class FileProcessingService : IFileProcessingService
         {
             try
             {
+                EnsureImageWithinLimits(imageContents[i]);
                 using var sourceImage = Image.Load(imageContents[i]);
 
                 // Resize to fit tile while maintaining aspect ratio
@@ -453,7 +511,7 @@ public class FileProcessingService : IFileProcessingService
                 else if (imageCount == 2)
                 {
                     // Side by side
-                    x = (i % 2 * (tileWidth + padding)) + padding;
+                    x = ((i % 2) * (tileWidth + padding)) + padding;
                     y = (ThumbnailHeight - sourceImage.Height) / 2;
                 }
                 else if (imageCount == 3)
@@ -461,7 +519,7 @@ public class FileProcessingService : IFileProcessingService
                     if (i < 2)
                     {
                         // First two on top row
-                        x = (i % 2 * (tileWidth + padding)) + padding;
+                        x = ((i % 2) * (tileWidth + padding)) + padding;
                         y = padding;
                     }
                     else
@@ -474,7 +532,7 @@ public class FileProcessingService : IFileProcessingService
                 else
                 {
                     // 2x2 grid for 4 images
-                    x = (i % 2 * (tileWidth + padding)) + padding;
+                    x = ((i % 2) * (tileWidth + padding)) + padding;
                     y = (i / 2 * (tileHeight + padding)) + padding;
                 }
 
@@ -517,6 +575,8 @@ public class FileProcessingService : IFileProcessingService
     {
         try
         {
+            EnsureImageWithinLimits(imageContent);
+
             using var input = new MemoryStream(imageContent);
             using var output = new MemoryStream();
 

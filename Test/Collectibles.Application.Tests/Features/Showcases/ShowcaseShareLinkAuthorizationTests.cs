@@ -5,6 +5,7 @@ using Collectibles.Application.Showcases.Queries.GetShareTokens;
 using Collectibles.Application.Tests.Common;
 using Collectibles.Domain.Entities;
 using Collectibles.Domain.Interfaces;
+
 using Moq;
 
 namespace Collectibles.Application.Tests.Features.Showcases;

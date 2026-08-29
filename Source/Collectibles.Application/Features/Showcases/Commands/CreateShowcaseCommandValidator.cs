@@ -1,4 +1,5 @@
 using Collectibles.Domain.Constants;
+
 using FluentValidation;
 
 namespace Collectibles.Application.Features.Showcases.Commands;
