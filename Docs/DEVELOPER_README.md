@@ -1,16 +1,17 @@
-# Developer README
+﻿# Developer README
 
 This document provides technical guidance for developers working on the Collectibles application.
 
 ## Architecture Overview
 
 The solution follows Clean Architecture principles with these layers:
-- **Collectibles.Kernel**: Shared utilities and cross-cutting concerns
-- **Collectibles.Domain**: Core business logic, entities, value objects, repository interfaces, enums
+- **Collectibles.Domain**: Core business logic, entities, value objects, repository interfaces, enums, and `ApplicationConstants`
 - **Collectibles.Application**: CQRS implementation with commands/queries, DTOs, application services
-- **Collectibles.Infrastructure**: Data persistence with EF Core, external service implementations
-- **Collectibles.Infrastructure.FileProcessing**: File processing and storage services
+- **Collectibles.Infrastructure**: Data persistence with EF Core, external service implementations, file processing and storage
 - **Collectibles.Web**: Blazor Server UI with Interactive Server Components
+
+A companion **Collectibles.SyncTool** (WPF, `net10.0-windows`) synchronises a local folder
+with a showcase over the sync API.
 
 ## Key Components
 
