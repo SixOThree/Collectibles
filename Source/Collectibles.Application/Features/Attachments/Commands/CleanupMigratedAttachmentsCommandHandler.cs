@@ -1,6 +1,8 @@
 using Collectibles.Application.Features.Attachments.Dtos;
 using Collectibles.Application.Interfaces;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -10,17 +12,25 @@ public class CleanupMigratedAttachmentsCommandHandler : IRequestHandler<CleanupM
 {
     private readonly IApplicationDbContextFactory _dbContextFactory;
     private readonly ILogger<CleanupMigratedAttachmentsCommandHandler> _logger;
+    private readonly ICurrentUserService _currentUserService;
 
     public CleanupMigratedAttachmentsCommandHandler(
         IApplicationDbContextFactory dbContextFactory,
-        ILogger<CleanupMigratedAttachmentsCommandHandler> logger)
+        ILogger<CleanupMigratedAttachmentsCommandHandler> logger,
+        ICurrentUserService currentUserService)
     {
         _dbContextFactory = dbContextFactory;
         _logger = logger;
+        _currentUserService = currentUserService;
     }
 
     public async Task<CleanupResult> Handle(CleanupMigratedAttachmentsCommand request, CancellationToken cancellationToken)
     {
+        if (!_currentUserService.IsAdministrator)
+        {
+            throw new UnauthorizedAccessException("Only administrators can clean up migrated attachments.");
+        }
+
         var result = new CleanupResult
         {
             StartTime = DateTime.UtcNow,
@@ -45,7 +55,6 @@ public class CleanupMigratedAttachmentsCommandHandler : IRequestHandler<CleanupM
                     .Where(a => a.IsMigrated
                         && a.MigrationDate != null
                         && a.MigrationDate < cutoffDate
-                        && a.Deleted == null
                         && a.AttachmentContent != null
                         && a.AttachmentContent.Content != null);
 
@@ -79,7 +88,6 @@ public class CleanupMigratedAttachmentsCommandHandler : IRequestHandler<CleanupM
                     .Where(a => a.IsMigrated
                         && a.MigrationDate != null
                         && a.MigrationDate < cutoffDate
-                        && a.Deleted == null
                         && a.Id > lastProcessedId
                         && a.AttachmentContent != null
                         && a.AttachmentContent.Content != null)

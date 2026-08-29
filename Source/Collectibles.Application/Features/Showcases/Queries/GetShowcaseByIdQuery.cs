@@ -1,7 +1,9 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Application.Mappings.Explicit;
 using Collectibles.Domain.Entities;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.Showcases.Queries;
@@ -41,26 +43,24 @@ public class GetShowcaseByIdQueryHandler : IRequestHandler<GetShowcaseByIdQuery,
                 .ThenInclude(p => p!.AttachmentPreview)
             .Include(s => s.ShowcaseTags)
                 .ThenInclude(st => st.Tag)
-            .Include(s => s.CollectibleItems.Where(ci => ci.ParentId == null && ci.Deleted == null))
-                .ThenInclude(ci => ci.PreviewImage)
-                    .ThenInclude(p => p!.AttachmentContent)
-            .Include(s => s.CollectibleItems.Where(ci => ci.ParentId == null && ci.Deleted == null))
+
+            // Item cards render from the thumbnail only.
+            .Include(s => s.CollectibleItems.Where(ci => ci.ParentId == null))
                 .ThenInclude(ci => ci.PreviewImage)
                     .ThenInclude(p => p!.AttachmentPreview)
-            .Include(s => s.CollectibleItems.Where(ci => ci.ParentId == null && ci.Deleted == null))
-                .ThenInclude(ci => ci.CollectibleItemAttachments)
-                    .ThenInclude(cia => cia.Attachment)
-                        .ThenInclude(a => a!.AttachmentContent)
-            .Include(s => s.CollectibleItems.Where(ci => ci.ParentId == null && ci.Deleted == null))
+
+            // Attachment originals are served by the attachment endpoints, never inlined
+            // into this DTO, so only the thumbnail is loaded here.
+            .Include(s => s.CollectibleItems.Where(ci => ci.ParentId == null))
                 .ThenInclude(ci => ci.CollectibleItemAttachments)
                     .ThenInclude(cia => cia.Attachment)
                         .ThenInclude(a => a!.AttachmentPreview)
-            .Include(s => s.CollectibleItems.Where(ci => ci.ParentId == null && ci.Deleted == null))
+            .Include(s => s.CollectibleItems.Where(ci => ci.ParentId == null))
                 .ThenInclude(ci => ci.CollectibleItemTags)
                     .ThenInclude(cit => cit.Tag)
-            .Include(s => s.CollectibleItems.Where(ci => ci.ParentId == null && ci.Deleted == null))
-                .ThenInclude(ci => ci.Children.Where(child => child.Deleted == null))
-            .Include(s => s.CollectibleItems.Where(ci => ci.ParentId == null && ci.Deleted == null))
+            .Include(s => s.CollectibleItems.Where(ci => ci.ParentId == null))
+                .ThenInclude(ci => ci.Children)
+            .Include(s => s.CollectibleItems.Where(ci => ci.ParentId == null))
                 .ThenInclude(ci => ci.ContentType)
             .FirstOrDefaultAsync(s => s.Id == request.Id, cancellationToken);
 
@@ -88,7 +88,7 @@ public class GetShowcaseByIdQueryHandler : IRequestHandler<GetShowcaseByIdQuery,
 
         // Compute recursive statistics across all items in this showcase (not just root)
         var allItemIds = await context.CollectibleItems
-            .Where(ci => ci.Showcases.Any(s => s.Id == request.Id) && ci.Deleted == null)
+            .Where(ci => ci.Showcases.Any(s => s.Id == request.Id))
             .Select(ci => ci.Id)
             .ToListAsync(cancellationToken);
 

@@ -1,7 +1,9 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Entities;
 using Collectibles.Domain.ValueObjects.Templates;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.CollectibleItems.Commands;
@@ -18,7 +20,6 @@ public class CreateCollectibleItemCommand : IRequest<long>
     public long? ContentDefinitionId { get; set; }
     public Dictionary<string, object?> FieldValues { get; set; } = new();
     public List<Dictionary<string, object?>>? FieldValueEntries { get; set; }
-    public string? UserId { get; set; } // Optional UserId to handle Blazor context issues
 }
 
 public class CreateCollectibleItemCommandHandler(
@@ -34,8 +35,8 @@ public class CreateCollectibleItemCommandHandler(
     {
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
 
-        // Use the provided UserId if available, otherwise fall back to CurrentUserService
-        var userId = request.UserId ?? _currentUserService.UserId;
+        // Identity always comes from the authenticated principal, never the request.
+        var userId = _currentUserService.UserId;
 
         if (string.IsNullOrEmpty(userId))
         {
@@ -48,6 +49,13 @@ public class CreateCollectibleItemCommandHandler(
         if (showcase == null)
         {
             throw new InvalidOperationException($"Showcase with ID {request.ShowcaseId} not found.");
+        }
+
+        // Existence is not authorization: the Update and Delete siblings verify ownership,
+        // and creating into a showcase must too.
+        if (showcase.UserId != userId)
+        {
+            throw new UnauthorizedAccessException("You don't have permission to add items to this showcase.");
         }
 
         // Validate preview image if provided

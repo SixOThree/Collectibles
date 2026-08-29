@@ -1,4 +1,5 @@
 using Collectibles.Infrastructure.Services;
+
 using FluentAssertions;
 
 namespace Collectibles.Application.Tests.Features.Sync;

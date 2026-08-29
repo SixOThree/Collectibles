@@ -2,8 +2,11 @@ using Collectibles.Application.Features.Attachments.Queries;
 using Collectibles.Application.Services;
 using Collectibles.Application.Showcases.Queries.GetPublicShowcase;
 using Collectibles.Domain.Constants;
+
 using MediatR;
+
 using Microsoft.AspNetCore.Mvc;
+
 using Serilog;
 
 namespace Collectibles.Web.Endpoints;
@@ -156,8 +159,7 @@ public static class PublicEndpoints
         IMediator mediator)
     {
         // Decode the hash to get the attachment ID
-        var attachmentId = hashIdsService.Decode(hash);
-        if (attachmentId == 0)
+        if (!hashIdsService.TryDecode(hash, out var attachmentId))
         {
             return new AttachmentValidationResult
             {
@@ -227,7 +229,7 @@ public static class PublicEndpoints
                 // Check item attachments
                 if (item.Attachments != null)
                 {
-                    if (item.Attachments.Any(a => hashIdsService.Encode(a.Id) == hash))
+                    if (item.Attachments.Any(a => a.HashId == hash))
                     {
                         return true;
                     }

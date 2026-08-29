@@ -1,6 +1,8 @@
 using System.Reflection;
+
 using Collectibles.Domain.Constants;
 using Collectibles.Domain.Interfaces;
+
 using Microsoft.AspNetCore.Hosting;
 
 namespace Collectibles.Infrastructure.Services;

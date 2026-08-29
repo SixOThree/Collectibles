@@ -73,17 +73,4 @@ public static class TagMappingExtensions
         dto.UsageCount = usageCount;
         return dto;
     }
-
-    /// <summary>
-    /// Maps a Tag entity to a TagDto with description.
-    /// </summary>
-    /// <param name="entity">The Tag entity to map.</param>
-    /// <param name="description">The description to include.</param>
-    /// <returns>The mapped TagDto with description.</returns>
-    public static Features.Tags.TagDto ToDtoWithDescription(this Tag entity, string? description)
-    {
-        var dto = entity.ToDto();
-        dto.Description = description;
-        return dto;
-    }
 }

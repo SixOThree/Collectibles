@@ -2,10 +2,14 @@ using System.IO.Compression;
 using System.Text.Json;
 
 using Collectibles.Application.Interfaces;
+using Collectibles.Domain.Common;
 using Collectibles.Domain.Entities;
 using Collectibles.Domain.Interfaces;
+
 using Hangfire;
+
 using MediatR;
+
 using Microsoft.Extensions.Logging;
 
 namespace Collectibles.Application.Features.ZipUpload.Commands;
@@ -16,7 +20,6 @@ public class CreateZipUploadJobStreamCommand : IRequest<long>
     public string FileName { get; set; } = string.Empty;
     public long FileSize { get; set; }
     public Stream FileStream { get; set; } = null!;
-    public string? UserId { get; set; } // Optional UserId to handle Blazor context issues
 }
 
 public class CreateZipUploadJobStreamCommandHandler : IRequestHandler<CreateZipUploadJobStreamCommand, long>
@@ -45,13 +48,15 @@ public class CreateZipUploadJobStreamCommandHandler : IRequestHandler<CreateZipU
     {
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
 
-        // Use the provided UserId if available, otherwise fall back to CurrentUserService
-        var userId = request.UserId ?? _currentUserService.UserId;
+        // Identity always comes from the authenticated principal, never the request.
+        var userId = _currentUserService.UserId;
 
         if (string.IsNullOrEmpty(userId))
         {
             throw new UnauthorizedAccessException("User context not available. Please ensure you are logged in.");
         }
+
+        await ZipUploadAuthorization.EnsureShowcaseOwnedAsync(context, request.ShowcaseId, userId, cancellationToken);
 
         var job = new ZipUploadJob
         {
@@ -74,7 +79,7 @@ public class CreateZipUploadJobStreamCommandHandler : IRequestHandler<CreateZipU
         try
         {
             // Stream the zip file directly to storage for background processing
-            var requestedPath = $"zip-uploads/{job.Id}/{request.FileName}";
+            var requestedPath = $"zip-uploads/{job.Id}/{SafeFileName.Sanitize(request.FileName)}";
 
             _logger.LogInformation(
                 "Streaming zip file for job {JobId} with requested path: {RequestedPath}, size: {FileSize} bytes",

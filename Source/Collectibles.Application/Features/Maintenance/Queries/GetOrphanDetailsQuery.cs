@@ -1,6 +1,9 @@
+using Collectibles.Application.Features.Maintenance;
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Interfaces;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.Maintenance.Queries;
@@ -41,22 +44,30 @@ public class GetOrphanDetailsQueryHandler : IRequestHandler<GetOrphanDetailsQuer
 {
     private readonly IApplicationDbContextFactory _contextFactory;
     private readonly IFileStorage _fileStorage;
+    private readonly ICurrentUserService _currentUserService;
 
-    public GetOrphanDetailsQueryHandler(IApplicationDbContextFactory contextFactory, IFileStorage fileStorage)
+    public GetOrphanDetailsQueryHandler(
+        IApplicationDbContextFactory contextFactory,
+        IFileStorage fileStorage,
+        ICurrentUserService currentUserService)
     {
         _contextFactory = contextFactory;
         _fileStorage = fileStorage;
+        _currentUserService = currentUserService;
     }
 
     public async Task<OrphanDetailsDto> Handle(GetOrphanDetailsQuery request, CancellationToken cancellationToken)
     {
+        // Reports across every user's content and exposes raw storage paths; CleanupOrphans
+        // already requires administrator, and its read siblings must match.
+        if (!_currentUserService.IsAdministrator)
+        {
+            throw new UnauthorizedAccessException("Only administrators can view orphan details.");
+        }
+
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
 
-        var orphanedAttachments = await context.Attachments
-            .Where(a => a.Deleted == null)
-            .Where(a => !context.CollectibleItemAttachments.Any(cia => cia.AttachmentId == a.Id))
-            .Where(a => !context.CollectibleItems.Any(ci => ci.PreviewImageId == a.Id && ci.Deleted == null))
-            .Where(a => !context.Showcases.Any(s => EF.Property<long?>(s, "PreviewImageId") == a.Id && s.Deleted == null))
+        var orphanedAttachments = await OrphanClassification.OrphanedAttachments(context)
             .OrderBy(a => a.Name)
             .Select(a => new OrphanedAttachmentDto
             {
@@ -69,10 +80,7 @@ public class GetOrphanDetailsQueryHandler : IRequestHandler<GetOrphanDetailsQuer
             })
             .ToListAsync(cancellationToken);
 
-        var emptyItems = await context.CollectibleItems
-            .Where(ci => ci.Deleted == null)
-            .Where(ci => !ci.CollectibleItemAttachments.Any())
-            .Where(ci => !context.CollectibleItems.Any(child => child.ParentId == ci.Id && child.Deleted == null))
+        var emptyItems = await OrphanClassification.EmptyItems(context)
             .OrderBy(ci => ci.Name)
             .Select(ci => new OrphanedItemDto
             {
@@ -94,57 +102,11 @@ public class GetOrphanDetailsQueryHandler : IRequestHandler<GetOrphanDetailsQuer
 
     private async Task<List<OrphanedBlobDto>> GetOrphanedBlobs(IApplicationDbContext context, CancellationToken cancellationToken)
     {
-        try
-        {
-            var storageBlobs = await _fileStorage.ListBlobsAsync(cancellationToken);
-            if (storageBlobs.Count == 0)
-                return new();
+        var orphanedBlobs = await OrphanClassification.GetOrphanedBlobsAsync(context, _fileStorage, cancellationToken);
 
-            // Get all known file paths from the database (attachments + link caches)
-            var knownPathSet = await GetAllKnownBlobPaths(context, cancellationToken);
-
-            return storageBlobs
-                .Where(b => !knownPathSet.Contains(b.Name))
-                .OrderBy(b => b.Name)
-                .Select(b => new OrphanedBlobDto { Name = b.Name, SizeBytes = b.SizeBytes })
-                .ToList();
-        }
-        catch
-        {
-            return new();
-        }
-    }
-
-    private static async Task<HashSet<string>> GetAllKnownBlobPaths(IApplicationDbContext context, CancellationToken cancellationToken)
-    {
-        var knownPathSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        var attachmentPaths = await context.Attachments
-            .Where(a => a.FilePath != null || a.PreviewPath != null)
-            .Select(a => new { a.FilePath, a.PreviewPath })
-            .ToListAsync(cancellationToken);
-
-        foreach (var paths in attachmentPaths)
-        {
-            if (!string.IsNullOrEmpty(paths.FilePath))
-                knownPathSet.Add(paths.FilePath);
-            if (!string.IsNullOrEmpty(paths.PreviewPath))
-                knownPathSet.Add(paths.PreviewPath);
-        }
-
-        var linkCachePaths = await context.LinkCaches
-            .Where(lc => lc.CachedContentPath != null || lc.ScreenshotPath != null)
-            .Select(lc => new { lc.CachedContentPath, lc.ScreenshotPath })
-            .ToListAsync(cancellationToken);
-
-        foreach (var paths in linkCachePaths)
-        {
-            if (!string.IsNullOrEmpty(paths.CachedContentPath))
-                knownPathSet.Add(paths.CachedContentPath);
-            if (!string.IsNullOrEmpty(paths.ScreenshotPath))
-                knownPathSet.Add(paths.ScreenshotPath);
-        }
-
-        return knownPathSet;
+        return orphanedBlobs
+            .OrderBy(b => b.Name, StringComparer.Ordinal)
+            .Select(b => new OrphanedBlobDto { Name = b.Name, SizeBytes = b.SizeBytes })
+            .ToList();
     }
 }

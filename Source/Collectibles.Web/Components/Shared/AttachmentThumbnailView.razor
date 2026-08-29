@@ -1,11 +1,11 @@
-@using Collectibles.Application.Features.Attachments
+﻿@using Collectibles.Application.Features.Attachments
 @using Collectibles.Application.Features.Attachments.Queries
 @using Collectibles.Domain.Common.Enums
 @using MediatR
 @inject IMediator Mediator
 @implements IAsyncDisposable
 
-<div class="card attachment-thumbnail h-100 @(IsFeatured ? "featured-attachment" : "")" @onclick="HandleClick">
+<div class="card attachment-thumbnail h-100 @(IsFeatured ? "featured-attachment" : "")" @onclick="HandleClick" role="button" tabindex="0" @onkeydown="@(e => { if (e.Key == "Enter" || e.Key == " ") HandleClick(); })">
     <div class="attachment-preview background-blur" style="@GetPreviewStyle()">
         @if (!string.IsNullOrEmpty(_previewThumbnail))
         {

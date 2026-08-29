@@ -1,7 +1,10 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Application.Services;
+using Collectibles.Domain.Common.Enums;
 using Collectibles.Domain.Entities;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.CollectibleItems.Commands;
@@ -58,7 +61,7 @@ public class DeleteCollectibleItemCommandHandler : IRequestHandler<DeleteCollect
             .Include(ci => ci.Children)
             .Include(ci => ci.Showcases)
             .Include(ci => ci.ExternalReferences)
-            .FirstOrDefaultAsync(ci => ci.Id == request.Id && ci.Deleted == null, cancellationToken);
+            .FirstOrDefaultAsync(ci => ci.Id == request.Id, cancellationToken);
 
         if (collectibleItem == null)
         {
@@ -141,18 +144,21 @@ public class DeleteCollectibleItemCommandHandler : IRequestHandler<DeleteCollect
             }
         }
 
-        // Unassign QR code if any
-        if (collectibleItem.QRCodeId.HasValue)
-        {
-            collectibleItem.QRCodeId = null;
-        }
+        // Release the QR code back to the pool in the same save as the delete. Nulling
+        // only the item's mirror column left the QRCode row Assigned and pointing at a
+        // deleted item, so it could never be reassigned.
+        await ReleaseQRCodeAsync(context, collectibleItem.Id, cancellationToken);
 
         // Mark the collectible item as deleted
         collectibleItem.Deleted = DateTime.UtcNow;
         collectibleItem.DeletedBy = _currentUserService.UserId;
         result.DeletedItemsCount++;
 
-        // Log the deletion event
+        await context.SaveChangesAsync(cancellationToken);
+
+        // Logged after the save commits. EventLogService writes through its own
+        // context and saves immediately, so logging first left a Delete event
+        // describing an item that was never deleted when the save failed.
         await _eventLogService.LogEventAsync(
             EventAction.Delete,
             "CollectibleItem",
@@ -174,8 +180,6 @@ public class DeleteCollectibleItemCommandHandler : IRequestHandler<DeleteCollect
                 DeletedAttachmentsCount = result.DeletedAttachmentsCount,
             }),
             cancellationToken);
-
-        await context.SaveChangesAsync(cancellationToken);
 
         return result;
     }
@@ -228,11 +232,8 @@ public class DeleteCollectibleItemCommandHandler : IRequestHandler<DeleteCollect
                 // Remove attachment associations
                 context.CollectibleItemAttachments.RemoveRange(fullChild.CollectibleItemAttachments);
 
-                // Unassign QR code if any
-                if (fullChild.QRCodeId.HasValue)
-                {
-                    fullChild.QRCodeId = null;
-                }
+                // Release the child's QR code back to the pool
+                await ReleaseQRCodeAsync(context, fullChild.Id, cancellationToken);
 
                 // Mark the child as deleted
                 fullChild.Deleted = DateTime.UtcNow;
@@ -242,5 +243,26 @@ public class DeleteCollectibleItemCommandHandler : IRequestHandler<DeleteCollect
         }
 
         return deletedCount;
+    }
+
+    /// <summary>
+    /// Returns any QR code assigned to an item to the unassigned pool, in the caller's
+    /// change set so it commits with the delete.
+    /// </summary>
+    private async Task ReleaseQRCodeAsync(IApplicationDbContext context, long collectibleItemId, CancellationToken cancellationToken)
+    {
+        var qrCode = await context.QRCodes
+            .FirstOrDefaultAsync(q => q.CollectibleItemId == collectibleItemId, cancellationToken: cancellationToken);
+
+        if (qrCode == null)
+        {
+            return;
+        }
+
+        qrCode.CollectibleItemId = null;
+        qrCode.Status = QRCodeStatus.Unassigned;
+        qrCode.AssignedDate = null;
+        qrCode.LastModified = DateTime.UtcNow;
+        qrCode.LastModifiedBy = _currentUserService.UserId;
     }
 }

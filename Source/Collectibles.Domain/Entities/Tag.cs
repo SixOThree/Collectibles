@@ -1,4 +1,4 @@
-﻿namespace Collectibles.Domain.Entities;
+namespace Collectibles.Domain.Entities;
 
 /// <summary>
 /// Represents a tag that can be associated with collectible items and showcases.

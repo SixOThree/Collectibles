@@ -3,6 +3,7 @@ using Collectibles.Application.Tests.Common;
 using Collectibles.Domain.Configuration.Storage;
 using Collectibles.Domain.Enums;
 using Collectibles.Domain.Interfaces;
+
 using Microsoft.Extensions.Options;
 
 namespace Collectibles.Application.Tests.Features.Attachments.Commands;
@@ -144,6 +145,7 @@ public class UpdateAttachmentCommandAuthorizationTests : BaseTestFixture
         var attachment = new Attachment
         {
             Name = "Orphan Attachment",
+
             // CreatedBy will be set to "test-user-id" by DbContext
         };
         Context.Attachments.Add(attachment);

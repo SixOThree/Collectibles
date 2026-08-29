@@ -1,7 +1,11 @@
+using System.Globalization;
+
 using Collectibles.Application.Common.Models;
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.ValueObjects.Templates;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.CollectibleItems.Queries;
@@ -41,15 +45,32 @@ public class TemplatedItemRowDto
 public class GetItemsByTemplateQueryHandler : IRequestHandler<GetItemsByTemplateQuery, GetItemsByTemplateResult?>
 {
     private readonly IApplicationDbContextFactory _contextFactory;
+    private readonly ICurrentUserService _currentUserService;
 
-    public GetItemsByTemplateQueryHandler(IApplicationDbContextFactory contextFactory)
+    public GetItemsByTemplateQueryHandler(
+        IApplicationDbContextFactory contextFactory,
+        ICurrentUserService currentUserService)
     {
         _contextFactory = contextFactory;
+        _currentUserService = currentUserService;
     }
 
     public async Task<GetItemsByTemplateResult?> Handle(GetItemsByTemplateQuery request, CancellationToken cancellationToken)
     {
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+        // This returns item names and every template field value in the showcase, so it
+        // follows the showcase's visibility rather than returning whatever id was asked for.
+        var userId = _currentUserService.UserId;
+        var showcaseVisible = await context.Showcases
+            .AnyAsync(
+                s => s.Id == request.ShowcaseId && (!s.IsPrivate || s.UserId == userId),
+                cancellationToken);
+
+        if (!showcaseVisible && !_currentUserService.IsAdministrator)
+        {
+            throw new UnauthorizedAccessException("You are not authorized to view this showcase's items.");
+        }
 
         var contentDefinition = await context.ContentDefinitions
             .AsNoTracking()
@@ -64,10 +85,9 @@ public class GetItemsByTemplateQueryHandler : IRequestHandler<GetItemsByTemplate
 
         var items = await context.CollectibleItems
             .AsNoTracking()
-            .Include(ci => ci.Children.Where(child => child.Deleted == null))
+            .Include(ci => ci.Children)
             .Include(ci => ci.CollectibleItemAttachments)
             .Where(ci => ci.ContentDefinitionId == request.ContentDefinitionId
-                         && ci.Deleted == null
                          && ci.Showcases.Any(s => s.Id == request.ShowcaseId))
             .ToListAsync(cancellationToken);
 
@@ -94,8 +114,8 @@ public class GetItemsByTemplateQueryHandler : IRequestHandler<GetItemsByTemplate
             var term = request.SearchTerm.Trim();
             dtos = dtos.Where(d =>
                 d.Name.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                d.FieldValues.Values.Any(v => v?.ToString()?.Contains(term, StringComparison.OrdinalIgnoreCase) == true)
-            ).ToList();
+                d.FieldValues.Values.Any(v => v?.ToString()?.Contains(term, StringComparison.OrdinalIgnoreCase) == true))
+            .ToList();
         }
 
         // Apply sorting
@@ -197,7 +217,7 @@ public class GetItemsByTemplateQueryHandler : IRequestHandler<GetItemsByTemplate
             FieldType.Number => i => GetDecimalValue(i.FieldValues, fieldName),
             FieldType.Date or FieldType.DateTime => i => GetDateTimeValue(i.FieldValues, fieldName),
             FieldType.Boolean => i => GetBoolValue(i.FieldValues, fieldName),
-            _ => i => i.FieldValues.TryGetValue(fieldName, out var v) ? v?.ToString() ?? "" : "",
+            _ => i => i.FieldValues.TryGetValue(fieldName, out var v) ? v?.ToString() ?? string.Empty : string.Empty,
         };
 
         return descending
@@ -217,7 +237,9 @@ public class GetItemsByTemplateQueryHandler : IRequestHandler<GetItemsByTemplate
             return d;
         }
 
-        if (decimal.TryParse(value.ToString(), out var result))
+        // Same invariant-parsing rule as FieldValue: these values come from the
+        // invariant-format JSON stored in ContentValue.
+        if (decimal.TryParse(value.ToString(), NumberStyles.Number, CultureInfo.InvariantCulture, out var result))
         {
             return result;
         }
@@ -237,7 +259,7 @@ public class GetItemsByTemplateQueryHandler : IRequestHandler<GetItemsByTemplate
             return dt;
         }
 
-        if (DateTime.TryParse(value.ToString(), out var result))
+        if (DateTime.TryParse(value.ToString(), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var result))
         {
             return result;
         }

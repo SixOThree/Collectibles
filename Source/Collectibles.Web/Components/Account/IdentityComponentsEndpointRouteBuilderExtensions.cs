@@ -1,8 +1,10 @@
 using System.Security.Claims;
 using System.Text.Json;
+
 using Collectibles.Infrastructure.Persistence;
 using Collectibles.Web.Components.Account.Pages;
 using Collectibles.Web.Components.Account.Pages.Manage;
+
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Http.Extensions;

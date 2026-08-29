@@ -3,7 +3,9 @@ using Collectibles.Application.Features.Users.Dtos;
 using Collectibles.Application.Interfaces;
 using Collectibles.Infrastructure.Mappings.Explicit;
 using Collectibles.Infrastructure.Persistence;
+
 using FluentValidation;
+
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -34,7 +36,7 @@ public class UserManagementService(
         // Apply search filter
         if (!string.IsNullOrWhiteSpace(searchTerm))
         {
-            var searchTermLower = searchTerm.ToLower(System.Globalization.CultureInfo.CurrentCulture);
+            var searchTermLower = searchTerm.ToLowerInvariant();
             query = query.Where(u =>
                 u.UserName!.Contains(searchTermLower, StringComparison.CurrentCultureIgnoreCase) ||
                 u.Email!.Contains(searchTermLower, StringComparison.CurrentCultureIgnoreCase) ||
@@ -49,7 +51,7 @@ public class UserManagementService(
         }
 
         // Apply sorting
-        query = sortBy?.ToLower(System.Globalization.CultureInfo.CurrentCulture) switch
+        query = sortBy?.ToLowerInvariant() switch
         {
             "username" => sortDescending
                 ? query.OrderByDescending(u => u.UserName)

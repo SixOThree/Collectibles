@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+
 using Collectibles.Domain.Constants;
 
 namespace Collectibles.Web.Services;
@@ -24,6 +25,7 @@ public class RequestLogQueue
     /// Enqueues a request log entry for background processing.
     /// Non-blocking operation - returns immediately.
     /// </summary>
+    /// <returns></returns>
     public ValueTask EnqueueAsync(RequestLogEntry entry, CancellationToken cancellationToken = default)
     {
         return _queue.Writer.TryWrite(entry)
@@ -34,6 +36,7 @@ public class RequestLogQueue
     /// <summary>
     /// Dequeues request log entries for processing by background service.
     /// </summary>
+    /// <returns></returns>
     public IAsyncEnumerable<RequestLogEntry> DequeueAllAsync(CancellationToken cancellationToken)
     {
         return _queue.Reader.ReadAllAsync(cancellationToken);

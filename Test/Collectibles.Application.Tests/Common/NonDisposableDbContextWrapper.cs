@@ -38,6 +38,12 @@ public class NonDisposableDbContextWrapper : IApplicationDbContext
         set => _innerContext.CollectibleItems = value;
     }
 
+    public DbSet<QRCode> QRCodes
+    {
+        get => _innerContext.QRCodes;
+        set => _innerContext.QRCodes = value;
+    }
+
     public DbSet<CollectibleItemAttachment> CollectibleItemAttachments
     {
         get => _innerContext.CollectibleItemAttachments;

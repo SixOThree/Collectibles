@@ -42,5 +42,10 @@ public class CollectibleItemConfiguration : BaseEntityConfiguration<CollectibleI
             .OnDelete(DeleteBehavior.SetNull);
 
         builder.Property(ci => ci.ContentValue);
+
+        // Blazor Server is inherently multi-circuit: without a concurrency token two
+        // editors of the same item silently last-write-wins, including whole-document
+        // overwrites of the ContentValue JSON.
+        builder.Property(ci => ci.RowVersion).IsRowVersion();
     }
 }

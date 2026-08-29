@@ -1,7 +1,11 @@
+using Collectibles.Application.Common.Authorization.Requirements;
 using Collectibles.Application.Interfaces;
 using Collectibles.Application.Mappings.Explicit;
 using Collectibles.Domain.Entities;
+
 using MediatR;
+
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.Attachments.Queries;
@@ -25,15 +29,18 @@ public class GetAttachmentForDownloadQueryHandler : IRequestHandler<GetAttachmen
     private readonly IApplicationDbContext _context;
     private readonly IAttachmentMappingService _attachmentMappingService;
     private readonly IEventLogService _eventLogService;
+    private readonly IAuthorizationService _authorizationService;
 
     public GetAttachmentForDownloadQueryHandler(
         IApplicationDbContext context,
         IAttachmentMappingService attachmentMappingService,
-        IEventLogService eventLogService)
+        IEventLogService eventLogService,
+        IAuthorizationService authorizationService)
     {
         _context = context;
         _attachmentMappingService = attachmentMappingService;
         _eventLogService = eventLogService;
+        _authorizationService = authorizationService;
     }
 
     public async Task<AttachmentDownloadDto> Handle(GetAttachmentForDownloadQuery request, CancellationToken cancellationToken)
@@ -47,6 +54,19 @@ public class GetAttachmentForDownloadQueryHandler : IRequestHandler<GetAttachmen
         if (attachment == null)
         {
             throw new ArgumentException($"Attachment with ID {request.Id} not found.", nameof(request));
+        }
+
+        // Visibility is decided here, by the same requirement GetAttachmentById enforces,
+        // so every path that serves an attachment's bytes runs one authoritative check —
+        // rather than depending on which of four code paths the caller happened to use.
+        var authorizationResult = await _authorizationService.AuthorizeAsync(
+            new System.Security.Claims.ClaimsPrincipal(),
+            attachment,
+            new ViewAttachmentRequirement());
+
+        if (!authorizationResult.Succeeded)
+        {
+            throw new UnauthorizedAccessException("You do not have permission to view this attachment.");
         }
 
         // Use the mapping service to load content

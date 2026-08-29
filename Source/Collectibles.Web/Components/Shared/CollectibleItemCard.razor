@@ -1,7 +1,7 @@
-@using Collectibles.Application.Features.CollectibleItems
+﻿@using Collectibles.Application.Features.CollectibleItems
 @using Collectibles.Web.Components.Shared
 
-<div class="item-card" style="@GetCardBorderStyle()" @onclick="OnClick">
+<div class="item-card" style="@GetCardBorderStyle()" @onclick="OnClick" role="button" tabindex="0" @onkeydown="@(async e => { if (e.Key == "Enter" || e.Key == " ") await OnClick(); })">
     @if (!string.IsNullOrEmpty(Item.PreviewImageUrl))
     {
         <LazyImage Src="@Item.PreviewImageUrl"

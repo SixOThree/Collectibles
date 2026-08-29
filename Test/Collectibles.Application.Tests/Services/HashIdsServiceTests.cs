@@ -1,4 +1,5 @@
 using Collectibles.Infrastructure.Services;
+
 using Microsoft.Extensions.Configuration;
 
 namespace Collectibles.Application.Tests.Services;

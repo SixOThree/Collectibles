@@ -1,5 +1,6 @@
 using Collectibles.Domain.Configuration.Storage;
 using Collectibles.Domain.Interfaces;
+
 using Microsoft.Extensions.Options;
 
 namespace Collectibles.Infrastructure.FileStorage;
@@ -26,65 +27,7 @@ public class LocalFileStorage : IFileStorage
 
     public async Task<string> SaveFileAsync(byte[] fileContent, string fileName, string contentType, long? showcaseId = null, CancellationToken cancellationToken = default)
     {
-        // Preserve directory structure if provided
-        var directory = Path.GetDirectoryName(fileName);
-        var file = Path.GetFileName(fileName);
-
-        // Check if the filename already looks like a GUID-based name (32 hex chars followed by extension or _preview suffix)
-        var fileNameWithoutExt = Path.GetFileNameWithoutExtension(file);
-        var isGuidBased = fileNameWithoutExt != null &&
-                         (System.Text.RegularExpressions.Regex.IsMatch(fileNameWithoutExt, @"^[a-f0-9]{32}$") ||
-                          System.Text.RegularExpressions.Regex.IsMatch(fileNameWithoutExt, @"^[a-f0-9]{32}_preview$"));
-
-        // Only generate a new name if the provided name isn't already GUID-based
-        var uniqueFileName = isGuidBased ? file : GenerateRandomFileName(file);
-
-        string relativePath;
-        string fullPath;
-
-        // If showcase ID is provided, create a subfolder for it
-        if (showcaseId.HasValue)
-        {
-            var showcaseFolder = showcaseId.Value.ToString();
-            if (!string.IsNullOrEmpty(directory))
-            {
-                var fullDirectory = Path.Combine(_basePath, showcaseFolder, directory);
-                if (!Directory.Exists(fullDirectory))
-                {
-                    Directory.CreateDirectory(fullDirectory);
-                }
-
-                relativePath = Path.Combine(showcaseFolder, directory, uniqueFileName);
-                fullPath = Path.Combine(fullDirectory, uniqueFileName);
-            }
-            else
-            {
-                var fullDirectory = Path.Combine(_basePath, showcaseFolder);
-                if (!Directory.Exists(fullDirectory))
-                {
-                    Directory.CreateDirectory(fullDirectory);
-                }
-
-                relativePath = Path.Combine(showcaseFolder, uniqueFileName);
-                fullPath = Path.Combine(fullDirectory, uniqueFileName);
-            }
-        }
-        else if (!string.IsNullOrEmpty(directory))
-        {
-            var fullDirectory = Path.Combine(_basePath, directory);
-            if (!Directory.Exists(fullDirectory))
-            {
-                Directory.CreateDirectory(fullDirectory);
-            }
-
-            relativePath = Path.Combine(directory, uniqueFileName);
-            fullPath = Path.Combine(fullDirectory, uniqueFileName);
-        }
-        else
-        {
-            relativePath = uniqueFileName;
-            fullPath = Path.Combine(_basePath, uniqueFileName);
-        }
+        var (relativePath, fullPath) = PrepareTarget(fileName, showcaseId);
 
         await File.WriteAllBytesAsync(fullPath, fileContent, cancellationToken);
 
@@ -93,65 +36,7 @@ public class LocalFileStorage : IFileStorage
 
     public async Task<string> SaveFileAsync(Stream fileStream, string fileName, string contentType, long? showcaseId = null, CancellationToken cancellationToken = default)
     {
-        // Preserve directory structure if provided
-        var directory = Path.GetDirectoryName(fileName);
-        var file = Path.GetFileName(fileName);
-
-        // Check if the filename already looks like a GUID-based name (32 hex chars followed by extension or _preview suffix)
-        var fileNameWithoutExt = Path.GetFileNameWithoutExtension(file);
-        var isGuidBased = fileNameWithoutExt != null &&
-                         (System.Text.RegularExpressions.Regex.IsMatch(fileNameWithoutExt, @"^[a-f0-9]{32}$") ||
-                          System.Text.RegularExpressions.Regex.IsMatch(fileNameWithoutExt, @"^[a-f0-9]{32}_preview$"));
-
-        // Only generate a new name if the provided name isn't already GUID-based
-        var uniqueFileName = isGuidBased ? file : GenerateRandomFileName(file);
-
-        string relativePath;
-        string fullPath;
-
-        // If showcase ID is provided, create a subfolder for it
-        if (showcaseId.HasValue)
-        {
-            var showcaseFolder = showcaseId.Value.ToString();
-            if (!string.IsNullOrEmpty(directory))
-            {
-                var fullDirectory = Path.Combine(_basePath, showcaseFolder, directory);
-                if (!Directory.Exists(fullDirectory))
-                {
-                    Directory.CreateDirectory(fullDirectory);
-                }
-
-                relativePath = Path.Combine(showcaseFolder, directory, uniqueFileName);
-                fullPath = Path.Combine(fullDirectory, uniqueFileName);
-            }
-            else
-            {
-                var fullDirectory = Path.Combine(_basePath, showcaseFolder);
-                if (!Directory.Exists(fullDirectory))
-                {
-                    Directory.CreateDirectory(fullDirectory);
-                }
-
-                relativePath = Path.Combine(showcaseFolder, uniqueFileName);
-                fullPath = Path.Combine(fullDirectory, uniqueFileName);
-            }
-        }
-        else if (!string.IsNullOrEmpty(directory))
-        {
-            var fullDirectory = Path.Combine(_basePath, directory);
-            if (!Directory.Exists(fullDirectory))
-            {
-                Directory.CreateDirectory(fullDirectory);
-            }
-
-            relativePath = Path.Combine(directory, uniqueFileName);
-            fullPath = Path.Combine(fullDirectory, uniqueFileName);
-        }
-        else
-        {
-            relativePath = uniqueFileName;
-            fullPath = Path.Combine(_basePath, uniqueFileName);
-        }
+        var (relativePath, fullPath) = PrepareTarget(fileName, showcaseId);
 
         using (var fileStreamOutput = new FileStream(fullPath, FileMode.Create))
         {
@@ -161,13 +46,31 @@ public class LocalFileStorage : IFileStorage
         return relativePath;
     }
 
+    /// <summary>
+    /// Resolves the storage-relative and canonical full paths for a save, creating the
+    /// target directory. Throws if the caller-supplied name would escape the storage root.
+    /// </summary>
+    private (string RelativePath, string FullPath) PrepareTarget(string fileName, long? showcaseId)
+    {
+        var relativePath = StoragePathBuilder.BuildRelativePath(fileName, showcaseId, Path.DirectorySeparatorChar);
+        var fullPath = StoragePathBuilder.ResolveContainedPath(_basePath, relativePath);
+
+        var fullDirectory = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrEmpty(fullDirectory) && !Directory.Exists(fullDirectory))
+        {
+            Directory.CreateDirectory(fullDirectory);
+        }
+
+        return (relativePath, fullPath);
+    }
+
     public async Task<byte[]?> GetFileAsync(string filePath, CancellationToken cancellationToken = default)
     {
         try
         {
-            var fullPath = Path.Combine(_basePath, filePath);
+            var fullPath = StoragePathBuilder.TryResolveContainedPath(_basePath, filePath);
 
-            if (!File.Exists(fullPath))
+            if (fullPath is null || !File.Exists(fullPath))
             {
                 return null;
             }
@@ -184,9 +87,9 @@ public class LocalFileStorage : IFileStorage
     {
         try
         {
-            var fullPath = Path.Combine(_basePath, filePath);
+            var fullPath = StoragePathBuilder.TryResolveContainedPath(_basePath, filePath);
 
-            if (File.Exists(fullPath))
+            if (fullPath is not null && File.Exists(fullPath))
             {
                 await Task.Run(() => File.Delete(fullPath), cancellationToken);
             }
@@ -204,9 +107,9 @@ public class LocalFileStorage : IFileStorage
         {
             try
             {
-                var fullPath = Path.Combine(_basePath, filePath);
+                var fullPath = StoragePathBuilder.TryResolveContainedPath(_basePath, filePath);
 
-                if (!File.Exists(fullPath))
+                if (fullPath is null || !File.Exists(fullPath))
                 {
                     return null;
                 }
@@ -224,8 +127,8 @@ public class LocalFileStorage : IFileStorage
     {
         try
         {
-            var fullPath = Path.Combine(_basePath, filePath);
-            return await Task.FromResult(File.Exists(fullPath));
+            var fullPath = StoragePathBuilder.TryResolveContainedPath(_basePath, filePath);
+            return await Task.FromResult(fullPath is not null && File.Exists(fullPath));
         }
         catch
         {
@@ -237,9 +140,9 @@ public class LocalFileStorage : IFileStorage
     {
         try
         {
-            var fullPath = Path.Combine(_basePath, filePath);
+            var fullPath = StoragePathBuilder.TryResolveContainedPath(_basePath, filePath);
 
-            if (!File.Exists(fullPath))
+            if (fullPath is null || !File.Exists(fullPath))
             {
                 return null;
             }
@@ -271,12 +174,5 @@ public class LocalFileStorage : IFileStorage
     public string GenerateUploadSasUrl(string blobName, TimeSpan expiry, string contentType)
     {
         throw new NotSupportedException("Local file storage does not support direct uploads. Files must be uploaded through the server.");
-    }
-
-    private static string GenerateRandomFileName(string originalFileName)
-    {
-        var extension = Path.GetExtension(originalFileName).ToLowerInvariant();
-        var randomName = Guid.NewGuid().ToString("N");
-        return $"{randomName}{extension}";
     }
 }

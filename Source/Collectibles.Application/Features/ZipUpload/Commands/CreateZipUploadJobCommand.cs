@@ -1,10 +1,14 @@
 using System.Text.Json;
 
 using Collectibles.Application.Interfaces;
+using Collectibles.Domain.Common;
 using Collectibles.Domain.Entities;
 using Collectibles.Domain.Interfaces;
+
 using Hangfire;
+
 using MediatR;
+
 using Microsoft.Extensions.Logging;
 
 namespace Collectibles.Application.Features.ZipUpload.Commands;
@@ -15,7 +19,6 @@ public class CreateZipUploadJobCommand : IRequest<long>
     public string FileName { get; set; } = string.Empty;
     public long FileSize { get; set; }
     public string Base64Content { get; set; } = string.Empty;
-    public string? UserId { get; set; } // Optional UserId to handle Blazor context issues
 }
 
 public class CreateZipUploadJobCommandHandler : IRequestHandler<CreateZipUploadJobCommand, long>
@@ -44,13 +47,15 @@ public class CreateZipUploadJobCommandHandler : IRequestHandler<CreateZipUploadJ
     {
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
 
-        // Use the provided UserId if available, otherwise fall back to CurrentUserService
-        var userId = request.UserId ?? _currentUserService.UserId;
+        // Identity always comes from the authenticated principal, never the request.
+        var userId = _currentUserService.UserId;
 
         if (string.IsNullOrEmpty(userId))
         {
             throw new UnauthorizedAccessException("User context not available. Please ensure you are logged in.");
         }
+
+        await ZipUploadAuthorization.EnsureShowcaseOwnedAsync(context, request.ShowcaseId, userId, cancellationToken);
 
         var job = new ZipUploadJob
         {
@@ -70,7 +75,7 @@ public class CreateZipUploadJobCommandHandler : IRequestHandler<CreateZipUploadJ
 
         // Store the zip file for background processing
         var fileBytes = Convert.FromBase64String(request.Base64Content);
-        var requestedPath = $"zip-uploads/{job.Id}/{request.FileName}";
+        var requestedPath = $"zip-uploads/{job.Id}/{SafeFileName.Sanitize(request.FileName)}";
 
         _logger.LogInformation("Saving zip file for job {JobId} with requested path: {RequestedPath}", job.Id, requestedPath);
 

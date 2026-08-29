@@ -2,7 +2,9 @@ using Collectibles.Application.Interfaces;
 using Collectibles.Application.Services;
 using Collectibles.Domain.Common.Enums;
 using Collectibles.Domain.Entities;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.Sync.Queries;
@@ -51,7 +53,7 @@ public class GetShowcaseManifestQueryHandler : IRequestHandler<GetShowcaseManife
     {
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
         var showcaseOwnerId = await context.Showcases
-            .Where(s => s.Id == request.ShowcaseId && s.Deleted == null)
+            .Where(s => s.Id == request.ShowcaseId)
             .Select(s => s.UserId)
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -67,7 +69,7 @@ public class GetShowcaseManifestQueryHandler : IRequestHandler<GetShowcaseManife
 
         // Step 1: Collect root item IDs in the showcase
         var rootItemIds = await context.CollectibleItems
-            .Where(i => !i.Deleted.HasValue && i.Showcases.Any(s => s.Id == request.ShowcaseId))
+            .Where(i => i.Showcases.Any(s => s.Id == request.ShowcaseId))
             .Select(i => i.Id)
             .ToListAsync(cancellationToken);
 
@@ -85,7 +87,7 @@ public class GetShowcaseManifestQueryHandler : IRequestHandler<GetShowcaseManife
         while (frontier.Count > 0 && depth < maxDepth)
         {
             var childIds = await context.CollectibleItems
-                .Where(i => !i.Deleted.HasValue && i.ParentId.HasValue
+                .Where(i => i.ParentId.HasValue
                           && frontier.Contains(i.ParentId.Value))
                 .Select(i => i.Id)
                 .ToListAsync(cancellationToken);
@@ -103,7 +105,8 @@ public class GetShowcaseManifestQueryHandler : IRequestHandler<GetShowcaseManife
         // Step 4: Query all attachments for these items
         var attachments = await context.CollectibleItemAttachments
             .Where(cia => allItemIds.Contains(cia.CollectibleItemId))
-            .Join(context.Attachments,
+            .Join(
+                context.Attachments,
                 cia => cia.AttachmentId,
                 a => a.Id,
                 (cia, a) => new
@@ -113,7 +116,7 @@ public class GetShowcaseManifestQueryHandler : IRequestHandler<GetShowcaseManife
                     a.OriginalFilename,
                     a.ContentHash,
                     a.FileSize,
-                    a.AttachmentType
+                    a.AttachmentType,
                 })
             .ToListAsync(cancellationToken);
 
@@ -149,7 +152,7 @@ public class GetShowcaseManifestQueryHandler : IRequestHandler<GetShowcaseManife
                 FileSize = att.FileSize,
                 AttachmentType = att.AttachmentType,
                 ItemPath = itemPath,
-                ItemPathSegments = pathSegments
+                ItemPathSegments = pathSegments,
             });
         }
 

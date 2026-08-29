@@ -1,7 +1,9 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Configuration;
 using Collectibles.Domain.Interfaces;
+
 using Hangfire;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -18,6 +20,9 @@ public class AttachmentPreviewBackgroundService
     private readonly ILogger<AttachmentPreviewBackgroundService> _logger;
     private const int BatchSize = 10;
 
+    /// <summary>Hours to wait before retrying an attachment whose preview generation failed.</summary>
+    private const int PreviewRetryBackoffHours = 6;
+
     public AttachmentPreviewBackgroundService(
         IServiceProvider serviceProvider,
         ILogger<AttachmentPreviewBackgroundService> logger)
@@ -30,6 +35,7 @@ public class AttachmentPreviewBackgroundService
     /// Processes attachments that don't have preview thumbnails yet.
     /// This method is called by Hangfire as a recurring job.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     [AutomaticRetry(Attempts = 0)]
     public async Task ProcessMissingPreviewsAsync()
     {
@@ -42,20 +48,32 @@ public class AttachmentPreviewBackgroundService
 
         await using var context = await contextFactory.CreateDbContextAsync(CancellationToken.None);
 
-        // Get attachments without previews that have a file path and a previewable file type
+        // The content-type predicate is applied in SQL, before pagination. Paginating first
+        // and filtering in memory meant that once BatchSize old non-previewable rows
+        // existed, every run selected the same rows, filtered them to nothing, and newer
+        // previewable attachments were never reached.
+        var previewableTypes = GetPreviewableContentTypes(previewSettings);
+        var previewableTypePrefixes = GetPreviewableContentTypePrefixes(previewSettings);
+
+        if (previewableTypes.Count == 0 && previewableTypePrefixes.Count == 0)
+        {
+            return;
+        }
+
+        // Rows that keep failing are parked by PreviewAttemptedAt so they cannot starve the
+        // queue either; they are retried after the backoff window.
+        var retryCutoff = DateTime.UtcNow.AddHours(-PreviewRetryBackoffHours);
+
         var attachmentsNeedingPreviews = await context.Attachments
             .Where(a => a.PreviewPath == null
                 && a.FilePath != null
                 && a.FileType != null
-                && a.Deleted == null)
+                && (a.PreviewAttemptedAt == null || a.PreviewAttemptedAt < retryCutoff))
+            .Where(a => previewableTypes.Contains(a.FileType!)
+                || previewableTypePrefixes.Any(prefix => a.FileType!.StartsWith(prefix)))
             .OrderBy(a => a.Created)
             .Take(BatchSize)
             .ToListAsync(CancellationToken.None);
-
-        // Filter to only previewable types that are enabled in settings
-        attachmentsNeedingPreviews = attachmentsNeedingPreviews
-            .Where(a => IsPreviewableType(a.FileType!, previewSettings))
-            .ToList();
 
         if (attachmentsNeedingPreviews.Count == 0)
         {
@@ -77,6 +95,10 @@ public class AttachmentPreviewBackgroundService
 
         foreach (var attachment in attachmentsNeedingPreviews)
         {
+            // Stamp the attempt regardless of outcome so a permanently failing row backs
+            // off instead of being re-selected on every run.
+            attachment.PreviewAttemptedAt = DateTime.UtcNow;
+
             try
             {
                 var generated = await GenerateAndSavePreviewAsync(
@@ -108,6 +130,8 @@ public class AttachmentPreviewBackgroundService
                     });
             }
         }
+
+        await context.SaveChangesAsync(CancellationToken.None);
 
         if (successCount > 0 || failureCount > 0)
         {
@@ -242,6 +266,53 @@ public class AttachmentPreviewBackgroundService
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Exact content types that can be previewed under the current settings.
+    /// </summary>
+    private static List<string> GetPreviewableContentTypes(PreviewGenerationSettings settings)
+    {
+        var types = new List<string>();
+
+        if (settings.Pdf)
+        {
+            types.Add("application/pdf");
+        }
+
+        if (settings.Word)
+        {
+            types.Add("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+            types.Add("application/msword");
+        }
+
+        if (settings.PowerPoint)
+        {
+            types.Add("application/vnd.openxmlformats-officedocument.presentationml.presentation");
+            types.Add("application/vnd.ms-powerpoint");
+        }
+
+        return types;
+    }
+
+    /// <summary>
+    /// Content-type prefixes that can be previewed under the current settings.
+    /// </summary>
+    private static List<string> GetPreviewableContentTypePrefixes(PreviewGenerationSettings settings)
+    {
+        var prefixes = new List<string>();
+
+        if (settings.Images)
+        {
+            prefixes.Add("image/");
+        }
+
+        if (settings.Video)
+        {
+            prefixes.Add("video/");
+        }
+
+        return prefixes;
     }
 
     private static bool IsPreviewableType(string contentType, PreviewGenerationSettings settings)

@@ -27,7 +27,7 @@ internal static class ShowcaseDetailPrerenderStateFactory
             ItemsWithPreviewCount = showcase.ItemsWithPreviewCount,
             Tags = showcase.Tags.Select(CreatePersistableTag).ToList(),
             ItemCards = showcase.ItemCards.Select(CreatePersistableItemCard).ToList(),
-            Items = showcase.Items.Select(CreatePersistableItem).ToList()
+            Items = showcase.Items.Select(CreatePersistableItem).ToList(),
         };
     }
 
@@ -40,7 +40,7 @@ internal static class ShowcaseDetailPrerenderStateFactory
             Description = item.Description,
             CreatedDate = item.CreatedDate,
             ChildItemCount = item.ChildItemCount,
-            Tags = item.Tags.Select(CreatePersistableTag).ToList()
+            Tags = item.Tags.Select(CreatePersistableTag).ToList(),
         };
     }
 
@@ -59,7 +59,7 @@ internal static class ShowcaseDetailPrerenderStateFactory
             TemplateName = itemCard.TemplateName,
             TemplateBorderColor = itemCard.TemplateBorderColor,
             TemplateIcon = itemCard.TemplateIcon,
-            Tags = itemCard.Tags.Select(CreatePersistableTagSummary).ToList()
+            Tags = itemCard.Tags.Select(CreatePersistableTagSummary).ToList(),
         };
     }
 
@@ -68,7 +68,7 @@ internal static class ShowcaseDetailPrerenderStateFactory
         return new TagDto
         {
             Id = tag.Id,
-            Name = tag.Name
+            Name = tag.Name,
         };
     }
 
@@ -78,7 +78,7 @@ internal static class ShowcaseDetailPrerenderStateFactory
         {
             Id = tag.Id,
             Name = tag.Name,
-            Color = tag.Color
+            Color = tag.Color,
         };
     }
 }

@@ -5,6 +5,7 @@ using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Configuration.Email;
 
 using Hangfire;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -75,15 +76,17 @@ public class EmailBackgroundService
             return;
         }
 
-        if (emailLog.Status == EmailStatus.Sent || emailLog.Status == EmailStatus.Cancelled)
+        // Claim the row atomically before sending. The previous read-then-write guard let
+        // the recurring scan, an inline send, and a scheduled retry all pick up the same
+        // row and deliver it more than once - including password resets.
+        var claimed = await TryClaimAsync(dbContext, emailLogId);
+        if (!claimed)
         {
+            _logger.LogInformation("EmailLog {EmailLogId} is already claimed by another worker", emailLogId);
             return;
         }
 
-        emailLog.Status = EmailStatus.InProgress;
-        emailLog.AttemptCount++;
-        emailLog.LastAttemptAt = DateTime.UtcNow;
-        await dbContext.SaveChangesAsync(CancellationToken.None);
+        await ((DbContext)dbContext).Entry(emailLog).ReloadAsync(CancellationToken.None);
 
         try
         {
@@ -97,6 +100,7 @@ public class EmailBackgroundService
             {
                 result = await emailService.SendEmailAsync(emailMessage);
             }
+
             // Otherwise, render template (backwards compatibility for old EmailLog records)
             else if (!string.IsNullOrEmpty(emailLog.TemplateName) && !string.IsNullOrEmpty(emailLog.TemplateData))
             {
@@ -203,8 +207,32 @@ public class EmailBackgroundService
                     ["Error"] = errorMessage,
                 });
 
-            BackgroundJob.Schedule(() => SendEmailWithRetryAsync(emailLog.Id), TimeSpan.FromSeconds(delay));
+            // Deliberately no BackgroundJob.Schedule here. The recurring scan already
+            // re-picks Failed rows that are still under MaxAttempts, and running both gave
+            // two overlapping retry mechanisms racing for the same row. ScheduledFor makes
+            // the scan honour the backoff.
+            emailLog.ScheduledFor = DateTime.UtcNow.AddSeconds(delay);
+            await dbContext.SaveChangesAsync(CancellationToken.None);
         }
+    }
+
+    /// <summary>
+    /// Compare-and-swap the row into <see cref="EmailStatus.InProgress"/>. Only the caller
+    /// that observes a row actually transitioning may send it.
+    /// </summary>
+    private static async Task<bool> TryClaimAsync(IApplicationDbContext dbContext, long emailLogId)
+    {
+        var rowsAffected = await ((DbContext)dbContext).Database.ExecuteSqlRawAsync(
+            @"UPDATE EmailLogs
+              SET Status = {0}, AttemptCount = AttemptCount + 1, LastAttemptAt = {1}
+              WHERE Id = {2} AND Status IN ({3}, {4})",
+            (int)EmailStatus.InProgress,
+            DateTime.UtcNow,
+            emailLogId,
+            (int)EmailStatus.Pending,
+            (int)EmailStatus.Failed);
+
+        return rowsAffected > 0;
     }
 
     private int CalculateRetryDelay(int attemptCount)

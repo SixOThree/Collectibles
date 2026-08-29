@@ -2,7 +2,10 @@ using Collectibles.Application.Interfaces;
 using Collectibles.Application.Services;
 using Collectibles.Domain.Common.Enums;
 using Collectibles.Domain.Interfaces;
+
 using MediatR;
+
+using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.QRCodes.Commands;
 
@@ -64,23 +67,26 @@ public class UnassignQRCodeCommandHandler : IRequestHandler<UnassignQRCodeComman
             };
         }
 
-        if (!collectibleItem.QRCodeId.HasValue)
+        // AssignQRCodeCommand verifies item ownership; unassigning must too.
+        var ownsItem = await _context.CollectibleItems
+            .Where(ci => ci.Id == collectibleItemId)
+            .SelectMany(ci => ci.Showcases)
+            .AnyAsync(s => s.UserId == _currentUserService.UserId, cancellationToken);
+
+        if (!ownsItem && !_currentUserService.IsAdministrator)
         {
-            return new UnassignQRCodeResult
-            {
-                Success = false,
-                ErrorMessage = "This item does not have a QR code assigned",
-            };
+            throw new UnauthorizedAccessException("You don't have permission to unassign the QR code for this item.");
         }
 
-        var qrCode = await _qrCodeRepository.GetByIdAsync(collectibleItem.QRCodeId.Value, cancellationToken);
+        var qrCode = await _context.QRCodes
+            .FirstOrDefaultAsync(q => q.CollectibleItemId == collectibleItemId, cancellationToken);
 
         if (qrCode == null)
         {
             return new UnassignQRCodeResult
             {
                 Success = false,
-                ErrorMessage = "QR code not found",
+                ErrorMessage = "This item does not have a QR code assigned",
             };
         }
 
@@ -91,9 +97,6 @@ public class UnassignQRCodeCommandHandler : IRequestHandler<UnassignQRCodeComman
         qrCode.LastModifiedBy = _currentUserService.UserId;
 
         await _qrCodeRepository.UpdateAsync(qrCode, cancellationToken);
-
-        collectibleItem.QRCodeId = null;
-        await _context.SaveChangesAsync(cancellationToken);
 
         return new UnassignQRCodeResult
         {

@@ -1,4 +1,4 @@
-@page "/admin/migrate-attachments"
+﻿@page "/admin/migrate-attachments"
 @rendermode InteractiveServerWithoutPrerender
 @attribute [Authorize(Roles = "Administrator")]
 @inherits LoggablePageBase
@@ -13,7 +13,7 @@
 @using Collectibles.Application.Features.Attachments.Dtos
 @implements IDisposable
 @inject IMediator Mediator
-@inject IApplicationDbContext DbContext
+@inject IApplicationDbContextFactory DbContextFactory
 @inject NavigationManager Navigation
 @inject IConfiguration Configuration
 @inject IJSRuntime JSRuntime
@@ -899,8 +899,10 @@
     {
         try
         {
-            _totalAttachments = await DbContext.Attachments.CountAsync();
-            _unmigratedCount = await DbContext.Attachments
+            await using var context = await DbContextFactory.CreateDbContextAsync(CancellationToken.None);
+
+            _totalAttachments = await context.Attachments.CountAsync();
+            _unmigratedCount = await context.Attachments
                 .Where(a => !a.IsMigrated)
                 .CountAsync();
             _migratedCount = _totalAttachments - _unmigratedCount;
@@ -985,7 +987,11 @@
 
         while (_processedCount < _totalToProcess && !cancellationToken.IsCancellationRequested)
         {
-            var batch = await DbContext.Attachments
+            // A context per batch: the 30-second refresh timer runs concurrently with this
+            // loop, so they must not share one.
+            await using var context = await DbContextFactory.CreateDbContextAsync(cancellationToken);
+
+            var batch = await context.Attachments
                 .Where(a => !a.IsMigrated)
                 .Include(a => a.AttachmentContent)
                 .Take(_batchSize)
@@ -1035,7 +1041,7 @@
             }
 
             // Save batch changes
-            await DbContext.SaveChangesAsync(cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
         }
 
         RecordMigrationHistory("Completed", successCount, failedCount);
@@ -1066,7 +1072,9 @@
 
         try
         {
-            var migratedAttachments = await DbContext.Attachments
+            await using var context = await DbContextFactory.CreateDbContextAsync(CancellationToken.None);
+
+            var migratedAttachments = await context.Attachments
                 .Where(a => a.IsMigrated)
                 .ToListAsync();
 
@@ -1446,7 +1454,9 @@
         
         try
         {
-            var attachmentsToVerify = await DbContext.Attachments
+            await using var context = await DbContextFactory.CreateDbContextAsync(CancellationToken.None);
+
+            var attachmentsToVerify = await context.Attachments
                 .Where(a => a.IsMigrated)
                 .OrderByDescending(a => a.MigrationDate)
                 .Take(100)

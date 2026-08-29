@@ -197,6 +197,23 @@ public static class ApplicationConstants
         public const int VideoThumbnailCaptureSeconds = 1;
 
         /// <summary>
+        /// Maximum time the ffmpeg snapshot for one video may run before it is abandoned.
+        /// Without a bound, a malformed video can hold a child process open indefinitely.
+        /// </summary>
+        public const int VideoThumbnailTimeoutSeconds = 60;
+
+        /// <summary>
+        /// Largest image dimension (width or height) accepted for decoding. A small file
+        /// can declare enormous dimensions and force a width x height x 4 allocation.
+        /// </summary>
+        public const int MaxImageDimension = 20000;
+
+        /// <summary>
+        /// Largest total pixel count accepted for decoding.
+        /// </summary>
+        public const long MaxImagePixels = 100_000_000;
+
+        /// <summary>
         /// Thumbnail width in pixels.
         /// </summary>
         public const int ThumbnailWidth = 512;
@@ -395,6 +412,22 @@ public static class ApplicationConstants
         /// Request signature max length.
         /// </summary>
         public const int RequestSignatureMaxLength = 1024;
+
+        /// <summary>
+        /// URL max length.
+        /// </summary>
+        public const int UrlMaxLength = 2048;
+
+        /// <summary>
+        /// Share-link token max length. Tokens are 44 characters; the column is bounded so
+        /// it can carry a unique index.
+        /// </summary>
+        public const int ShareTokenMaxLength = 64;
+
+        /// <summary>
+        /// Configuration key max length.
+        /// </summary>
+        public const int ConfigurationKeyMaxLength = 200;
     }
 
     /// <summary>
@@ -478,6 +511,12 @@ public static class ApplicationConstants
         /// Days for log file retention.
         /// </summary>
         public const int LogFileRetentionDays = 30;
+
+        /// <summary>
+        /// Days a soft-deleted attachment stays restorable before it (and its storage
+        /// files) are permanently reclaimed by the purge job.
+        /// </summary>
+        public const int DeletedAttachmentRetentionDays = 30;
     }
 
     /// <summary>

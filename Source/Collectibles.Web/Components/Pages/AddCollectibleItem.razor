@@ -1,4 +1,4 @@
-@page "/showcase/{ShowcaseHash}/item/new"
+﻿@page "/showcase/{ShowcaseHash}/item/new"
 @rendermode InteractiveServerWithoutPrerender
 @attribute [Authorize]
 @inherits LoggablePageBase
@@ -290,7 +290,6 @@
             _command.AttachmentIds = new List<long>();
 
             _command.TagIds = _selectedTags.Select(t => t.Id).ToList();
-            _command.UserId = userId;
 
             if (_isMultiEntry)
             {

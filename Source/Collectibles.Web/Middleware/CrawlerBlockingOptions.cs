@@ -5,7 +5,7 @@ public class CrawlerBlockingOptions
     public bool Enabled { get; set; } = true;
 
     /// <summary>
-    /// User-Agent substrings to block. Case-insensitive matching.
+    /// Gets or sets user-Agent substrings to block. Case-insensitive matching.
     /// </summary>
     public List<string> BlockedUserAgents { get; set; } = new()
     {
@@ -107,7 +107,7 @@ public class CrawlerBlockingOptions
     };
 
     /// <summary>
-    /// User-Agent substrings to allow even if they match a blocked pattern.
+    /// Gets or sets user-Agent substrings to allow even if they match a blocked pattern.
     /// Evaluated before the block list.
     /// </summary>
     public List<string> AllowedUserAgents { get; set; } = new()
@@ -128,7 +128,7 @@ public class CrawlerBlockingOptions
     };
 
     /// <summary>
-    /// Block requests with empty or missing User-Agent headers.
+    /// Gets or sets a value indicating whether block requests with empty or missing User-Agent headers.
     /// </summary>
     public bool BlockEmptyUserAgent { get; set; } = true;
 }

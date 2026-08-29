@@ -2,9 +2,18 @@
 
 namespace Collectibles.Infrastructure.Persistence.Configurations;
 
-public class TaxonomyVocabularyConfiguration : IEntityTypeConfiguration<TaxonomyVocabulary>
+/// <summary>
+/// Maps <see cref="TaxonomyTerm"/> to the TaxonomyTerms table.
+/// </summary>
+/// <remarks>
+/// The two taxonomy configuration classes were swapped between files, so the physical
+/// tables were inverted: terms lived in TaxonomyVocabularies and vice versa. EF was
+/// internally consistent, so the app worked, but any raw SQL or DBA operation hit the
+/// wrong table. Each class now lives in its correctly named file and maps its own table.
+/// </remarks>
+public class TaxonomyTermConfiguration : IEntityTypeConfiguration<TaxonomyTerm>
 {
-    public void Configure(EntityTypeBuilder<TaxonomyVocabulary> builder)
+    public void Configure(EntityTypeBuilder<TaxonomyTerm> builder)
     {
         builder.ToTable("TaxonomyTerms");
         builder.Ignore(e => e.DomainEvents);

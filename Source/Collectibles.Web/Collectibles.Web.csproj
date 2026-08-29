@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
@@ -7,12 +7,16 @@
     <!-- theme-config is rewritten at runtime and must bypass build-time static asset compression/fingerprinting -->
     <CompressionExcludePatterns>$(CompressionExcludePatterns);theme-config/**</CompressionExcludePatterns>
     <StaticWebAssetEndpointExclusionPattern>$(StaticWebAssetEndpointExclusionPattern);theme-config/**</StaticWebAssetEndpointExclusionPattern>
-    <!-- Version Information - Updated by Azure Pipeline during CI/CD -->
+    <!-- Version information. There is no CI pipeline in this repository today; these
+         are the local defaults and a release process should override them on the command
+         line (-p:InformationalVersion=...). -->
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>
     <InformationalVersion>1.0.0-local</InformationalVersion>
-    <!-- Build Timestamp -->
-    <SourceRevisionId>build$([System.DateTime]::UtcNow.ToString("yyyyMMddHHmmss"))</SourceRevisionId>
+    <!-- SourceRevisionId is left to the build to supply (conventionally the git SHA:
+         -p:SourceRevisionId=$(git rev-parse HEAD)). It previously held a wall-clock
+         timestamp, which made every build of identical sources produce a different
+         assembly. -->
   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="Logs\**" />
@@ -62,13 +66,18 @@
   <!-- Apply web.config transformation for Release/Production builds -->
   <Target Name="ApplyWebConfigTransform" AfterTargets="Publish" Condition="'$(Configuration)' == 'Release' OR '$(EnvironmentName)' == 'Production'">
     <PropertyGroup>
+      <!-- The task is only registered by the Visual Studio web publishing targets. -->
+      <_TransformXmlAvailable Condition="Exists('$(MSBuildExtensionsPath)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Web\Microsoft.Web.Publishing.Tasks.dll')">true</_TransformXmlAvailable>
       <!-- Use Production config if EnvironmentName is set, otherwise use Release config -->
       <TransformFile Condition="'$(EnvironmentName)' == 'Production'">$(ProjectDir)web.Production.config</TransformFile>
       <TransformFile Condition="'$(EnvironmentName)' != 'Production'">$(ProjectDir)web.Release.config</TransformFile>
     </PropertyGroup>
     <!-- First, ensure base web.config exists in publish directory -->
     <Copy SourceFiles="$(ProjectDir)web.config" DestinationFiles="$(PublishDir)web.config" OverwriteReadOnlyFiles="true" Condition="!Exists('$(PublishDir)web.config')" />
-    <!-- Apply the transformation -->
-    <TransformXml Source="$(PublishDir)web.config" Transform="$(TransformFile)" Destination="$(PublishDir)web.config" Condition="Exists('$(TransformFile)')" />
+    <!-- TransformXml ships with Visual Studio's web publishing targets, which are not
+         present on a bare SDK install, so this target is skipped rather than failing the
+         publish when the task is unavailable. -->
+    <TransformXml Source="$(PublishDir)web.config" Transform="$(TransformFile)" Destination="$(PublishDir)web.config" Condition="Exists('$(TransformFile)') AND '$(_TransformXmlAvailable)' == 'true'" />
+    <Warning Text="Skipping web.config transform: the TransformXml task is unavailable (Visual Studio web publishing targets not installed). Apply $(TransformFile) manually." Condition="Exists('$(TransformFile)') AND '$(_TransformXmlAvailable)' != 'true'" />
   </Target>
 </Project>

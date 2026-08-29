@@ -20,6 +20,7 @@ public class FileHashService
     /// Scans a folder recursively and computes SHA256 hashes for all supported files.
     /// Uses a cache keyed by full path, size, and last-write time to skip unchanged files.
     /// </summary>
+    /// <returns><placeholder>A <see cref="Task"/> representing the asynchronous operation.</placeholder></returns>
     public async Task<Dictionary<string, (string Hash, long Size, string FullPath)>> HashFilesAsync(
         string folderPath,
         IProgress<(int processed, int total)>? progress = null,

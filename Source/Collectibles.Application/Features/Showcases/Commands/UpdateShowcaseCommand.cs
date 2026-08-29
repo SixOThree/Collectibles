@@ -1,7 +1,9 @@
 using Collectibles.Application.Common.Authorization.Requirements;
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Enums;
+
 using MediatR;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 

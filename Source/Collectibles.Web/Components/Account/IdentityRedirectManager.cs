@@ -1,5 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
+
 using Collectibles.Domain.Constants;
+
 using Microsoft.AspNetCore.Components;
 
 namespace Collectibles.Web.Components.Account;

@@ -1,16 +1,24 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Constants;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace Collectibles.Infrastructure.Services;
 
-public class LinkProcessorService : IHostedService, IDisposable
+/// <summary>
+/// Drives <see cref="ILinkProcessorService"/> on a fixed interval. Implemented as a
+/// <see cref="BackgroundService"/> loop rather than a timer so runs can never overlap,
+/// in-flight work is awaited on shutdown, and the stopping token reaches the capture.
+/// </summary>
+public class LinkProcessorService : BackgroundService
 {
+    private static readonly TimeSpan Interval =
+        TimeSpan.FromMinutes(ApplicationConstants.BackgroundServices.LinkProcessorIntervalMinutes);
+
     private readonly ILogger<LinkProcessorService> _logger;
     private readonly IServiceProvider _serviceProvider;
-    private Timer? _timer;
 
     public LinkProcessorService(ILogger<LinkProcessorService> logger, IServiceProvider serviceProvider)
     {
@@ -18,41 +26,44 @@ public class LinkProcessorService : IHostedService, IDisposable
         _serviceProvider = serviceProvider;
     }
 
-    public Task StartAsync(CancellationToken cancellationToken)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("Link Processor Service is starting.");
-        _timer = new Timer(DoWork, null, TimeSpan.Zero, TimeSpan.FromMinutes(ApplicationConstants.BackgroundServices.LinkProcessorIntervalMinutes));
-        return Task.CompletedTask;
-    }
 
-    private void DoWork(object? state)
-    {
-        // Use Task.Run to properly handle async operation without blocking the timer callback
-        _ = Task.Run(async () =>
+        using var timer = new PeriodicTimer(Interval);
+
+        do
         {
             try
             {
                 _logger.LogInformation("Link Processor Service is working.");
                 using var scope = _serviceProvider.CreateScope();
                 var linkProcessor = scope.ServiceProvider.GetRequiredService<ILinkProcessorService>();
-                await linkProcessor.ProcessPendingLinks(CancellationToken.None).ConfigureAwait(false);
+                await linkProcessor.ProcessPendingLinks(stoppingToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error occurred while processing pending links.");
             }
-        });
-    }
+        }
+        while (await SafeWaitForNextTickAsync(timer, stoppingToken).ConfigureAwait(false));
 
-    public Task StopAsync(CancellationToken cancellationToken)
-    {
         _logger.LogInformation("Link Processor Service is stopping.");
-        _timer?.Change(Timeout.Infinite, 0);
-        return Task.CompletedTask;
     }
 
-    public void Dispose()
+    private static async Task<bool> SafeWaitForNextTickAsync(PeriodicTimer timer, CancellationToken stoppingToken)
     {
-        _timer?.Dispose();
+        try
+        {
+            return await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
+        }
     }
 }

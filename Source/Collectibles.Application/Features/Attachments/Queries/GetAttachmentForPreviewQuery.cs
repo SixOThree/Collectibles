@@ -1,10 +1,12 @@
+using Collectibles.Application.Common.Authorization.Requirements;
 using Collectibles.Application.Interfaces;
 using Collectibles.Application.Mappings.Explicit;
-using Collectibles.Domain.Constants;
 using Collectibles.Domain.Entities;
+
 using MediatR;
+
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
 namespace Collectibles.Application.Features.Attachments.Queries;
@@ -15,36 +17,29 @@ public class GetAttachmentForPreviewQueryHandler : IRequestHandler<GetAttachment
 {
     private readonly IApplicationDbContextFactory _contextFactory;
     private readonly IAttachmentMappingService _attachmentMappingService;
-    private readonly IMemoryCache? _memoryCache;
     private readonly IEventLogService _eventLogService;
+    private readonly IAuthorizationService _authorizationService;
     private readonly ILogger<GetAttachmentForPreviewQueryHandler> _logger;
-    private const string CacheKeyPrefix = "AttachmentPreview_";
-    private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(ApplicationConstants.Caching.AttachmentPreviewCacheMinutes);
 
     public GetAttachmentForPreviewQueryHandler(
         IApplicationDbContextFactory contextFactory,
         IAttachmentMappingService attachmentMappingService,
         IEventLogService eventLogService,
-        ILogger<GetAttachmentForPreviewQueryHandler> logger,
-        IMemoryCache? memoryCache = null)
+        IAuthorizationService authorizationService,
+        ILogger<GetAttachmentForPreviewQueryHandler> logger)
     {
         _contextFactory = contextFactory;
         _attachmentMappingService = attachmentMappingService;
         _eventLogService = eventLogService;
+        _authorizationService = authorizationService;
         _logger = logger;
-        _memoryCache = memoryCache;
     }
 
     public async Task<AttachmentDto> Handle(GetAttachmentForPreviewQuery request, CancellationToken cancellationToken)
     {
-        var cacheKey = $"{CacheKeyPrefix}{request.Id}";
-
-        // Try to get from cache if available
-        if (_memoryCache != null && _memoryCache.TryGetValue(cacheKey, out AttachmentDto? cachedAttachment))
-        {
-            return cachedAttachment!;
-        }
-
+        // The result used to be cached in IMemoryCache keyed only by attachment id: the
+        // full content was therefore served across users and stayed stale after an update,
+        // rotate, or delete. Content is served per-request and authorized every time.
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
 
         var attachment = await context.Attachments
@@ -60,17 +55,21 @@ public class GetAttachmentForPreviewQueryHandler : IRequestHandler<GetAttachment
             throw new ArgumentException($"Attachment with ID {request.Id} not found.", nameof(request));
         }
 
+        var authorizationResult = await _authorizationService.AuthorizeAsync(
+            new System.Security.Claims.ClaimsPrincipal(),
+            attachment,
+            new ViewAttachmentRequirement());
+
+        if (!authorizationResult.Succeeded)
+        {
+            throw new UnauthorizedAccessException("You do not have permission to view this attachment.");
+        }
+
         // Use the mapping service to load content and preview
         // For preview queries, we typically need both content and preview
         var attachmentDto = await _attachmentMappingService.MapWithContentAsync(attachment, cancellationToken);
 
-        // Add to cache if available
-        if (_memoryCache != null)
-        {
-            _memoryCache.Set(cacheKey, attachmentDto, CacheDuration);
-        }
-
-        // Log the preview generation event (only for non-cached requests)
+        // Log the preview generation event
         var logTask = _eventLogService.LogEventAsync(
             EventAction.View,
             nameof(Attachment),

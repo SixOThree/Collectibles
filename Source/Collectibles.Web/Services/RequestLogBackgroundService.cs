@@ -39,6 +39,7 @@ public class RequestLogBackgroundService : BackgroundService
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error processing request log entry for {Method} {Path}", entry.Method, entry.Path);
+
                 // Continue processing - don't let one failure stop the service
             }
         }

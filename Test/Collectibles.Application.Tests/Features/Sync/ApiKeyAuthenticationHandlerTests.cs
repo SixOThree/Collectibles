@@ -1,11 +1,14 @@
 using System.Linq.Expressions;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
+
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Configuration;
 using Collectibles.Infrastructure.Persistence;
 using Collectibles.Web.Authentication;
+
 using FluentAssertions;
+
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -13,6 +16,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
 using Moq;
 
 namespace Collectibles.Application.Tests.Features.Sync;
@@ -106,7 +110,7 @@ public class ApiKeyAuthenticationHandlerTests
             DisplayName = "Test User",
             SyncToolEnabled = false,
             IsActive = true,
-            ApiKeyHash = "HASH123"
+            ApiKeyHash = "HASH123",
         };
         _apiKeyServiceMock.Setup(x => x.HashKey("test-key")).Returns("HASH123");
         SetupUserLookup(user);
@@ -130,7 +134,7 @@ public class ApiKeyAuthenticationHandlerTests
             DisplayName = "Test User",
             SyncToolEnabled = true,
             IsActive = false,
-            ApiKeyHash = "HASH123"
+            ApiKeyHash = "HASH123",
         };
         _apiKeyServiceMock.Setup(x => x.HashKey("test-key")).Returns("HASH123");
         SetupUserLookup(user);
@@ -154,7 +158,7 @@ public class ApiKeyAuthenticationHandlerTests
             DisplayName = "Test User",
             SyncToolEnabled = true,
             IsActive = true,
-            ApiKeyHash = "HASH123"
+            ApiKeyHash = "HASH123",
         };
         _apiKeyServiceMock.Setup(x => x.HashKey("test-key")).Returns("HASH123");
         SetupUserLookup(user);
@@ -240,8 +244,14 @@ internal class TestAsyncQueryProvider<T> : IAsyncQueryProvider
 
 internal class TestAsyncEnumerable<T> : EnumerableQuery<T>, IAsyncEnumerable<T>, IQueryable<T>
 {
-    public TestAsyncEnumerable(IEnumerable<T> enumerable) : base(enumerable) { }
-    public TestAsyncEnumerable(Expression expression) : base(expression) { }
+    public TestAsyncEnumerable(IEnumerable<T> enumerable)
+        : base(enumerable)
+    {
+    }
+    public TestAsyncEnumerable(Expression expression)
+        : base(expression)
+    {
+    }
     public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default)
         => new TestAsyncEnumerator<T>(this.AsEnumerable().GetEnumerator());
     IQueryProvider IQueryable.Provider => new TestAsyncQueryProvider<T>(this);
@@ -253,5 +263,9 @@ internal class TestAsyncEnumerator<T> : IAsyncEnumerator<T>
     public TestAsyncEnumerator(IEnumerator<T> inner) => _inner = inner;
     public T Current => _inner.Current;
     public ValueTask<bool> MoveNextAsync() => new(_inner.MoveNext());
-    public ValueTask DisposeAsync() { _inner.Dispose(); return default; }
+    public ValueTask DisposeAsync()
+    {
+        _inner.Dispose();
+        return default;
+    }
 }

@@ -1,8 +1,10 @@
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Azure.Storage.Sas;
+
 using Collectibles.Domain.Configuration.Storage;
 using Collectibles.Domain.Interfaces;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -28,6 +30,10 @@ public class AzureBlobFileStorage : IFileStorage
 
         if (_settings.CreateContainerIfNotExists)
         {
+            // This is a blocking network round-trip in a constructor. It is acceptable
+            // only because FileStorageFactory caches a single provider instance for the
+            // process: when this type was rebuilt per DI scope it ran once per request
+            // that touched storage.
             _containerClient.CreateIfNotExists(PublicAccessType.None);
         }
     }
@@ -72,45 +78,8 @@ public class AzureBlobFileStorage : IFileStorage
 
     public async Task<string> SaveFileAsync(byte[] fileContent, string fileName, string contentType, long? showcaseId = null, CancellationToken cancellationToken = default)
     {
-        // Preserve directory structure if provided
-        var directory = Path.GetDirectoryName(fileName)?.Replace('\\', '/');
-        var file = Path.GetFileName(fileName);
-
-        // Check if the filename already looks like a GUID-based name (32 hex chars followed by extension or _preview suffix)
-        var fileNameWithoutExt = Path.GetFileNameWithoutExtension(file);
-        var isGuidBased = fileNameWithoutExt != null &&
-                         (System.Text.RegularExpressions.Regex.IsMatch(fileNameWithoutExt, @"^[a-f0-9]{32}$") ||
-                          System.Text.RegularExpressions.Regex.IsMatch(fileNameWithoutExt, @"^[a-f0-9]{32}_preview$"));
-
-        // Only generate a new name if the provided name isn't already GUID-based
-        var uniqueFileName = isGuidBased ? file : GenerateRandomBlobName(file);
-
-        string blobName;
-
-        // Build the blob path structure
-        if (showcaseId.HasValue)
-        {
-            var showcaseFolder = showcaseId.Value.ToString();
-            if (!string.IsNullOrEmpty(directory))
-            {
-                blobName = $"{showcaseFolder}/{directory}/{uniqueFileName}";
-            }
-            else
-            {
-                blobName = $"{showcaseFolder}/{uniqueFileName}";
-            }
-        }
-        else if (!string.IsNullOrEmpty(directory))
-        {
-            blobName = $"{directory}/{uniqueFileName}";
-        }
-        else
-        {
-            blobName = uniqueFileName;
-        }
-
-        // Apply subfolder if configured
-        blobName = BuildBlobPath(blobName);
+        // Preserve directory structure if provided, rejecting traversal segments
+        var blobName = BuildBlobPath(StoragePathBuilder.BuildRelativePath(fileName, showcaseId, '/'));
 
         var blobClient = _containerClient.GetBlobClient(blobName);
 
@@ -146,45 +115,8 @@ public class AzureBlobFileStorage : IFileStorage
 
     public async Task<string> SaveFileAsync(Stream fileStream, string fileName, string contentType, long? showcaseId = null, CancellationToken cancellationToken = default)
     {
-        // Preserve directory structure if provided
-        var directory = Path.GetDirectoryName(fileName)?.Replace('\\', '/');
-        var file = Path.GetFileName(fileName);
-
-        // Check if the filename already looks like a GUID-based name (32 hex chars followed by extension or _preview suffix)
-        var fileNameWithoutExt = Path.GetFileNameWithoutExtension(file);
-        var isGuidBased = fileNameWithoutExt != null &&
-                         (System.Text.RegularExpressions.Regex.IsMatch(fileNameWithoutExt, @"^[a-f0-9]{32}$") ||
-                          System.Text.RegularExpressions.Regex.IsMatch(fileNameWithoutExt, @"^[a-f0-9]{32}_preview$"));
-
-        // Only generate a new name if the provided name isn't already GUID-based
-        var uniqueFileName = isGuidBased ? file : GenerateRandomBlobName(file);
-
-        string blobName;
-
-        // Build the blob path structure
-        if (showcaseId.HasValue)
-        {
-            var showcaseFolder = showcaseId.Value.ToString();
-            if (!string.IsNullOrEmpty(directory))
-            {
-                blobName = $"{showcaseFolder}/{directory}/{uniqueFileName}";
-            }
-            else
-            {
-                blobName = $"{showcaseFolder}/{uniqueFileName}";
-            }
-        }
-        else if (!string.IsNullOrEmpty(directory))
-        {
-            blobName = $"{directory}/{uniqueFileName}";
-        }
-        else
-        {
-            blobName = uniqueFileName;
-        }
-
-        // Apply subfolder if configured
-        blobName = BuildBlobPath(blobName);
+        // Preserve directory structure if provided, rejecting traversal segments
+        var blobName = BuildBlobPath(StoragePathBuilder.BuildRelativePath(fileName, showcaseId, '/'));
 
         var blobClient = _containerClient.GetBlobClient(blobName);
 
@@ -391,19 +323,10 @@ public class AzureBlobFileStorage : IFileStorage
     /// <inheritdoc />
     public string GenerateBlobName(string fileName, long? showcaseId = null)
     {
-        var file = Path.GetFileName(fileName);
-        var uniqueFileName = GenerateRandomBlobName(file);
-
-        string blobName;
-
-        if (showcaseId.HasValue)
-        {
-            blobName = $"{showcaseId.Value}/{uniqueFileName}";
-        }
-        else
-        {
-            blobName = uniqueFileName;
-        }
+        // Direct uploads always get a server-generated leaf name; the caller-supplied
+        // directory portion is intentionally discarded here.
+        var leaf = Path.GetFileName(fileName);
+        var blobName = StoragePathBuilder.BuildRelativePath(Guid.NewGuid().ToString("N") + Path.GetExtension(leaf).ToLowerInvariant(), showcaseId, '/');
 
         // Apply subfolder if configured
         return BuildBlobPath(blobName);
@@ -431,13 +354,6 @@ public class AzureBlobFileStorage : IFileStorage
         sasBuilder.SetPermissions(BlobSasPermissions.Create | BlobSasPermissions.Write);
 
         return blobClient.GenerateSasUri(sasBuilder).ToString();
-    }
-
-    private static string GenerateRandomBlobName(string originalFileName)
-    {
-        var extension = Path.GetExtension(originalFileName).ToLowerInvariant();
-        var randomName = Guid.NewGuid().ToString("N");
-        return $"{randomName}{extension}";
     }
 
     private string BuildBlobPath(string relativePath)

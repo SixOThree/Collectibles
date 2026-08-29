@@ -1,5 +1,8 @@
 using System.Net;
+
 using Collectibles.Application.Interfaces;
+
+using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Web.Middleware;
 
@@ -9,14 +12,18 @@ public class ExceptionHandlingMiddleware
     private readonly ILogger<ExceptionHandlingMiddleware> _logger;
     private readonly IServiceProvider _serviceProvider;
 
+    private readonly IClientIpResolver _clientIpResolver;
+
     public ExceptionHandlingMiddleware(
         RequestDelegate next,
         ILogger<ExceptionHandlingMiddleware> logger,
-        IServiceProvider serviceProvider)
+        IServiceProvider serviceProvider,
+        IClientIpResolver clientIpResolver)
     {
         _next = next;
         _logger = logger;
         _serviceProvider = serviceProvider;
+        _clientIpResolver = clientIpResolver;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -62,6 +69,26 @@ public class ExceptionHandlingMiddleware
             _logger.LogError(loggingException, "Error occurred while logging exception to SysLog");
         }
 
+        // A concurrency conflict is a normal outcome now that the editable aggregates carry
+        // row versions: someone else saved first. Report it as a conflict the caller can
+        // recover from by reloading, not as a server fault.
+        if (exception is DbUpdateConcurrencyException)
+        {
+            context.Response.StatusCode = (int)HttpStatusCode.Conflict;
+            context.Response.ContentType = "text/plain";
+            await context.Response.WriteAsync(
+                "This record was changed by someone else while you were editing it. Reload and try again.");
+            return;
+        }
+
+        if (exception is UnauthorizedAccessException)
+        {
+            context.Response.StatusCode = (int)HttpStatusCode.Forbidden;
+            context.Response.ContentType = "text/plain";
+            await context.Response.WriteAsync("You are not authorized to perform this action.");
+            return;
+        }
+
         context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
         context.Response.ContentType = "text/plain";
 
@@ -75,25 +102,11 @@ public class ExceptionHandlingMiddleware
         }
     }
 
-    private static string? GetIPAddress(HttpContext context)
+    private string? GetIPAddress(HttpContext context)
     {
-        var ipAddress = context.Request.Headers["X-Forwarded-For"].FirstOrDefault();
-        if (!string.IsNullOrEmpty(ipAddress))
-        {
-            var addresses = ipAddress.Split(',');
-            if (addresses.Length > 0)
-            {
-                return addresses[0].Trim();
-            }
-        }
-
-        ipAddress = context.Request.Headers["X-Real-IP"].FirstOrDefault();
-        if (!string.IsNullOrEmpty(ipAddress))
-        {
-            return ipAddress;
-        }
-
-        return context.Connection.RemoteIpAddress?.ToString();
+        // Resolved centrally: parsing forwarded headers here trusted whatever the client
+        // sent and wrote a forged address into the audit trail.
+        return _clientIpResolver.Resolve(context);
     }
 
     private static bool IsDevelopment()

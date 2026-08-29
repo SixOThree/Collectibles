@@ -1,5 +1,7 @@
 using Collectibles.Application.Interfaces;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.Tags.Commands;

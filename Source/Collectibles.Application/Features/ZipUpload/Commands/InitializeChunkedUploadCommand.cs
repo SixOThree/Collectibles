@@ -2,7 +2,9 @@ using System.Text.Json;
 
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Entities;
+
 using MediatR;
+
 using Microsoft.Extensions.Logging;
 
 namespace Collectibles.Application.Features.ZipUpload.Commands;
@@ -12,7 +14,6 @@ public class InitializeChunkedUploadCommand : IRequest<long>
     public long ShowcaseId { get; set; }
     public string FileName { get; set; } = string.Empty;
     public long FileSize { get; set; }
-    public string? UserId { get; set; } // Optional UserId to handle Blazor context issues
 }
 
 public class InitializeChunkedUploadCommandHandler : IRequestHandler<InitializeChunkedUploadCommand, long>
@@ -38,13 +39,15 @@ public class InitializeChunkedUploadCommandHandler : IRequestHandler<InitializeC
     {
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
 
-        // Use the provided UserId if available, otherwise fall back to CurrentUserService
-        var userId = request.UserId ?? _currentUserService.UserId;
+        // Identity always comes from the authenticated principal, never the request.
+        var userId = _currentUserService.UserId;
 
         if (string.IsNullOrEmpty(userId))
         {
             throw new UnauthorizedAccessException("User context not available. Please ensure you are logged in.");
         }
+
+        await ZipUploadAuthorization.EnsureShowcaseOwnedAsync(context, request.ShowcaseId, userId, cancellationToken);
 
         var job = new ZipUploadJob
         {

@@ -1,4 +1,5 @@
 using FluentValidation;
+
 using MediatR;
 
 namespace Collectibles.Application.Behaviors;

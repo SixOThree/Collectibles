@@ -1,4 +1,5 @@
 using Collectibles.Domain.Entities;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Interfaces;
@@ -11,6 +12,7 @@ public interface IApplicationDbContext : IAsyncDisposable
     DbSet<AttachmentPreview> AttachmentPreviews { get; set; }
     DbSet<CollectibleItem> CollectibleItems { get; set; }
     DbSet<CollectibleItemAttachment> CollectibleItemAttachments { get; set; }
+    DbSet<QRCode> QRCodes { get; set; }
     DbSet<CollectibleItemTag> CollectibleItemTags { get; set; }
     DbSet<CollectibleItemRelatedTag> CollectibleItemRelatedTags { get; set; }
     DbSet<ContentDefinition> ContentDefinitions { get; set; }

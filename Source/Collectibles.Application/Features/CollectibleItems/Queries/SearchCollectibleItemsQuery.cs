@@ -2,7 +2,9 @@ using Collectibles.Application.Common.Models;
 using Collectibles.Application.Interfaces;
 using Collectibles.Application.Mappings.Explicit;
 using Collectibles.Domain.Entities;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.CollectibleItems.Queries;
@@ -49,7 +51,7 @@ public class SearchCollectibleItemsQueryHandler : IRequestHandler<SearchCollecti
             .Include(ci => ci.ContentType)
             .Include(ci => ci.CollectibleItemTags)
             .Include(ci => ci.CollectibleItemAttachments)
-            .Where(ci => ci.Deleted == null);
+            .AsQueryable();
 
         // Only include items from showcases the user has access to
         if (!string.IsNullOrEmpty(_currentUserService.UserId))

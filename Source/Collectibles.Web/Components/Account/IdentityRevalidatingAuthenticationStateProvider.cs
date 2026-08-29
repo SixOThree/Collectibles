@@ -1,6 +1,8 @@
 using System.Security.Claims;
+
 using Collectibles.Domain.Constants;
 using Collectibles.Infrastructure.Persistence;
+
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Server;
 using Microsoft.AspNetCore.Identity;

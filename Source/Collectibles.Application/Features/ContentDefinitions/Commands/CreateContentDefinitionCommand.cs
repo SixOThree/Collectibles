@@ -3,8 +3,11 @@ using System.Text.Json;
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Entities;
 using Collectibles.Domain.ValueObjects.Templates;
+
 using FluentValidation;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.ContentDefinitions.Commands;
@@ -104,7 +107,7 @@ public class CreateContentDefinitionCommandValidator : AbstractValidator<CreateC
 
     private bool HaveUniqueFieldNames(List<FieldDefinitionDto> fields)
     {
-        var names = fields.Select(f => f.Name.ToLower(System.Globalization.CultureInfo.CurrentCulture)).ToList();
+        var names = fields.Select(f => f.Name.ToLowerInvariant()).ToList();
         return names.Count == names.Distinct().Count();
     }
 

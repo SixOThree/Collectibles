@@ -36,7 +36,7 @@ internal static class PrerenderStateJsonNormalizer
             JsonElement element => NormalizeJsonElement(element),
             List<object?> list => list.Select(NormalizeValue).ToList(),
             Dictionary<string, object?> dictionary => NormalizeDictionary(dictionary),
-            _ => value
+            _ => value,
         };
     }
 
@@ -55,7 +55,7 @@ internal static class PrerenderStateJsonNormalizer
             JsonValueKind.Null or JsonValueKind.Undefined => null,
             JsonValueKind.Array => element.GetRawText(),
             JsonValueKind.Object => element.GetRawText(),
-            _ => element.ToString()
+            _ => element.ToString(),
         };
     }
 }

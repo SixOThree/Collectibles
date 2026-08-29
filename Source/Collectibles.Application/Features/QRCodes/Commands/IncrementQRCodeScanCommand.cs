@@ -1,4 +1,5 @@
 using Collectibles.Domain.Interfaces;
+
 using MediatR;
 
 namespace Collectibles.Application.Features.QRCodes.Commands;
