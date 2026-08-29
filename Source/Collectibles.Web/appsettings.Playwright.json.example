@@ -1,0 +1,42 @@
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=(localdb)\\MSSQLLocalDB;Database=Collectibles_Playwright;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=True"
+  },
+  "HashIds": {
+    "Salt": "collectibles-playwright-local-salt-20260408"
+  },
+  "Storage": {
+    "Provider": "LocalFileSystem",
+    "LocalFileSystem": {
+      "BasePath": "App_Data/playwright/uploads",
+      "UseAbsolutePath": false
+    },
+    "DirectUpload": {
+      "Enabled": false,
+      "ThresholdBytes": 52428800,
+      "SasExpiryMinutes": 30
+    }
+  },
+  "EmailSettings": {
+    "Provider": "NULL",
+    "EnableEmailLogging": false
+  },
+  "ExternalLinks": {
+    "Enabled": false,
+    "CachingEnabled": false
+  },
+  "Serilog": {
+    "EnableDatabaseLogging": false
+  },
+  "CrawlerBlocking": {
+    "Enabled": false
+  },
+  "SecurityScanBlocking": {
+    "Enabled": false
+  },
+  "PlaywrightSeed": {
+    "ResetDatabaseOnStartup": true,
+    "ResetStorageOnStartup": true,
+    "SeedManifestPath": "App_Data/playwright/seed-manifest.json"
+  }
+}
