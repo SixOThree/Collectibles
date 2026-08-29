@@ -3,8 +3,11 @@ using Collectibles.Application.Features.Sync.Commands;
 using Collectibles.Application.Features.Sync.Queries;
 using Collectibles.Application.Services;
 using Collectibles.Domain.Common.Enums;
+
 using MediatR;
+
 using Microsoft.AspNetCore.Mvc;
+
 using Serilog;
 
 namespace Collectibles.Web.Endpoints;
@@ -19,12 +22,13 @@ public static class SyncEndpoints
     /// <summary>
     /// Maps all sync-related endpoints.
     /// </summary>
+    /// <returns></returns>
     public static IEndpointRouteBuilder MapSyncEndpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapGet($"{RoutePrefix}/manifest/{{showcaseHashId}}", GetShowcaseManifest)
             .WithName("GetShowcaseManifest")
             .WithTags("Sync")
-            .RequireAuthorization("ApiKeyOrCookie")
+            .RequireAuthorization("ApiKeyOnly")
             .DisableAntiforgery()
             .Produces<List<ShowcaseManifestItemDto>>(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status401Unauthorized)
@@ -33,21 +37,21 @@ public static class SyncEndpoints
         endpoints.MapPost($"{RoutePrefix}/attachments/{{hash}}/move", MoveAttachment)
             .WithName("MoveAttachment")
             .WithTags("Sync")
-            .RequireAuthorization("ApiKeyOrCookie")
+            .RequireAuthorization("ApiKeyOnly")
             .DisableAntiforgery()
             .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status400BadRequest)
             .Produces(StatusCodes.Status404NotFound);
 
         endpoints.MapPost($"{RoutePrefix}/upload", InitiateSyncUpload)
-            .RequireAuthorization("ApiKeyOrCookie")
+            .RequireAuthorization("ApiKeyOnly")
             .DisableAntiforgery()
             .Produces<SyncUploadResult>(200)
             .Produces(400)
             .Produces(401);
 
         endpoints.MapPost($"{RoutePrefix}/upload/complete", CompleteSyncUpload)
-            .RequireAuthorization("ApiKeyOrCookie")
+            .RequireAuthorization("ApiKeyOnly")
             .DisableAntiforgery()
             .Produces<long>(200)
             .Produces(400)
@@ -73,14 +77,12 @@ public static class SyncEndpoints
                 return Results.BadRequest(new { error = "Relative path is required." });
             }
 
-            var attachmentId = hashIdsService.Decode(hash);
-            if (attachmentId == 0)
+            if (!hashIdsService.TryDecode(hash, out var attachmentId))
             {
                 return Results.NotFound("Invalid attachment identifier.");
             }
 
-            var showcaseId = hashIdsService.Decode(request.ShowcaseHashId);
-            if (showcaseId == 0)
+            if (!hashIdsService.TryDecode(request.ShowcaseHashId, out var showcaseId))
             {
                 return Results.BadRequest(new { error = "Invalid showcase identifier." });
             }
@@ -115,8 +117,7 @@ public static class SyncEndpoints
     {
         try
         {
-            var showcaseId = hashIdsService.Decode(showcaseHashId);
-            if (showcaseId == 0)
+            if (!hashIdsService.TryDecode(showcaseHashId, out var showcaseId))
             {
                 return Results.NotFound("Invalid showcase identifier.");
             }
@@ -149,11 +150,12 @@ public static class SyncEndpoints
             long? showcaseId = null;
             if (!string.IsNullOrWhiteSpace(request.ShowcaseHashId))
             {
-                showcaseId = hashIdsService.Decode(request.ShowcaseHashId);
-                if (showcaseId == 0)
+                if (!hashIdsService.TryDecode(request.ShowcaseHashId, out var decodedShowcaseId))
                 {
                     return Results.NotFound(new { error = "Invalid showcase ID." });
                 }
+
+                showcaseId = decodedShowcaseId;
             }
 
             if (!showcaseId.HasValue)
@@ -170,7 +172,6 @@ public static class SyncEndpoints
                 ContentHash = request.ContentHash,
                 FileSize = request.FileSize,
                 ContentType = request.ContentType,
-                UserId = userId
             });
 
             return Results.Ok(result);
@@ -217,10 +218,10 @@ public static class SyncEndpoints
                 OriginalFileName = request.OriginalFileName,
                 ContentType = request.ContentType,
                 FileSize = request.FileSize,
-                TargetItemId = request.TargetItemId,
+                TargetItemHashId = request.TargetItemHashId,
                 ShowcaseId = showcaseId,
                 ContentHash = request.ContentHash,
-                AttachmentType = attachmentType
+                AttachmentType = attachmentType,
             });
 
             return Results.Ok(new { attachmentId });
@@ -248,7 +249,7 @@ public record SyncUploadCompleteRequest(
     string OriginalFileName,
     string ContentType,
     long FileSize,
-    long TargetItemId,
+    string TargetItemHashId,
     string ShowcaseHashId,
     string? ContentHash,
     string? AttachmentTypeString);

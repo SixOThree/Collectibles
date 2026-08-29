@@ -1,5 +1,6 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Constants;
+
 using Microsoft.Extensions.Logging;
 
 namespace Collectibles.Infrastructure.Services;

@@ -1,4 +1,5 @@
 using Collectibles.Application.Interfaces;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.CollectibleItems.Validators;
@@ -53,7 +54,7 @@ public class CollectibleItemPreviewValidator : ICollectibleItemPreviewValidator
         var item = await context.CollectibleItems
             .Include(ci => ci.CollectibleItemAttachments)
                 .ThenInclude(cia => cia.Attachment)
-            .FirstOrDefaultAsync(ci => ci.Id == collectibleItemId && ci.Deleted == null, cancellationToken);
+            .FirstOrDefaultAsync(ci => ci.Id == collectibleItemId, cancellationToken);
 
         if (item == null)
         {

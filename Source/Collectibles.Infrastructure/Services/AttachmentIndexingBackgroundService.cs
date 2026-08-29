@@ -1,6 +1,8 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Interfaces;
+
 using Hangfire;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -27,6 +29,7 @@ public class AttachmentIndexingBackgroundService
     /// Processes attachments that don't have content hashes yet.
     /// This method is called by Hangfire as a recurring job.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     [AutomaticRetry(Attempts = 0)]
     public async Task ProcessUnhashedAttachmentsAsync()
     {
@@ -40,7 +43,7 @@ public class AttachmentIndexingBackgroundService
 
         // Get attachments without hashes (batch processing)
         var unhashedAttachments = await context.Attachments
-            .Where(a => a.ContentHash == null && a.FilePath != null && a.Deleted == null)
+            .Where(a => a.ContentHash == null && a.FilePath != null)
             .OrderBy(a => a.Created)
             .Take(BatchSize)
             .ToListAsync(CancellationToken.None);

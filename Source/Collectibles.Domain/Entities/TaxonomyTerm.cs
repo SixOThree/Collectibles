@@ -1,4 +1,4 @@
-﻿namespace Collectibles.Domain.Entities;
+namespace Collectibles.Domain.Entities;
 
 /// <summary>
 /// Represents a taxonomy term that can be used to categorize collectible items and showcases.

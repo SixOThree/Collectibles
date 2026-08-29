@@ -297,7 +297,7 @@ public class EventLogService : IEventLogService
 
         // 1. Group events with a valid SessionId
         var trackedSessionGroups = query
-            .Where(e => e.SessionId != null && e.SessionId != "")
+            .Where(e => e.SessionId != null && e.SessionId != string.Empty)
             .GroupBy(e => e.SessionId!)
             .Select(g => new
             {
@@ -309,7 +309,7 @@ public class EventLogService : IEventLogService
 
         // 2. Group legacy events with a null SessionId
         var legacySessionGroups = query
-            .Where(e => e.SessionId == null || e.SessionId == "")
+            .Where(e => e.SessionId == null || e.SessionId == string.Empty)
             .GroupBy(e => new { UserKey = e.UserId ?? e.UserEmail ?? "anonymous", DateBucket = e.Timestamp.Date })
             .Select(g => new
             {

@@ -1,4 +1,4 @@
-@page "/users"
+﻿@page "/users"
 @attribute [Authorize(Policy = "CanViewUsers")]
 @inherits LoggablePageBase
 @using Collectibles.Application.Features.Users.Commands
@@ -376,7 +376,7 @@ else if (_users != null)
         }
     }
 
-    private void SortBy(string column)
+    private async Task SortBy(string column)
     {
         if (_sortBy == column)
         {
@@ -387,22 +387,22 @@ else if (_users != null)
             _sortBy = column;
             _sortDescending = false;
         }
-        _ = LoadUsers();
+        await LoadUsers();
     }
 
-    private void ChangePage(int pageNumber)
+    private async Task ChangePage(int pageNumber)
     {
         _pageNumber = pageNumber;
-        _ = LoadUsers();
+        await LoadUsers();
     }
 
-    private async void ClearFilters()
+    private async Task ClearFilters()
     {
         _searchTerm = "";
         _activeFilter = "";
         _roleFilter = "";
         _pageNumber = 1;
-        _ = LoadUsers();
+        await LoadUsers();
         
         // Log clear filters action
         await LogAction(EventAction.Other, new 

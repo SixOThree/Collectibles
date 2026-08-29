@@ -1,7 +1,9 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Application.Services;
 using Collectibles.Domain.Interfaces;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.QRCodes.Queries;

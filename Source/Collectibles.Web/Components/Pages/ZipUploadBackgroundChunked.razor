@@ -1,4 +1,4 @@
-@page "/zip-upload-bg-chunked"
+﻿@page "/zip-upload-bg-chunked"
 @rendermode InteractiveServerWithoutPrerender
 @inherits LoggablePageBase
 @using Collectibles.Application.Features.Showcases
@@ -21,6 +21,7 @@
 @inject IHashIdsService HashIds
 @inject IOptions<SiteSettings> SiteSettings
 @inject IJSRuntime JSRuntime
+@using Collectibles.Domain.Common.Enums
 @implements IDisposable
 
 <PageTitle>Zip Upload (Large Files) - @SiteSettings.Value.SiteTitle</PageTitle>
@@ -70,7 +71,7 @@
                                         <span class="badge bg-info ms-2">@GetStatusBadge(job.Status)</span>
                                     </div>
                                     <div>
-                                        @if (job.Status == Collectibles.Domain.Common.Enums.JobStatus.Done)
+                                        @if (job.Status.IsCompleted())
                                         {
                                             <button class="btn btn-sm btn-success" @onclick="() => NavigateToShowcase(job.ShowcaseId)">
                                                 <i class="bi bi-eye"></i> View Showcase
@@ -273,7 +274,7 @@
                                                 {
                                                     <span class="badge bg-success">Success</span>
                                                 }
-                                                else if (job.Status == Collectibles.Domain.Common.Enums.JobStatus.Done && job.ErrorCount > 0)
+                                                else if (job.Status == Collectibles.Domain.Common.Enums.JobStatus.DoneWithErrors || (job.Status == Collectibles.Domain.Common.Enums.JobStatus.Done && job.ErrorCount > 0))
                                                 {
                                                     <span class="badge bg-warning">Completed with errors</span>
                                                 }
@@ -283,7 +284,7 @@
                                                 }
                                             </td>
                                             <td>
-                                                @if (job.Status == Collectibles.Domain.Common.Enums.JobStatus.Done)
+                                                @if (job.Status.IsCompleted())
                                                 {
                                                     <button class="btn btn-sm btn-outline-primary" @onclick="() => NavigateToShowcase(job.ShowcaseId)">
                                                         <i class="bi bi-eye"></i> View
@@ -344,7 +345,7 @@
             var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
             var userId = authState.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
             
-            var query = new GetShowcasesListQuery { UserId = userId };
+            var query = new GetShowcasesListQuery { OwnedOnly = true };
             _showcases = await Mediator.Send(query);
         }
         catch (Exception ex)
@@ -364,12 +365,12 @@
             // Filter out NotStart status jobs (status 0) - these are uploads in progress
             _activeJobs = allJobs.Where(j => 
                 j.Status != Collectibles.Domain.Common.Enums.JobStatus.NotStart &&
-                j.Status != Collectibles.Domain.Common.Enums.JobStatus.Done && 
+                !j.Status.IsCompleted() && 
                 j.Status != Collectibles.Domain.Common.Enums.JobStatus.Failed &&
                 j.Status != Collectibles.Domain.Common.Enums.JobStatus.Cancelled).ToList();
                 
             _completedJobs = allJobs.Where(j => 
-                j.Status == Collectibles.Domain.Common.Enums.JobStatus.Done || 
+                j.Status.IsCompleted() || 
                 j.Status == Collectibles.Domain.Common.Enums.JobStatus.Failed ||
                 j.Status == Collectibles.Domain.Common.Enums.JobStatus.Cancelled).ToList();
         }
@@ -608,6 +609,7 @@
             Collectibles.Domain.Common.Enums.JobStatus.Queueing => "Queued",
             Collectibles.Domain.Common.Enums.JobStatus.Doing => "Processing",
             Collectibles.Domain.Common.Enums.JobStatus.Done => "Completed",
+            Collectibles.Domain.Common.Enums.JobStatus.DoneWithErrors => "Completed with errors",
             Collectibles.Domain.Common.Enums.JobStatus.Failed => "Failed",
             Collectibles.Domain.Common.Enums.JobStatus.Cancelled => "Cancelled",
             _ => status.ToString()

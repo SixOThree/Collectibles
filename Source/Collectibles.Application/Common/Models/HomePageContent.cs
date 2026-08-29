@@ -13,11 +13,12 @@ public class HomePageContent
     public List<HomePageCard> Cards { get; set; } = [];
 
     /// <summary>Replaces every occurrence of the {SiteTitle} token with the given site title.</summary>
+    /// <returns></returns>
     public static string ReplaceSiteTitle(string text, string siteTitle) =>
         text.Replace("{SiteTitle}", siteTitle);
 
     /// <summary>
-    /// The hard-coded content the site ships with. Returns a fresh instance per
+    /// Gets the hard-coded content the site ships with. Returns a fresh instance per
     /// access because callers (the admin page) mutate the returned object.
     /// </summary>
     public static HomePageContent Default => new()
@@ -69,7 +70,7 @@ public class HomePageContent
 /// <summary>One feature card on the home page.</summary>
 public class HomePageCard
 {
-    /// <summary>Bootstrap icon name, e.g. "bi-grid-3x3-gap". Validated against <c>BootstrapIcons.All</c> on save.</summary>
+    /// <summary>Gets or sets bootstrap icon name, e.g. "bi-grid-3x3-gap". Validated against <c>BootstrapIcons.All</c> on save.</summary>
     public string Icon { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public string Text { get; set; } = string.Empty;

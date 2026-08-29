@@ -38,7 +38,8 @@ public class CrawlerBlockingMiddleware
         {
             if (_options.BlockEmptyUserAgent)
             {
-                _logger.LogWarning("Blocked request with empty User-Agent from {IpAddress}",
+                _logger.LogWarning(
+                    "Blocked request with empty User-Agent from {IpAddress}",
                     context.Connection.RemoteIpAddress);
                 await RespondWithForbidden(context);
                 return;
@@ -60,7 +61,8 @@ public class CrawlerBlockingMiddleware
         // Check against blocked patterns
         if (_blockedLower.Any(blocked => userAgentLower.Contains(blocked)))
         {
-            _logger.LogWarning("Blocked crawler request from {IpAddress}: {UserAgent}",
+            _logger.LogWarning(
+                "Blocked crawler request from {IpAddress}: {UserAgent}",
                 context.Connection.RemoteIpAddress, userAgent);
             await RespondWithForbidden(context);
             return;

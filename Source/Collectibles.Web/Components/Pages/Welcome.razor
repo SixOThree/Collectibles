@@ -1,4 +1,4 @@
-@page "/welcome"
+﻿@page "/welcome"
 @page "/"
 @rendermode InteractiveServerWithoutPrerender
 @inherits LoggablePageBase
@@ -121,7 +121,7 @@
         {
             try
             {
-                var showcases = await Mediator.Send(new GetShowcasesListQuery { UserId = _userId });
+                var showcases = await Mediator.Send(new GetShowcasesListQuery { OwnedOnly = true });
                 // Only keep showcases owned by the current user
                 _myShowcases = showcases?.Where(s => string.Equals(s.UserId, _userId, StringComparison.Ordinal)).ToList();
             }

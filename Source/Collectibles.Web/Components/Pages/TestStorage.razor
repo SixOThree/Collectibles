@@ -1,13 +1,26 @@
 @page "/test-storage"
+@attribute [Authorize(Policy = "AdminOnly")]
 @inherits LoggablePageBase
 @using Collectibles.Domain.Configuration
 @using Collectibles.Domain.Configuration.Storage
 @using Collectibles.Domain.Interfaces
+@using Microsoft.AspNetCore.Authorization
 @using Microsoft.Extensions.Options
 @inject IFileStorage FileStorage
 @inject IOptions<StorageSettings> StorageOptions
+@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment WebEnvironment
 
 <PageTitle>Test Storage</PageTitle>
+
+@if (!WebEnvironment.IsDevelopment())
+{
+    <div class="alert alert-warning">
+        This diagnostic page is only available in the Development environment.
+    </div>
+}
+else
+{
+<div>
 
 <h1>Storage Provider Test</h1>
 
@@ -62,6 +75,8 @@
         }
     </div>
 </div>
+</div>
+}
 
 @code {
     private bool _isProcessing = false;

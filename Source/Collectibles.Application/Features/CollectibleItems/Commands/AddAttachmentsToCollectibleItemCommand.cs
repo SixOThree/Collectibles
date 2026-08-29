@@ -1,6 +1,8 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Entities;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.CollectibleItems.Commands;
@@ -28,7 +30,7 @@ public class AddAttachmentsToCollectibleItemCommandHandler : IRequestHandler<Add
 
         var collectibleItem = await context.CollectibleItems
             .Include(ci => ci.CollectibleItemAttachments)
-            .FirstOrDefaultAsync(ci => ci.Id == request.CollectibleItemId && ci.Deleted == null, cancellationToken);
+            .FirstOrDefaultAsync(ci => ci.Id == request.CollectibleItemId, cancellationToken);
 
         if (collectibleItem == null)
         {

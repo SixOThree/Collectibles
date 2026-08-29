@@ -1,6 +1,8 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Entities;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -24,19 +26,27 @@ public class UpdateMissingPreviewImagesCommandHandler : IRequestHandler<UpdateMi
     private readonly IApplicationDbContextFactory _contextFactory;
     private readonly IEventLogService _eventLogService;
     private readonly ILogger<UpdateMissingPreviewImagesCommandHandler> _logger;
+    private readonly ICurrentUserService _currentUserService;
 
     public UpdateMissingPreviewImagesCommandHandler(
         IApplicationDbContextFactory contextFactory,
         IEventLogService eventLogService,
-        ILogger<UpdateMissingPreviewImagesCommandHandler> logger)
+        ILogger<UpdateMissingPreviewImagesCommandHandler> logger,
+        ICurrentUserService currentUserService)
     {
         _contextFactory = contextFactory;
         _eventLogService = eventLogService;
         _logger = logger;
+        _currentUserService = currentUserService;
     }
 
     public async Task<UpdateMissingPreviewImagesResult> Handle(UpdateMissingPreviewImagesCommand request, CancellationToken cancellationToken)
     {
+        if (!_currentUserService.IsAdministrator)
+        {
+            throw new UnauthorizedAccessException("Only administrators can update preview images.");
+        }
+
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
         var result = new UpdateMissingPreviewImagesResult();
 
@@ -44,7 +54,6 @@ public class UpdateMissingPreviewImagesCommandHandler : IRequestHandler<UpdateMi
         var query = context.CollectibleItems
             .Include(ci => ci.CollectibleItemAttachments)
                 .ThenInclude(cia => cia.Attachment)
-            .Where(ci => ci.Deleted == null)
             .Where(ci => ci.PreviewImageId == null || ci.PreviewImageId == 0)
             .Where(ci => ci.CollectibleItemAttachments.Any());
 

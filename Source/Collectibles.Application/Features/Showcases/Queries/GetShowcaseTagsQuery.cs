@@ -1,5 +1,7 @@
 using Collectibles.Application.Interfaces;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.Showcases.Queries;
@@ -17,17 +19,22 @@ public record GetShowcaseTagsQuery : IRequest<IList<ShowcaseTagDto>>
 public class GetShowcaseTagsQueryHandler : IRequestHandler<GetShowcaseTagsQuery, IList<ShowcaseTagDto>>
 {
     private readonly IApplicationDbContext _context;
+    private readonly ICurrentUserService _currentUserService;
 
-    public GetShowcaseTagsQueryHandler(IApplicationDbContext context)
+    public GetShowcaseTagsQueryHandler(IApplicationDbContext context, ICurrentUserService currentUserService)
     {
         _context = context;
+        _currentUserService = currentUserService;
     }
 
     public async Task<IList<ShowcaseTagDto>> Handle(GetShowcaseTagsQuery request, CancellationToken cancellationToken)
     {
-        // Query to get all unique tags used in showcases with count
+        var userId = _currentUserService.UserId;
+
+        // The facet counts are derived only from showcases the caller may see; otherwise
+        // this aggregated across every user's private showcases.
         var showcaseTags = await _context.ShowcaseTags
-            .Where(st => st.Deleted == null) // Only include non-deleted showcase-tag relationships
+            .Where(st => !st.Showcase.IsPrivate || st.Showcase.UserId == userId)
             .GroupBy(st => new { st.TagId, st.Tag.Name })
             .Select(g => new ShowcaseTagDto
             {

@@ -1,12 +1,17 @@
 using System.IO.Compression;
+
 using Collectibles.Application.Features.Attachments.Commands;
+using Collectibles.Application.Features.ZipUpload;
 using Collectibles.Application.Features.ZipUpload;
 using Collectibles.Application.Interfaces;
 using Collectibles.Application.Services;
 using Collectibles.Domain.Common.Enums;
 using Collectibles.Domain.Interfaces;
+
 using Hangfire;
+
 using MediatR;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -16,6 +21,18 @@ public class ZipUploadJobService(IServiceProvider serviceProvider, ILogger<ZipUp
 {
     private readonly IServiceProvider _serviceProvider = serviceProvider;
     private readonly ILogger<ZipUploadJobService> _logger = logger;
+
+    /// <summary>Maximum number of entries accepted in one uploaded archive.</summary>
+    private const int MaxArchiveEntries = 50_000;
+
+    /// <summary>Maximum total uncompressed size accepted in one uploaded archive (20 GB).</summary>
+    private const long MaxArchiveUncompressedBytes = 20L * 1024 * 1024 * 1024;
+
+    /// <summary>Maximum folder nesting depth accepted in one uploaded archive.</summary>
+    private const int MaxArchiveDepth = 32;
+
+    /// <summary>Maximum uncompressed-to-compressed ratio accepted before an archive is treated as a bomb.</summary>
+    private const int MaxArchiveCompressionRatio = 200;
 
     [AutomaticRetry(Attempts = 3, DelaysInSeconds = [10, 30, 60])]
     public async Task ProcessJobAsync(long jobId)
@@ -33,6 +50,28 @@ public class ZipUploadJobService(IServiceProvider serviceProvider, ILogger<ZipUp
         if (job == null)
         {
             _logger.LogWarning("Zip upload job {JobId} not found", jobId);
+            return;
+        }
+
+        // Defence in depth: the commands that create jobs now verify showcase ownership,
+        // but the processor imports into a showcase on behalf of the job's user, so it
+        // re-checks rather than trusting the stored pair.
+        var showcaseOwnerId = await context.Showcases
+            .Where(s => s.Id == job.ShowcaseId)
+            .Select(s => s.UserId)
+            .FirstOrDefaultAsync(CancellationToken.None);
+
+        if (showcaseOwnerId != job.UserId)
+        {
+            _logger.LogError(
+                "Refusing zip upload job {JobId}: job user does not own showcase {ShowcaseId}",
+                job.Id,
+                job.ShowcaseId);
+
+            job.Status = JobStatus.Failed;
+            job.ErrorDetails = "The job's owner does not own the target showcase.";
+            job.CompletedAt = DateTime.UtcNow;
+            await context.SaveChangesAsync(CancellationToken.None);
             return;
         }
 
@@ -238,6 +277,8 @@ public class ZipUploadJobService(IServiceProvider serviceProvider, ILogger<ZipUp
                 {
                     using var archive = new ZipArchive(zipStream, ZipArchiveMode.Read, leaveOpen: false);
 
+                    EnsureArchiveWithinLimits(archive);
+
                     // Analyze structure
                     var folderStructure = AnalyzeZipStructure(archive);
                     job.TotalItems = folderStructure.TotalFolders + folderStructure.TotalFiles;
@@ -269,7 +310,7 @@ public class ZipUploadJobService(IServiceProvider serviceProvider, ILogger<ZipUp
                         cancellationToken);
 
                     // Update job completion
-                    job.Status = errors.Count != 0 ? JobStatus.Done : JobStatus.Done;
+                    job.Status = errors.Count != 0 ? JobStatus.DoneWithErrors : JobStatus.Done;
                     job.CompletedAt = DateTime.UtcNow;
                     job.ErrorDetails = errors.Count != 0 ? string.Join("\n", errors) : null;
                     await context.SaveChangesAsync(cancellationToken);
@@ -715,6 +756,55 @@ public class ZipUploadJobService(IServiceProvider serviceProvider, ILogger<ZipUp
             }
 
             base.Dispose(disposing);
+        }
+    }
+
+    /// <summary>
+    /// Rejects archives whose entry count, uncompressed size, compression ratio, or nesting
+    /// depth is outside what a genuine import looks like.
+    /// </summary>
+    /// <remarks>
+    /// Extraction previously had no caps at all: a zip bomb could exhaust memory and disk,
+    /// and a 100,000-entry archive created 100,000 items with a SaveChanges and a SignalR
+    /// push per file.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">The archive exceeds a limit.</exception>
+    private static void EnsureArchiveWithinLimits(ZipArchive archive)
+    {
+        if (archive.Entries.Count > MaxArchiveEntries)
+        {
+            throw new InvalidOperationException(
+                $"The archive contains {archive.Entries.Count} entries, which exceeds the {MaxArchiveEntries} entry limit.");
+        }
+
+        long totalUncompressed = 0;
+        long totalCompressed = 0;
+
+        foreach (var entry in archive.Entries)
+        {
+            totalUncompressed += entry.Length;
+            totalCompressed += entry.CompressedLength;
+
+            if (totalUncompressed > MaxArchiveUncompressedBytes)
+            {
+                throw new InvalidOperationException(
+                    "The archive's uncompressed size exceeds the supported maximum.");
+            }
+
+            var depth = entry.FullName.Count(c => c == '/' || c == '\\');
+            if (depth > MaxArchiveDepth)
+            {
+                throw new InvalidOperationException(
+                    $"The archive contains a path nested more than {MaxArchiveDepth} levels deep.");
+            }
+        }
+
+        // A legitimate archive of media does not compress anywhere near this well; a ratio
+        // this high is the signature of a decompression bomb.
+        if (totalCompressed > 0 && totalUncompressed / totalCompressed > MaxArchiveCompressionRatio)
+        {
+            throw new InvalidOperationException(
+                "The archive's compression ratio is implausibly high and it was rejected.");
         }
     }
 }

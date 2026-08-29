@@ -1,8 +1,10 @@
 using Azure;
 using Azure.Communication.Email;
+
 using Collectibles.Application.Common.Models.Email;
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Configuration.Email;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 

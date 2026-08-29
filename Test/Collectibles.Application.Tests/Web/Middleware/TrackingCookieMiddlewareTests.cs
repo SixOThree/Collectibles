@@ -1,5 +1,6 @@
 using Collectibles.Infrastructure.Services;
 using Collectibles.Web.Middleware;
+
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;

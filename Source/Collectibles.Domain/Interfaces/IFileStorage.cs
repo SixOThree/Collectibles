@@ -21,10 +21,11 @@ public interface IFileStorage
     /// <summary>
     /// Lists all blob/file names in storage. Returns an empty list if the provider does not support listing.
     /// </summary>
+    /// <returns><placeholder>A <see cref="Task"/> representing the asynchronous operation.</placeholder></returns>
     Task<List<StorageBlobInfo>> ListBlobsAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Indicates whether this storage provider supports direct client uploads via SAS URLs.
+    /// Gets a value indicating whether indicates whether this storage provider supports direct client uploads via SAS URLs.
     /// </summary>
     bool SupportsDirectUpload { get; }
 
@@ -32,17 +33,17 @@ public interface IFileStorage
     /// Generates a blob name/path for a file without actually uploading it.
     /// Used for direct upload scenarios where the client uploads directly to storage.
     /// </summary>
-    /// <param name="fileName">The original file name</param>
-    /// <param name="showcaseId">Optional showcase ID for folder organization</param>
-    /// <returns>The generated blob path that can be used for direct upload</returns>
+    /// <param name="fileName">The original file name.</param>
+    /// <param name="showcaseId">Optional showcase ID for folder organization.</param>
+    /// <returns>The generated blob path that can be used for direct upload.</returns>
     string GenerateBlobName(string fileName, long? showcaseId = null);
 
     /// <summary>
     /// Generates a SAS URL with write permissions for direct client upload.
     /// </summary>
-    /// <param name="blobName">The blob name/path to upload to (from GenerateBlobName)</param>
-    /// <param name="expiry">How long the SAS URL should be valid</param>
-    /// <param name="contentType">The expected content type of the file</param>
-    /// <returns>A fully qualified URL with SAS token for direct upload</returns>
+    /// <param name="blobName">The blob name/path to upload to (from GenerateBlobName).</param>
+    /// <param name="expiry">How long the SAS URL should be valid.</param>
+    /// <param name="contentType">The expected content type of the file.</param>
+    /// <returns>A fully qualified URL with SAS token for direct upload.</returns>
     string GenerateUploadSasUrl(string blobName, TimeSpan expiry, string contentType);
 }

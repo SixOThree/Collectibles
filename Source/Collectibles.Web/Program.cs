@@ -4,7 +4,9 @@ using Collectibles.Infrastructure.Persistence;
 using Collectibles.Web.Components;
 using Collectibles.Web.Extensions;
 using Collectibles.Web.Middleware;
+
 using Microsoft.EntityFrameworkCore;
+
 using Serilog;
 using Serilog.Events;
 using Serilog.Sinks.SystemConsole.Themes;
@@ -37,7 +39,6 @@ try
         serverOptions.Limits.KeepAliveTimeout = TimeSpan.FromMinutes(ApplicationConstants.Web.KeepAliveTimeoutMinutes);
     });
 
-
     // Use Serilog for all logging
     builder.Host.UseSerilog((context, services, configuration) =>
     {
@@ -45,6 +46,7 @@ try
             .ReadFrom.Configuration(context.Configuration)
             .ReadFrom.Services(services)
             .Enrich.FromLogContext()
+
             // Filter out MediatR license messages
             .Filter.ByExcluding(logEvent =>
                 logEvent.MessageTemplate.Text.Contains("Lucky Penny") ||
@@ -152,6 +154,10 @@ try
 
     Log.Information("Application built successfully. Configuring middleware pipeline...");
 
+    // Must run before anything reads the client IP or scheme. Rewrites RemoteIpAddress
+    // from X-Forwarded-For only for requests arriving from a configured known proxy.
+    app.UseForwardedHeaders();
+
     // Configure the HTTP request pipeline.
     if (app.Environment.IsDevelopment())
     {
@@ -249,7 +255,16 @@ try
     // CRITICAL: Add authentication and authorization middleware
     // This must come before UseAntiforgery and endpoint mapping
     app.UseAuthentication();
+
+    // Runs the API-key scheme for requests carrying X-Api-Key, so endpoints that are
+    // AllowAnonymous but authorize internally (attachment thumbnail/download) actually see
+    // the API-key principal. Must sit between authentication and authorization.
+    app.UseMiddleware<Collectibles.Web.Middleware.ApiKeyPrincipalMiddleware>();
+
     app.UseAuthorization();
+
+    // Applies the named limiter policies below (see MapAdditionalIdentityEndpoints).
+    app.UseRateLimiter();
 
     app.UseAntiforgery();
 
@@ -289,7 +304,11 @@ try
         .AddInteractiveServerRenderMode();
 
     // Add additional endpoints required by the Identity /Account Razor components.
-    app.MapAdditionalIdentityEndpoints();
+    // Rate limited: these carry credentials, and neither the login surface nor the
+    // first-run setup gate had any HTTP-layer throttle (only Identity's per-account
+    // lockout, which does not slow enumeration or the setup token).
+    app.MapAdditionalIdentityEndpoints()
+        .RequireRateLimiting("AuthEndpoints");
 
     Log.Information("Application startup complete. Starting web server...");
     app.Run();

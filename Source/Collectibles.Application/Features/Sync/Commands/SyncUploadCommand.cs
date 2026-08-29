@@ -1,6 +1,9 @@
 using Collectibles.Application.Features.Attachments.Commands;
 using Collectibles.Application.Interfaces;
+using Collectibles.Application.Services;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -12,7 +15,7 @@ public record SyncUploadResult(
     string? UploadId,
     string? SasUrl,
     string? BlobName,
-    long? TargetItemId,
+    string? TargetItemHashId,
     DateTime? ExpiresAt);
 
 public record SyncUploadCommand : IRequest<SyncUploadResult>
@@ -22,7 +25,6 @@ public record SyncUploadCommand : IRequest<SyncUploadResult>
     public required string ContentHash { get; init; }
     public required long FileSize { get; init; }
     public required string ContentType { get; init; }
-    public string? UserId { get; init; }
 }
 
 public class SyncUploadCommandHandler : IRequestHandler<SyncUploadCommand, SyncUploadResult>
@@ -32,19 +34,22 @@ public class SyncUploadCommandHandler : IRequestHandler<SyncUploadCommand, SyncU
     private readonly IItemHierarchyService _hierarchyService;
     private readonly IMediator _mediator;
     private readonly ILogger<SyncUploadCommandHandler> _logger;
+    private readonly IHashIdsService _hashIdsService;
 
     public SyncUploadCommandHandler(
         IApplicationDbContextFactory contextFactory,
         ICurrentUserService currentUserService,
         IItemHierarchyService hierarchyService,
         IMediator mediator,
-        ILogger<SyncUploadCommandHandler> logger)
+        ILogger<SyncUploadCommandHandler> logger,
+        IHashIdsService hashIdsService)
     {
         _contextFactory = contextFactory;
         _currentUserService = currentUserService;
         _hierarchyService = hierarchyService;
         _mediator = mediator;
         _logger = logger;
+        _hashIdsService = hashIdsService;
     }
 
     public async Task<SyncUploadResult> Handle(SyncUploadCommand request, CancellationToken ct)
@@ -61,10 +66,7 @@ public class SyncUploadCommandHandler : IRequestHandler<SyncUploadCommand, SyncU
 
         var fileName = segments[^1];
         var folderSegments = segments[..^1];
-        var effectiveUserId = await EnsureAuthorizedShowcaseAccessAsync(
-            request.ShowcaseId,
-            request.UserId,
-            ct);
+        var effectiveUserId = await EnsureAuthorizedShowcaseAccessAsync(request.ShowcaseId, ct);
 
         // Resolve or create hierarchy
         var targetItemId = await _hierarchyService.ResolveOrCreateHierarchyAsync(
@@ -91,19 +93,20 @@ public class SyncUploadCommandHandler : IRequestHandler<SyncUploadCommand, SyncU
                     UploadId: null,
                     SasUrl: null,
                     BlobName: null,
-                    TargetItemId: targetItemId,
+                    TargetItemHashId: _hashIdsService.Encode(targetItemId),
                     ExpiresAt: null);
             }
         }
 
         // Initiate upload — adapt property names to match InitiateDirectUploadCommand
-        var initiation = await _mediator.Send(new InitiateDirectUploadCommand
-        {
-            FileName = fileName,
-            FileSize = request.FileSize,
-            ContentType = request.ContentType,
-            ShowcaseId = request.ShowcaseId
-        }, ct);
+        var initiation = await _mediator.Send(
+            new InitiateDirectUploadCommand
+            {
+                FileName = fileName,
+                FileSize = request.FileSize,
+                ContentType = request.ContentType,
+                ShowcaseId = request.ShowcaseId,
+            }, ct);
 
         return new SyncUploadResult(
             Skipped: false,
@@ -111,19 +114,18 @@ public class SyncUploadCommandHandler : IRequestHandler<SyncUploadCommand, SyncU
             UploadId: initiation.UploadId,
             SasUrl: initiation.SasUrl,
             BlobName: initiation.BlobName,
-            TargetItemId: targetItemId,
+            TargetItemHashId: _hashIdsService.Encode(targetItemId),
             ExpiresAt: initiation.ExpiresAt);
     }
 
     private async Task<string> EnsureAuthorizedShowcaseAccessAsync(
         long showcaseId,
-        string? requestUserId,
         CancellationToken cancellationToken)
     {
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
 
         var showcaseOwnerId = await context.Showcases
-            .Where(s => s.Id == showcaseId && s.Deleted == null)
+            .Where(s => s.Id == showcaseId)
             .Select(s => s.UserId)
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -132,7 +134,10 @@ public class SyncUploadCommandHandler : IRequestHandler<SyncUploadCommand, SyncU
             throw new InvalidOperationException($"Showcase {showcaseId} not found.");
         }
 
-        var effectiveUserId = requestUserId ?? _currentUserService.UserId;
+        // Identity comes from the authenticated principal only. Comparing the showcase
+        // owner against a request-supplied id let any caller who knew an owner's id (it is
+        // exposed on ShowcaseCardDto) authorize themselves as that owner.
+        var effectiveUserId = _currentUserService.UserId;
         if (string.IsNullOrEmpty(effectiveUserId) || showcaseOwnerId != effectiveUserId)
         {
             throw new UnauthorizedAccessException("You are not authorized to upload files to this showcase.");

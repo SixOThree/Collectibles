@@ -2,8 +2,11 @@ using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Common.Enums;
 using Collectibles.Domain.Entities;
 using Collectibles.Domain.Interfaces;
+
 using FluentValidation;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.Attachments.Commands;
@@ -15,37 +18,37 @@ namespace Collectibles.Application.Features.Attachments.Commands;
 public record CompleteDirectUploadCommand : IRequest<long>
 {
     /// <summary>
-    /// The upload ID from InitiateDirectUploadCommand.
+    /// Gets the upload ID from InitiateDirectUploadCommand.
     /// </summary>
     public required string UploadId { get; init; }
 
     /// <summary>
-    /// The blob name where the file was uploaded.
+    /// Gets the blob name where the file was uploaded.
     /// </summary>
     public required string BlobName { get; init; }
 
     /// <summary>
-    /// The original file name.
+    /// Gets the original file name.
     /// </summary>
     public required string OriginalFileName { get; init; }
 
     /// <summary>
-    /// The MIME type of the file.
+    /// Gets the MIME type of the file.
     /// </summary>
     public required string ContentType { get; init; }
 
     /// <summary>
-    /// The file size in bytes.
+    /// Gets the file size in bytes.
     /// </summary>
     public required long FileSize { get; init; }
 
     /// <summary>
-    /// The attachment type.
+    /// Gets the attachment type.
     /// </summary>
     public AttachmentType? AttachmentType { get; init; }
 
     /// <summary>
-    /// Optional showcase ID for organization.
+    /// Gets optional showcase ID for organization.
     /// </summary>
     public long? ShowcaseId { get; init; }
 }
@@ -206,7 +209,6 @@ public class CompleteDirectUploadCommandHandler : IRequestHandler<CompleteDirect
         // For direct uploads, we don't store content in the database
         // The file is already in Azure Blob Storage
         // This differs from regular uploads which store a backup in the database
-
         context.Attachments.Add(entity);
         await context.SaveChangesAsync(cancellationToken);
 

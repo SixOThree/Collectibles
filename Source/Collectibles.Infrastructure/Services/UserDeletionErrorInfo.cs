@@ -1,4 +1,5 @@
 using FluentValidation;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Infrastructure.Services;

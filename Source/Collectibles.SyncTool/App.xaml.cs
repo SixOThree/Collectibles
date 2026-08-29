@@ -1,6 +1,8 @@
 using System.Net.Http;
+
 using Collectibles.SyncTool.Services;
 using Collectibles.SyncTool.ViewModels;
+
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Collectibles.SyncTool;
@@ -31,16 +33,29 @@ public partial class App : System.Windows.Application
         services.AddSingleton<FileHashService>();
         services.AddSingleton<SyncComparisonService>();
 
+        services.AddSingleton<ApiKeyProvider>();
+
         // HTTP clients
         services.AddSingleton(sp =>
         {
-            var settingsService = sp.GetRequiredService<SettingsService>();
-            var settings = settingsService.Load();
+            var apiKeyProvider = sp.GetRequiredService<ApiKeyProvider>();
 
-            var apiClient = new HttpClient();
+            var apiClient = new HttpClient(new ApiKeyMessageHandler(apiKeyProvider))
+            {
+                // These clients move whole media files: a single 8 MB block needs a
+                // sustained 80 KB/s, and a 200 MB PUT needs 2 MB/s, to finish inside the
+                // framework's 100-second default. Transfers are bounded by per-operation
+                // cancellation instead.
+                Timeout = Timeout.InfiniteTimeSpan,
+            };
             apiClient.DefaultRequestHeaders.UserAgent.ParseAdd("CollectiblesSyncTool/1.0");
-            var azureClient = new HttpClient(); // Azure doesn't need custom handler
-            return new CollectiblesApiClient(apiClient, azureClient);
+
+            var azureClient = new HttpClient // Azure doesn't need the API key header
+            {
+                Timeout = Timeout.InfiniteTimeSpan,
+            };
+
+            return new CollectiblesApiClient(apiClient, azureClient, apiKeyProvider);
         });
 
         // ViewModels

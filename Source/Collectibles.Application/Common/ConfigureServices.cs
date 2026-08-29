@@ -6,8 +6,11 @@ using Collectibles.Application.Common.Services;
 using Collectibles.Application.Interfaces;
 using Collectibles.Application.Mappings.Explicit;
 using Collectibles.Application.Services;
+
 using FluentValidation;
+
 using MediatR;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 

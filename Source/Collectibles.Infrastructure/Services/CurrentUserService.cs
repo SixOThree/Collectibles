@@ -1,6 +1,8 @@
 using System.Security.Claims;
+
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Constants;
+
 using Microsoft.AspNetCore.Http;
 
 namespace Collectibles.Infrastructure.Services;
@@ -56,5 +58,11 @@ public class CurrentUserService : ICurrentUserService
             var httpContext = _httpContextAccessor?.HttpContext;
             return httpContext?.User?.IsInRole(ApplicationConstants.Roles.Administrator) ?? false;
         }
+    }
+
+    public bool IsInRole(string role)
+    {
+        var httpContext = _httpContextAccessor?.HttpContext;
+        return httpContext?.User?.IsInRole(role) ?? false;
     }
 }

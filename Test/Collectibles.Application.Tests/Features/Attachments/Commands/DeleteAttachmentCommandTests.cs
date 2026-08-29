@@ -46,6 +46,23 @@ public class DeleteAttachmentCommandTests : BaseTestFixture
         await handler.Handle(command, CancellationToken);
     }
 
+    /// <summary>
+    /// Attachments are soft-deleted: the row survives (so the purge job can reclaim it and
+    /// its storage files later) but the global query filter hides it from every read.
+    /// </summary>
+    private async Task AssertSoftDeletedAsync(long attachmentId)
+    {
+        var visible = await Context.Attachments
+            .FirstOrDefaultAsync(a => a.Id == attachmentId);
+        visible.Should().BeNull();
+
+        var row = await Context.Attachments
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(a => a.Id == attachmentId);
+        row.Should().NotBeNull();
+        row!.Deleted.Should().NotBeNull();
+    }
+
     [Fact]
     public async Task HandleValidIdShouldDeleteAttachment()
     {
@@ -64,8 +81,7 @@ public class DeleteAttachmentCommandTests : BaseTestFixture
 
         await Act(command);
 
-        var deletedAttachment = await Context.Attachments.FindAsync(attachment.Id);
-        deletedAttachment.Should().BeNull();
+        await AssertSoftDeletedAsync(attachment.Id);
     }
 
     [Fact]
@@ -79,12 +95,13 @@ public class DeleteAttachmentCommandTests : BaseTestFixture
         Context.Attachments.Add(attachment);
         await Context.SaveChangesAsync();
 
-        var initialCount = await CountAsync<Attachment>();
+        var initialCount = await Context.Attachments.CountAsync();
 
         var command = new DeleteAttachmentCommand(attachment.Id);
         await Act(command);
 
-        var finalCount = await CountAsync<Attachment>();
+        // The soft-delete query filter hides the row from every ordinary read.
+        var finalCount = await Context.Attachments.CountAsync();
         finalCount.Should().Be(initialCount - 1);
     }
 
@@ -129,8 +146,7 @@ public class DeleteAttachmentCommandTests : BaseTestFixture
 
         await Act(command);
 
-        var deletedAttachment = await Context.Attachments.FindAsync(attachment.Id);
-        deletedAttachment.Should().BeNull();
+        await AssertSoftDeletedAsync(attachment.Id);
     }
 
     [Fact]
@@ -146,7 +162,7 @@ public class DeleteAttachmentCommandTests : BaseTestFixture
         Context.Attachments.AddRange(attachments);
         await Context.SaveChangesAsync();
 
-        var initialCount = await CountAsync<Attachment>();
+        var initialCount = await Context.Attachments.CountAsync();
 
         foreach (var attachment in attachments)
         {
@@ -154,13 +170,12 @@ public class DeleteAttachmentCommandTests : BaseTestFixture
             await Act(command);
         }
 
-        var finalCount = await CountAsync<Attachment>();
+        var finalCount = await Context.Attachments.CountAsync();
         finalCount.Should().Be(initialCount - attachments.Length);
 
         foreach (var attachment in attachments)
         {
-            var deletedAttachment = await Context.Attachments.FindAsync(attachment.Id);
-            deletedAttachment.Should().BeNull();
+            await AssertSoftDeletedAsync(attachment.Id);
         }
     }
 
@@ -189,8 +204,7 @@ public class DeleteAttachmentCommandTests : BaseTestFixture
             var command = new DeleteAttachmentCommand(attachment.Id);
             await Act(command);
 
-            var deletedAttachment = await Context.Attachments.FindAsync(attachment.Id);
-            deletedAttachment.Should().BeNull();
+            await AssertSoftDeletedAsync(attachment.Id);
         }
     }
 

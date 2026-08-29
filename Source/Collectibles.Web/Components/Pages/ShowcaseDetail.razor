@@ -1,4 +1,4 @@
-@page "/showcase/{Hash}"
+﻿@page "/showcase/{Hash}"
 @rendermode InteractiveServer
 @implements IDisposable
 @inherits LoggablePageBase
@@ -22,6 +22,7 @@
 @inject IAuthorizationService AuthorizationService
 @inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider
 @inject ICollectibleItemPreviewService PreviewService
+@inject IBackgroundJobScheduler BackgroundJobScheduler
 @inject ISiteConfigurationService SiteConfigurationService
 @inject PersistentComponentState ApplicationState
 
@@ -367,20 +368,17 @@ else
 
     private void TriggerBackgroundPreviewGeneration()
     {
-        _ = Task.Run(async () =>
+        if (_showcase == null)
         {
-            try
-            {
-                if (_showcase != null)
-                {
-                    await PreviewService.GenerateCollagePreviewsForShowcaseAsync(_showcase.Id);
-                }
-            }
-            catch (Exception ex)
-            {
-                _ = LogErrorToSysLog(ex, "generating collage previews for showcase in background");
-            }
-        });
+            return;
+        }
+
+        // Queued rather than run on a Task.Run: PreviewService is scoped to this circuit,
+        // so work started this way outlives the scope that owns its DbContext and fails
+        // intermittently with ObjectDisposedException - silently, into an empty catch.
+        var showcaseId = _showcase.Id;
+        BackgroundJobScheduler.Enqueue<ICollectibleItemPreviewService>(
+            service => service.GenerateCollagePreviewsForShowcaseAsync(showcaseId, CancellationToken.None));
     }
 
     private void ReadQueryParameters()
@@ -409,7 +407,7 @@ else
         }
     }
 
-    private async void UpdateQueryParameters()
+    private async Task UpdateQueryParameters()
     {
         var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
         var baseUri = uri.GetLeftPart(UriPartial.Path);
@@ -510,7 +508,7 @@ else
         UpdateQueryParameters();
     }
 
-    private async void ClearFilters()
+    private async Task ClearFilters()
     {
         _selectedTagIds.Clear();
         _searchTerm = string.Empty;

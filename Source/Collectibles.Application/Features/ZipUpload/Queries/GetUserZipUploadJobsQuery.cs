@@ -1,5 +1,7 @@
 using Collectibles.Application.Interfaces;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.ZipUpload.Queries;
@@ -38,6 +40,7 @@ public class GetUserZipUploadJobsQueryHandler : IRequestHandler<GetUserZipUpload
         if (!request.IncludeCompleted)
         {
             query = query.Where(j => j.Status != Domain.Common.Enums.JobStatus.Done &&
+                                   j.Status != Domain.Common.Enums.JobStatus.DoneWithErrors &&
                                    j.Status != Domain.Common.Enums.JobStatus.Failed &&
                                    j.Status != Domain.Common.Enums.JobStatus.Cancelled);
         }

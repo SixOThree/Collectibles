@@ -23,7 +23,7 @@ public class TemplateDefinition
     public List<FieldDefinition> Fields { get; set; } = new();
 
     /// <summary>
-    /// Gets or sets whether items using this template can store multiple entries
+    /// Gets or sets a value indicating whether gets or sets whether items using this template can store multiple entries
     /// (rows of field values) instead of a single set of field values.
     /// For example, a magazine template could store multiple issues within one item.
     /// </summary>

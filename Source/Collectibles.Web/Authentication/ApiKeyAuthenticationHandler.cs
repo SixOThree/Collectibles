@@ -1,12 +1,15 @@
 using System.Security.Claims;
 using System.Text.Encodings.Web;
+
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Configuration;
 using Collectibles.Infrastructure.Persistence;
+
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+
 using Serilog;
 
 namespace Collectibles.Web.Authentication;

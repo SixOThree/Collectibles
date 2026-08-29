@@ -3,9 +3,12 @@ using Collectibles.Application.Features.Attachments.Queries;
 using Collectibles.Application.Interfaces;
 using Collectibles.Application.Services;
 using Collectibles.Domain.Constants;
+
 using MediatR;
+
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+
 using Serilog;
 
 namespace Collectibles.Web.Endpoints;
@@ -107,8 +110,9 @@ public static class AttachmentEndpoints
         [FromServices] IHashIdsService hashIdsService,
         [FromServices] IMediator mediator)
     {
-        var attachmentId = hashIdsService.Decode(hash);
-        if (attachmentId == 0)
+        // TryDecode, not Decode: this route had no try/catch, so a malformed hash threw
+        // out of the endpoint and surfaced as an unhandled 500 rather than a 404.
+        if (!hashIdsService.TryDecode(hash, out var attachmentId))
         {
             return Results.NotFound("Invalid attachment identifier");
         }
@@ -131,8 +135,7 @@ public static class AttachmentEndpoints
         try
         {
             // Decode the hash to get the attachment ID
-            var attachmentId = hashIdsService.Decode(hash);
-            if (attachmentId == 0)
+            if (!hashIdsService.TryDecode(hash, out var attachmentId))
             {
                 return Results.NotFound("Invalid attachment identifier");
             }
@@ -220,8 +223,7 @@ public static class AttachmentEndpoints
         try
         {
             // Decode the hash to get the attachment ID
-            var attachmentId = hashIdsService.Decode(hash);
-            if (attachmentId == 0)
+            if (!hashIdsService.TryDecode(hash, out var attachmentId))
             {
                 return Results.NotFound("Invalid attachment identifier");
             }
@@ -308,8 +310,7 @@ public static class AttachmentEndpoints
     {
         try
         {
-            var attachmentId = hashIdsService.Decode(hash);
-            if (attachmentId == 0)
+            if (!hashIdsService.TryDecode(hash, out var attachmentId))
             {
                 return Results.NotFound("Invalid attachment identifier");
             }
@@ -359,14 +360,16 @@ public static class AttachmentEndpoints
         var showcaseId = request.ShowcaseId;
         if (showcaseId == null && !string.IsNullOrWhiteSpace(request.ShowcaseHashId))
         {
-            showcaseId = hashIdsService.Decode(request.ShowcaseHashId);
-            if (showcaseId == 0)
+            if (!hashIdsService.TryDecode(request.ShowcaseHashId, out var decodedShowcaseId))
             {
                 return Results.BadRequest(new { error = "Invalid showcase identifier." });
             }
+
+            showcaseId = decodedShowcaseId;
         }
 
-        Log.Information("InitiateDirectUpload called: FileName={FileName}, FileSize={FileSize}, ContentType={ContentType}, ShowcaseId={ShowcaseId}",
+        Log.Information(
+            "InitiateDirectUpload called: FileName={FileName}, FileSize={FileSize}, ContentType={ContentType}, ShowcaseId={ShowcaseId}",
             request.FileName, request.FileSize, request.ContentType, showcaseId);
 
         try
@@ -413,11 +416,12 @@ public static class AttachmentEndpoints
             var showcaseId = request.ShowcaseId;
             if (showcaseId == null && !string.IsNullOrWhiteSpace(request.ShowcaseHashId))
             {
-                showcaseId = hashIdsService.Decode(request.ShowcaseHashId);
-                if (showcaseId == 0)
+                if (!hashIdsService.TryDecode(request.ShowcaseHashId, out var decodedShowcaseId))
                 {
                     return Results.BadRequest(new { error = "Invalid showcase identifier." });
                 }
+
+                showcaseId = decodedShowcaseId;
             }
 
             var command = new CompleteDirectUploadCommand
@@ -456,8 +460,7 @@ public static class AttachmentEndpoints
     {
         try
         {
-            var attachmentId = hashIdsService.Decode(hash);
-            if (attachmentId == 0)
+            if (!hashIdsService.TryDecode(hash, out var attachmentId))
             {
                 return Results.NotFound("Invalid attachment identifier");
             }

@@ -3,8 +3,11 @@ using System.Text.Json;
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Entities;
 using Collectibles.Domain.ValueObjects.Templates;
+
 using FluentValidation;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.ContentDefinitions.Commands;
@@ -81,7 +84,7 @@ public class UpdateContentDefinitionCommandValidator : AbstractValidator<UpdateC
 
     private bool HaveUniqueFieldNames(List<FieldDefinitionDto> fields)
     {
-        var names = fields.Select(f => f.Name.ToLower(System.Globalization.CultureInfo.CurrentCulture)).ToList();
+        var names = fields.Select(f => f.Name.ToLowerInvariant()).ToList();
         return names.Count == names.Distinct().Count();
     }
 
@@ -169,6 +172,33 @@ public class UpdateContentDefinitionCommandHandler : IRequestHandler<UpdateConte
             if (contentDefinition.CreatedBy != _currentUserService.UserId)
             {
                 throw new UnauthorizedAccessException("You are not authorized to update this template.");
+            }
+        }
+
+        // Re-scoping is a privilege change, not an edit: making a template global exposes it
+        // to every user, and moving it into a showcase requires owning the destination.
+        // Create checks this; Update previously did not re-check on change.
+        var scopeChanged = contentDefinition.IsGlobal != request.IsGlobal
+            || contentDefinition.ShowcaseId != request.ShowcaseId;
+
+        if (scopeChanged && !_currentUserService.IsAdministrator)
+        {
+            if (request.IsGlobal)
+            {
+                throw new UnauthorizedAccessException("Only administrators can make a template global.");
+            }
+
+            if (request.ShowcaseId.HasValue)
+            {
+                var destinationOwnerId = await context.Showcases
+                    .Where(s => s.Id == request.ShowcaseId.Value)
+                    .Select(s => s.UserId)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                if (destinationOwnerId != _currentUserService.UserId)
+                {
+                    throw new UnauthorizedAccessException("You are not authorized to move this template into that showcase.");
+                }
             }
         }
 

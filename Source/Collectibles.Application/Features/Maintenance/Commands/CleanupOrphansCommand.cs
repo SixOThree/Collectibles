@@ -1,7 +1,9 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Entities;
 using Collectibles.Domain.Interfaces;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.Maintenance.Commands;
@@ -22,48 +24,49 @@ public class CleanupOrphansCommandHandler : IRequestHandler<CleanupOrphansComman
     private readonly IApplicationDbContextFactory _contextFactory;
     private readonly IFileStorage _fileStorage;
     private readonly IEventLogService _eventLogService;
+    private readonly ICurrentUserService _currentUserService;
 
     public CleanupOrphansCommandHandler(
         IApplicationDbContextFactory contextFactory,
         IFileStorage fileStorage,
-        IEventLogService eventLogService)
+        IEventLogService eventLogService,
+        ICurrentUserService currentUserService)
     {
         _contextFactory = contextFactory;
         _fileStorage = fileStorage;
         _eventLogService = eventLogService;
+        _currentUserService = currentUserService;
     }
 
     public async Task<CleanupOrphansResult> Handle(CleanupOrphansCommand request, CancellationToken cancellationToken)
     {
+        if (!_currentUserService.IsAdministrator)
+        {
+            throw new UnauthorizedAccessException("Only administrators can clean up orphaned records.");
+        }
+
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
 
         // 1. Delete orphaned attachments (no item links and not used as preview images)
-        var orphanedAttachments = await context.Attachments
-            .Where(a => a.Deleted == null)
-            .Where(a => !context.CollectibleItemAttachments.Any(cia =>
-                cia.AttachmentId == a.Id &&
-                context.CollectibleItems.Any(ci => ci.Id == cia.CollectibleItemId && ci.Deleted == null)))
-            .Where(a => !context.CollectibleItems.Any(ci => ci.PreviewImageId == a.Id && ci.Deleted == null))
-            .Where(a => !context.Showcases.Any(s => EF.Property<long?>(s, "PreviewImageId") == a.Id && s.Deleted == null))
+        var orphanedAttachments = await OrphanClassification.OrphanedAttachments(context)
             .ToListAsync(cancellationToken);
 
         long bytesFreed = 0;
 
+        // Paths are collected here and deleted only after the row deletes commit: an
+        // irreversible storage delete must never precede the transactional write.
+        var pathsToDelete = new List<string>();
+
         foreach (var attachment in orphanedAttachments)
         {
-            // Delete files from storage
             if (!string.IsNullOrEmpty(attachment.FilePath))
             {
-                try
-                { await _fileStorage.DeleteFileAsync(attachment.FilePath, cancellationToken); }
-                catch { /* Storage file may already be gone */ }
+                pathsToDelete.Add(attachment.FilePath);
             }
 
             if (!string.IsNullOrEmpty(attachment.PreviewPath))
             {
-                try
-                { await _fileStorage.DeleteFileAsync(attachment.PreviewPath, cancellationToken); }
-                catch { /* Storage file may already be gone */ }
+                pathsToDelete.Add(attachment.PreviewPath);
             }
 
             bytesFreed += attachment.FileSize;
@@ -71,18 +74,28 @@ public class CleanupOrphansCommandHandler : IRequestHandler<CleanupOrphansComman
         }
 
         // 2. Soft-delete empty items (no attachments and no children)
-        var emptyItems = await context.CollectibleItems
-            .Where(ci => ci.Deleted == null)
-            .Where(ci => !ci.CollectibleItemAttachments.Any())
-            .Where(ci => !context.CollectibleItems.Any(child => child.ParentId == ci.Id && child.Deleted == null))
+        var emptyItems = await OrphanClassification.EmptyItems(context)
             .ToListAsync(cancellationToken);
 
         foreach (var item in emptyItems)
         {
             item.Deleted = DateTime.UtcNow;
+            item.DeletedBy = _currentUserService.UserId;
         }
 
         await context.SaveChangesAsync(cancellationToken);
+
+        foreach (var path in pathsToDelete)
+        {
+            try
+            {
+                await _fileStorage.DeleteFileAsync(path, cancellationToken);
+            }
+            catch
+            {
+                // Storage file may already be gone; the row is deleted either way.
+            }
+        }
 
         // 3. Delete orphaned blobs (in storage but not in any Attachment record)
         var (orphanedBlobsDeleted, blobBytesFreed) = await CleanupOrphanedBlobs(context, cancellationToken);
@@ -116,76 +129,25 @@ public class CleanupOrphansCommandHandler : IRequestHandler<CleanupOrphansComman
 
     private async Task<(int Count, long Bytes)> CleanupOrphanedBlobs(IApplicationDbContext context, CancellationToken cancellationToken)
     {
-        try
+        var orphanedBlobs = await OrphanClassification.GetOrphanedBlobsAsync(context, _fileStorage, cancellationToken);
+
+        long blobBytesFreed = 0;
+        var deletedCount = 0;
+
+        foreach (var blob in orphanedBlobs)
         {
-            var storageBlobs = await _fileStorage.ListBlobsAsync(cancellationToken);
-            if (storageBlobs.Count == 0)
+            try
             {
-                return (0, 0);
+                await _fileStorage.DeleteFileAsync(blob.Name, cancellationToken);
+                blobBytesFreed += blob.SizeBytes;
+                deletedCount++;
             }
-
-            // Get all known file paths from the database (attachments + link caches)
-            var knownPathSet = await GetAllKnownBlobPaths(context, cancellationToken);
-
-            var orphanedBlobs = storageBlobs.Where(b => !knownPathSet.Contains(b.Name)).ToList();
-            long blobBytesFreed = 0;
-            var deletedCount = 0;
-
-            foreach (var blob in orphanedBlobs)
+            catch
             {
-                try
-                {
-                    await _fileStorage.DeleteFileAsync(blob.Name, cancellationToken);
-                    blobBytesFreed += blob.SizeBytes;
-                    deletedCount++;
-                }
-                catch
-                {
-                    // Continue on individual blob deletion failures
-                }
+                // Continue on individual blob deletion failures
             }
-
-            return (deletedCount, blobBytesFreed);
-        }
-        catch
-        {
-            return (0, 0);
-        }
-    }
-
-    private static async Task<HashSet<string>> GetAllKnownBlobPaths(IApplicationDbContext context, CancellationToken cancellationToken)
-    {
-        var knownPathSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        // Attachment file paths
-        var attachmentPaths = await context.Attachments
-            .Where(a => a.Deleted == null)
-            .Where(a => a.FilePath != null || a.PreviewPath != null)
-            .Select(a => new { a.FilePath, a.PreviewPath })
-            .ToListAsync(cancellationToken);
-
-        foreach (var paths in attachmentPaths)
-        {
-            if (!string.IsNullOrEmpty(paths.FilePath))
-                knownPathSet.Add(paths.FilePath);
-            if (!string.IsNullOrEmpty(paths.PreviewPath))
-                knownPathSet.Add(paths.PreviewPath);
         }
 
-        // Link cache file paths
-        var linkCachePaths = await context.LinkCaches
-            .Where(lc => lc.CachedContentPath != null || lc.ScreenshotPath != null)
-            .Select(lc => new { lc.CachedContentPath, lc.ScreenshotPath })
-            .ToListAsync(cancellationToken);
-
-        foreach (var paths in linkCachePaths)
-        {
-            if (!string.IsNullOrEmpty(paths.CachedContentPath))
-                knownPathSet.Add(paths.CachedContentPath);
-            if (!string.IsNullOrEmpty(paths.ScreenshotPath))
-                knownPathSet.Add(paths.ScreenshotPath);
-        }
-
-        return knownPathSet;
+        return (deletedCount, blobBytesFreed);
     }
 }

@@ -1,4 +1,4 @@
-# EditorConfig is awesome: https://EditorConfig.org
+﻿# EditorConfig is awesome: https://EditorConfig.org
 
 # top-most EditorConfig file
 root = true
@@ -123,12 +123,16 @@ csharp_style_prefer_primary_constructors = true:suggestion
 
 # Using directives
 csharp_using_directive_placement = outside_namespace:silent
-dotnet_sort_system_directives_first = false:error
-dotnet_separate_import_directive_groups = false:error
+# Aligned with stylecop.json (systemUsingDirectivesFirst / blankLinesBetweenUsingGroups).
+# These two previously said the opposite, so IDE cleanup and StyleCop fought over every
+# using block and `dotnet format --verify-no-changes` could never pass.
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = true
 
 # Organize usings
 csharp_prefer_system_threading_lock = true:suggestion
-dotnet_diagnostic.SA1005.severity = error
+# Demoted to warning to match every other StyleCop rule in this file.
+dotnet_diagnostic.SA1005.severity = warning
 csharp_prefer_static_anonymous_function = true:suggestion
 
 # .NET coding conventions
@@ -154,6 +158,14 @@ dotnet_naming_rule.private_or_internal_field_should_be_camel_case_with_underscor
 dotnet_naming_rule.constant_fields_should_be_pascal_case.severity = warning
 dotnet_naming_rule.constant_fields_should_be_pascal_case.symbols = constant_fields
 dotnet_naming_rule.constant_fields_should_be_pascal_case.style = pascal_case
+
+# private static readonly fields are PascalCase, matching the framework convention and how
+# this codebase already writes them. Without this rule the broader private-field rule
+# demanded a leading underscore on every one of them, so `dotnet format` reported drift it
+# could not fix (the naming fixer has no Fix All).
+dotnet_naming_rule.static_readonly_fields_should_be_pascal_case.severity = warning
+dotnet_naming_rule.static_readonly_fields_should_be_pascal_case.symbols = static_readonly_fields
+dotnet_naming_rule.static_readonly_fields_should_be_pascal_case.style = pascal_case
 
 dotnet_naming_rule.local_variables_should_be_camel_case.severity = warning
 dotnet_naming_rule.local_variables_should_be_camel_case.symbols = local_variables
@@ -183,6 +195,10 @@ dotnet_naming_symbols.private_or_internal_field.required_modifiers =
 dotnet_naming_symbols.constant_fields.applicable_kinds = field
 dotnet_naming_symbols.constant_fields.applicable_accessibilities = *
 dotnet_naming_symbols.constant_fields.required_modifiers = const
+
+dotnet_naming_symbols.static_readonly_fields.applicable_kinds = field
+dotnet_naming_symbols.static_readonly_fields.applicable_accessibilities = *
+dotnet_naming_symbols.static_readonly_fields.required_modifiers = static, readonly
 
 dotnet_naming_symbols.local_variables.applicable_kinds = local
 dotnet_naming_symbols.local_variables.applicable_accessibilities = local

@@ -38,7 +38,7 @@ public static class HangfireExtensions
     /// <summary>
     /// Configures all Hangfire recurring jobs.
     /// </summary>
-    /// <returns></returns>
+    /// <returns><placeholder>A <see cref="Task"/> representing the asynchronous operation.</placeholder></returns>
     public static async Task<IApplicationBuilder> ConfigureHangfireRecurringJobsAsync(this IApplicationBuilder app, IConfiguration configuration)
     {
         var logger = app.ApplicationServices.GetRequiredService<ILogger<Program>>();
@@ -64,6 +64,9 @@ public static class HangfireExtensions
 
             // Attachment preview generation jobs
             ConfigureAttachmentPreviewJobs(recurringJobManager);
+
+            // Reclaim soft-deleted attachments past their retention window
+            ConfigureAttachmentPurgeJobs(recurringJobManager);
 
             logger.LogInformation("Hangfire recurring jobs configured successfully");
         }
@@ -148,6 +151,18 @@ public static class HangfireExtensions
             "*/5 * * * *"); // Every 5 minutes
     }
 
+    /// <summary>
+    /// Configures the purge of soft-deleted attachments past their retention window.
+    /// </summary>
+    private static void ConfigureAttachmentPurgeJobs(IRecurringJobManager recurringJobManager)
+    {
+        AddOrUpdate(
+            recurringJobManager,
+            "purge-deleted-attachments",
+            Job.FromExpression<AttachmentPurgeBackgroundService>(service => service.PurgeDeletedAttachmentsAsync()),
+            "30 3 * * *"); // Daily at 3:30 AM
+    }
+
     private static void AddOrUpdate(IRecurringJobManager recurringJobManager, string recurringJobId, Job job, string cronExpression)
     {
         recurringJobManager.AddOrUpdate(recurringJobId, job, cronExpression, new RecurringJobOptions());
@@ -156,7 +171,7 @@ public static class HangfireExtensions
     /// <summary>
     /// Configures all Hangfire-related middleware and jobs.
     /// </summary>
-    /// <returns></returns>
+    /// <returns><placeholder>A <see cref="Task"/> representing the asynchronous operation.</placeholder></returns>
     public static async Task<IApplicationBuilder> UseHangfireAsync(this IApplicationBuilder app, IConfiguration configuration)
     {
         // Configure Hangfire dashboard

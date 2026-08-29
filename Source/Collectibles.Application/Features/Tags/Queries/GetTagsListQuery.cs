@@ -1,6 +1,8 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Application.Mappings.Explicit;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.Tags.Queries;

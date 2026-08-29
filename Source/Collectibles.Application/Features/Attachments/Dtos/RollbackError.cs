@@ -13,5 +13,11 @@ public enum RollbackErrorType
     StorageDeletionFailed,
     DatabaseUpdateFailed,
     FileNotFound,
+
+    /// <summary>
+    /// The database copy of the content was cleaned up after migration, so rolling back
+    /// would leave no durable copy anywhere. The rollback is refused.
+    /// </summary>
+    MissingDatabaseCopy,
     Other,
 }

@@ -1,5 +1,6 @@
 using Collectibles.Application.Services;
 using Collectibles.Infrastructure.Persistence;
+
 using Microsoft.Extensions.Logging;
 
 namespace Collectibles.Infrastructure.Services;
@@ -172,7 +173,8 @@ public class CollectibleItemPreviewResolver : ICollectibleItemPreviewResolver
         if (item.CollectibleItemAttachments == null)
         {
             return await _context.CollectibleItemAttachments
-                .AnyAsync(cia => cia.CollectibleItemId == item.Id &&
+                .AnyAsync(
+                    cia => cia.CollectibleItemId == item.Id &&
                           cia.Attachment.FileType != null &&
                           cia.Attachment.FileType.StartsWith("image/"), cancellationToken);
         }

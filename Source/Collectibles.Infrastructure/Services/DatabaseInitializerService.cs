@@ -3,6 +3,7 @@ using Collectibles.Application.Setup;
 using Collectibles.Domain.ValueObjects.Templates;
 using Collectibles.Infrastructure.Persistence;
 using Collectibles.Infrastructure.Persistence.Seeders;
+
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -180,6 +181,7 @@ public class DatabaseInitializerService : IHostedService
                 "Failed to seed vintage computer tags",
                 ex,
                 "Application.Startup");
+
             // Don't throw - allow the application to continue even if tag seeding fails
         }
     }

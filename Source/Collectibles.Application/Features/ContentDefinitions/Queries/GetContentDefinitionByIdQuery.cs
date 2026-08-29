@@ -1,6 +1,8 @@
 using Collectibles.Application.Features.ContentDefinitions.Commands;
 using Collectibles.Application.Interfaces;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.ContentDefinitions.Queries;
