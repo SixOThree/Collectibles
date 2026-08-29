@@ -1,6 +1,8 @@
 using System.Security.Claims;
+
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Constants;
+
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Http;
 

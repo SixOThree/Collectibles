@@ -46,7 +46,7 @@ public static class ShowcaseMappingExtensions
             Name = entity.Name,
             Description = entity.Description,
             UserId = entity.UserId,
-            ItemCount = entity.CollectibleItems?.Count(ci => ci.ParentId == null && ci.Deleted == null) ?? 0,
+            ItemCount = entity.CollectibleItems?.Count(ci => ci.ParentId == null) ?? 0,
             TopTags = entity.ShowcaseTags?
                 .OrderBy(st => st.Tag.Name)
                 .Take(ApplicationConstants.Pagination.ShowcasePreviewItemCount)

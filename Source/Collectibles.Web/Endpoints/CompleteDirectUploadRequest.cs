@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+
 using Collectibles.Domain.Common.Enums;
 
 namespace Collectibles.Web.Endpoints;

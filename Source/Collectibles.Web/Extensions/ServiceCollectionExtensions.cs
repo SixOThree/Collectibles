@@ -1,3 +1,5 @@
+using System.Threading.RateLimiting;
+
 using Collectibles.Application.Common;
 using Collectibles.Application.Interfaces;
 using Collectibles.Application.Setup;
@@ -9,12 +11,17 @@ using Collectibles.Infrastructure.Persistence;
 using Collectibles.Infrastructure.Services;
 using Collectibles.Web.Authentication;
 using Collectibles.Web.Components.Account;
+using Collectibles.Web.Middleware;
 using Collectibles.Web.Services;
+
 using Hangfire;
 using Hangfire.SqlServer;
+
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Web.Extensions;
@@ -140,6 +147,16 @@ public static class ServiceCollectionExtensions
 
         authBuilder.AddIdentityCookies();
 
+        // Pin the cookie's CSRF-relevant attributes rather than inheriting framework
+        // defaults. Several state-changing API routes disable antiforgery yet accept this
+        // cookie, so SameSite is load-bearing and must not be implicit.
+        services.ConfigureApplicationCookie(options =>
+        {
+            options.Cookie.SameSite = SameSiteMode.Lax;
+            options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+            options.Cookie.HttpOnly = true;
+        });
+
         authBuilder.AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(
             ApiKeyAuthenticationHandler.SchemeName, null);
 
@@ -152,6 +169,17 @@ public static class ServiceCollectionExtensions
             options.AddPolicy("ApiKeyOrCookie", policy =>
             {
                 policy.AddAuthenticationSchemes(ApiKeyAuthenticationHandler.SchemeName, IdentityConstants.ApplicationScheme);
+                policy.RequireAuthenticatedUser();
+            });
+
+            // The sync API is only ever called by the desktop SyncTool, which authenticates
+            // with an API key. Restricting it to that scheme means an ambient browser
+            // session cannot reach these antiforgery-disabled, state-changing routes at
+            // all - the CSRF exposure is removed rather than left resting on the cookie's
+            // SameSite default.
+            options.AddPolicy("ApiKeyOnly", policy =>
+            {
+                policy.AddAuthenticationSchemes(ApiKeyAuthenticationHandler.SchemeName);
                 policy.RequireAuthenticatedUser();
             });
 
@@ -327,6 +355,31 @@ public static class ServiceCollectionExtensions
         // Configure SyncTool settings and API key service
         services.Configure<SyncToolSettings>(configuration.GetSection("SyncTool"));
         services.AddSingleton<IApiKeyService, ApiKeyService>();
+
+        // Throttle the credential-handling surface. Identity lockout guards a known
+        // account; this adds a defence-in-depth limit at the HTTP layer, which the
+        // first-run setup gate in particular had none of.
+        services.AddRateLimiter(options =>
+        {
+            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+            options.AddPolicy("AuthEndpoints", context =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 20,
+                        Window = TimeSpan.FromMinutes(1),
+                        QueueLimit = 0,
+                    }));
+        });
+
+        // Trusted-proxy handling must be configured before anything reads the client IP
+        services.AddTrustedProxyForwardedHeaders(configuration);
+        services.AddSingleton<IClientIpResolver, ClientIpResolver>();
+
+        // Durable, named Data Protection keys
+        services.AddDurableDataProtection(configuration);
 
         // Add authentication and authorization
         services.AddAuthenticationServices(configuration);

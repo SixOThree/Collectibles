@@ -4,20 +4,43 @@ using Collectibles.Application.Features.Sync.Queries;
 using Collectibles.Application.Services;
 using Collectibles.Application.Tests.Common;
 using Collectibles.Domain.Entities;
+
 using MediatR;
+
 using Microsoft.Extensions.Logging;
 
 namespace Collectibles.Application.Tests.Features.Sync;
+
+/// <summary>Signature Moq needs to stub an out-parameter method.</summary>
+public delegate bool TryDecodeCallback(string? hash, out long id);
 
 public class SyncAuthorizationTests : BaseTestFixture
 {
     private readonly Mock<IApplicationDbContextFactory> _contextFactoryMock;
     private readonly Mock<ICurrentUserService> _currentUserServiceMock;
 
+    // Identifiers cross the sync HTTP boundary as HashIds, so the tests encode and decode
+    // through a stand-in that round-trips rather than passing raw keys.
+    private readonly Mock<IHashIdsService> _hashIdsServiceMock;
+
     public SyncAuthorizationTests()
     {
         _contextFactoryMock = new Mock<IApplicationDbContextFactory>();
         _currentUserServiceMock = new Mock<ICurrentUserService>();
+
+        _hashIdsServiceMock = new Mock<IHashIdsService>();
+        _hashIdsServiceMock
+            .Setup(x => x.Encode(It.IsAny<long>()))
+            .Returns((long id) => $"h{id}");
+        _hashIdsServiceMock
+            .Setup(x => x.TryDecode(It.IsAny<string>(), out It.Ref<long>.IsAny))
+            .Returns(new TryDecodeCallback((string? hash, out long id) =>
+            {
+                id = 0;
+                return hash is not null
+                    && hash.StartsWith('h')
+                    && long.TryParse(hash.AsSpan(1), out id);
+            }));
         _currentUserServiceMock.Setup(x => x.UserId).Returns("test-user-id");
         _currentUserServiceMock.Setup(x => x.IsAdministrator).Returns(false);
 
@@ -162,20 +185,21 @@ public class SyncAuthorizationTests : BaseTestFixture
             _currentUserServiceMock.Object,
             hierarchyServiceMock.Object,
             mediatorMock.Object,
-            Mock.Of<ILogger<SyncUploadCommandHandler>>());
+            Mock.Of<ILogger<SyncUploadCommandHandler>>(),
+            _hashIdsServiceMock.Object);
 
-        var result = await handler.Handle(new SyncUploadCommand
-        {
-            ShowcaseId = showcase.Id,
-            RelativePath = "Folder/photo.jpg",
-            ContentHash = "hash-1",
-            FileSize = 512,
-            ContentType = "image/jpeg",
-            UserId = "test-user-id",
-        }, CancellationToken);
+        var result = await handler.Handle(
+            new SyncUploadCommand
+            {
+                ShowcaseId = showcase.Id,
+                RelativePath = "Folder/photo.jpg",
+                ContentHash = "hash-1",
+                FileSize = 512,
+                ContentType = "image/jpeg",
+            }, CancellationToken);
 
         result.Skipped.Should().BeFalse();
-        result.TargetItemId.Should().Be(123L);
+        result.TargetItemHashId.Should().Be("h123");
         result.UploadId.Should().Be("upload-1");
         hierarchyServiceMock.VerifyAll();
         mediatorMock.VerifyAll();
@@ -200,17 +224,18 @@ public class SyncAuthorizationTests : BaseTestFixture
             _currentUserServiceMock.Object,
             hierarchyServiceMock.Object,
             mediatorMock.Object,
-            Mock.Of<ILogger<SyncUploadCommandHandler>>());
+            Mock.Of<ILogger<SyncUploadCommandHandler>>(),
+            _hashIdsServiceMock.Object);
 
-        var act = async () => await handler.Handle(new SyncUploadCommand
-        {
-            ShowcaseId = showcase.Id,
-            RelativePath = "Folder/photo.jpg",
-            ContentHash = "hash-1",
-            FileSize = 512,
-            ContentType = "image/jpeg",
-            UserId = "test-user-id",
-        }, CancellationToken);
+        var act = async () => await handler.Handle(
+            new SyncUploadCommand
+            {
+                ShowcaseId = showcase.Id,
+                RelativePath = "Folder/photo.jpg",
+                ContentHash = "hash-1",
+                FileSize = 512,
+                ContentType = "image/jpeg",
+            }, CancellationToken);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>()
             .WithMessage("You are not authorized to upload files to this showcase.");
@@ -266,19 +291,21 @@ public class SyncAuthorizationTests : BaseTestFixture
             _currentUserServiceMock.Object,
             hierarchyServiceMock.Object,
             mediatorMock.Object,
-            Mock.Of<ILogger<CompleteSyncUploadCommandHandler>>());
+            Mock.Of<ILogger<CompleteSyncUploadCommandHandler>>(),
+            _hashIdsServiceMock.Object);
 
-        var result = await handler.Handle(new CompleteSyncUploadCommand
-        {
-            UploadId = "upload-1",
-            BlobName = "blob-1",
-            OriginalFileName = "photo.jpg",
-            ContentType = "image/jpeg",
-            FileSize = 1024,
-            TargetItemId = item.Id,
-            ShowcaseId = null,
-            ContentHash = "hash-1",
-        }, CancellationToken);
+        var result = await handler.Handle(
+            new CompleteSyncUploadCommand
+            {
+                UploadId = "upload-1",
+                BlobName = "blob-1",
+                OriginalFileName = "photo.jpg",
+                ContentType = "image/jpeg",
+                FileSize = 1024,
+                TargetItemHashId = $"h{item.Id}",
+                ShowcaseId = null,
+                ContentHash = "hash-1",
+            }, CancellationToken);
 
         result.Should().Be(456L);
         hierarchyServiceMock.VerifyAll();
@@ -311,19 +338,21 @@ public class SyncAuthorizationTests : BaseTestFixture
             _currentUserServiceMock.Object,
             hierarchyServiceMock.Object,
             mediatorMock.Object,
-            Mock.Of<ILogger<CompleteSyncUploadCommandHandler>>());
+            Mock.Of<ILogger<CompleteSyncUploadCommandHandler>>(),
+            _hashIdsServiceMock.Object);
 
-        var act = async () => await handler.Handle(new CompleteSyncUploadCommand
-        {
-            UploadId = "upload-2",
-            BlobName = "blob-2",
-            OriginalFileName = "blocked.jpg",
-            ContentType = "image/jpeg",
-            FileSize = 2048,
-            TargetItemId = item.Id,
-            ShowcaseId = null,
-            ContentHash = "hash-2",
-        }, CancellationToken);
+        var act = async () => await handler.Handle(
+            new CompleteSyncUploadCommand
+            {
+                UploadId = "upload-2",
+                BlobName = "blob-2",
+                OriginalFileName = "blocked.jpg",
+                ContentType = "image/jpeg",
+                FileSize = 2048,
+                TargetItemHashId = $"h{item.Id}",
+                ShowcaseId = null,
+                ContentHash = "hash-2",
+            }, CancellationToken);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>()
             .WithMessage("You are not authorized to complete uploads for this item.");

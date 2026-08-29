@@ -1,5 +1,6 @@
 using Collectibles.Application.Common.Models;
 using Collectibles.Application.Services;
+
 using Microsoft.Extensions.Logging;
 
 namespace Collectibles.Application.Tests.Services;
@@ -127,7 +128,7 @@ public class HomePageContentServiceTests
     public async Task SaveAsync_EmptyHeroLead_Throws()
     {
         var content = ValidContent();
-        content.HeroLead = "";
+        content.HeroLead = string.Empty;
         var act = () => _service.SaveAsync(content);
         await act.Should().ThrowAsync<ArgumentException>();
     }
@@ -136,7 +137,7 @@ public class HomePageContentServiceTests
     public async Task SaveAsync_CardMissingTitle_Throws()
     {
         var content = ValidContent();
-        content.Cards[0].Title = "";
+        content.Cards[0].Title = string.Empty;
         var act = () => _service.SaveAsync(content);
         await act.Should().ThrowAsync<ArgumentException>();
     }

@@ -1,5 +1,6 @@
 using Collectibles.Application.Features.ContentDefinitions.Commands;
 using Collectibles.Application.Interfaces;
+
 using Moq;
 
 namespace Collectibles.Application.Tests.Features.ContentDefinitions.Commands;

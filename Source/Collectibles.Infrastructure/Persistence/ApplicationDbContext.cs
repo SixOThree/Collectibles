@@ -1,6 +1,9 @@
+using System.Linq.Expressions;
+
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Common;
 using Collectibles.Domain.Common.Entities;
+
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 
@@ -103,6 +106,34 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>, IApplica
             entity.HasIndex(u => u.ApiKeyHash).IsUnique().HasFilter("[ApiKeyHash] IS NOT NULL");
         });
 
+        ApplySoftDeleteQueryFilters(builder);
+
         base.OnModelCreating(builder);
+    }
+
+    /// <summary>
+    /// Enforces "deleted rows are invisible" once, centrally, for every
+    /// <see cref="ISoftDelete"/> entity. Before this existed the predicate was written by
+    /// hand at each call site, and the sites that forgot it silently served deleted content.
+    /// Admin and restore paths that genuinely need deleted rows opt out with
+    /// <c>IgnoreQueryFilters()</c>.
+    /// </summary>
+    private static void ApplySoftDeleteQueryFilters(ModelBuilder builder)
+    {
+        foreach (var entityType in builder.Model.GetEntityTypes())
+        {
+            if (!typeof(ISoftDelete).IsAssignableFrom(entityType.ClrType) || entityType.BaseType is not null)
+            {
+                continue;
+            }
+
+            var parameter = Expression.Parameter(entityType.ClrType, "e");
+            var deletedProperty = Expression.Property(parameter, nameof(ISoftDelete.Deleted));
+            var filter = Expression.Lambda(
+                Expression.Equal(deletedProperty, Expression.Constant(null, typeof(DateTime?))),
+                parameter);
+
+            builder.Entity(entityType.ClrType).HasQueryFilter(filter);
+        }
     }
 }

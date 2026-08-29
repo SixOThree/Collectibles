@@ -2,7 +2,9 @@ using Collectibles.Application.Common.Models;
 using Collectibles.Application.Features.EmailLogs.Dtos;
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Entities;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.EmailLogs.Queries;
@@ -21,14 +23,22 @@ public class GetEmailLogsQuery : IRequest<PaginatedList<EmailLogDto>>
 public class GetEmailLogsQueryHandler : IRequestHandler<GetEmailLogsQuery, PaginatedList<EmailLogDto>>
 {
     private readonly IApplicationDbContext _context;
+    private readonly ICurrentUserService _currentUserService;
 
-    public GetEmailLogsQueryHandler(IApplicationDbContext context)
+    public GetEmailLogsQueryHandler(IApplicationDbContext context, ICurrentUserService currentUserService)
     {
         _context = context;
+        _currentUserService = currentUserService;
     }
 
     public async Task<PaginatedList<EmailLogDto>> Handle(GetEmailLogsQuery request, CancellationToken cancellationToken)
     {
+        // Email logs expose every recipient address and message subject on the system.
+        if (!_currentUserService.IsAdministrator)
+        {
+            throw new UnauthorizedAccessException("Only administrators can view email logs.");
+        }
+
         var query = _context.EmailLogs.AsQueryable();
 
         if (request.Status.HasValue)

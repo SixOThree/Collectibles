@@ -3,6 +3,7 @@ using Collectibles.Application.Tests.Common;
 using Collectibles.Domain.Configuration.Storage;
 using Collectibles.Domain.Enums;
 using Collectibles.Domain.Interfaces;
+
 using Microsoft.Extensions.Options;
 
 namespace Collectibles.Application.Tests.Features.Attachments.Commands;
@@ -14,9 +15,13 @@ public class CreateAttachmentCommandTests : CommandTestBase<CreateAttachmentComm
     private readonly Mock<IFileStorage> _fileStorageMock;
     private readonly Mock<IEventLogService> _eventLogServiceMock;
     private readonly Mock<IAttachmentHashService> _hashServiceMock;
+    private readonly Mock<ICurrentUserService> _currentUserServiceMock;
 
     public CreateAttachmentCommandTests()
     {
+        _currentUserServiceMock = new Mock<ICurrentUserService>();
+        _currentUserServiceMock.Setup(x => x.UserId).Returns("test-user-id");
+
         _fileProcessingServiceMock = new Mock<IFileProcessingService>();
         _contextFactoryMock = new Mock<IApplicationDbContextFactory>();
         _fileStorageMock = new Mock<IFileStorage>();
@@ -49,7 +54,7 @@ public class CreateAttachmentCommandTests : CommandTestBase<CreateAttachmentComm
     protected override IRequestHandler<CreateAttachmentCommand, long> CreateHandler()
     {
         var storageSettings = Options.Create(new StorageSettings { Provider = StorageProvider.Database });
-        return new CreateAttachmentCommandHandler(_contextFactoryMock.Object, _fileProcessingServiceMock.Object, _fileStorageMock.Object, _eventLogServiceMock.Object, _hashServiceMock.Object, storageSettings);
+        return new CreateAttachmentCommandHandler(_contextFactoryMock.Object, _fileProcessingServiceMock.Object, _fileStorageMock.Object, _eventLogServiceMock.Object, _hashServiceMock.Object, storageSettings, _currentUserServiceMock.Object);
     }
 
     [Fact]

@@ -1,6 +1,7 @@
 using Collectibles.Application.Common.Models.Email;
 using Collectibles.Application.Interfaces;
 using Collectibles.Infrastructure.Persistence;
+
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 

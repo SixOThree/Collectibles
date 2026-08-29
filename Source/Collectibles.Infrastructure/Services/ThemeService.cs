@@ -105,7 +105,8 @@ public class ThemeService : IThemeService
         try
         {
             var themeConfigDir = Path.Combine(_environment.WebRootPath, "theme-config");
-            _logger.LogInformation("WriteThemeToStaticFile: WebRootPath={WebRootPath}, themeConfigDir={ThemeConfigDir}",
+            _logger.LogInformation(
+                "WriteThemeToStaticFile: WebRootPath={WebRootPath}, themeConfigDir={ThemeConfigDir}",
                 _environment.WebRootPath, themeConfigDir);
 
             if (!Directory.Exists(themeConfigDir))
@@ -117,7 +118,8 @@ public class ThemeService : IThemeService
             // Determine theme path by checking disk for the actual CSS file
             var themeImportPath = ResolveThemeImportPath(themeName)
                 ?? $"/themes/bootswatch/{themeName}/bootstrap.min.css";
-            _logger.LogInformation("WriteThemeToStaticFile: Resolved import path for {ThemeName} = {ImportPath}",
+            _logger.LogInformation(
+                "WriteThemeToStaticFile: Resolved import path for {ThemeName} = {ImportPath}",
                 themeName, themeImportPath);
 
             // Write main theme configuration
@@ -139,7 +141,8 @@ body {{
 ";
             }
 
-            _logger.LogInformation("WriteThemeToStaticFile: Writing to {CssPath}, content length={Length}",
+            _logger.LogInformation(
+                "WriteThemeToStaticFile: Writing to {CssPath}, content length={Length}",
                 themeCssPath, themeCssContent.Length);
             await File.WriteAllTextAsync(themeCssPath, themeCssContent);
             DeleteStaleCompressedThemeConfigVariants(themeCssPath);
@@ -208,7 +211,10 @@ body {{
         if (Directory.Exists(customDir))
         {
             var cssFile = GetThemeCssFile(customDir);
-            if (cssFile != null) return $"/themes/custom/{themeName}/{cssFile}";
+            if (cssFile != null)
+            {
+                return $"/themes/custom/{themeName}/{cssFile}";
+            }
         }
 
         // Check bootswatch themes
@@ -216,7 +222,10 @@ body {{
         if (Directory.Exists(bootswatchDir))
         {
             var cssFile = GetThemeCssFile(bootswatchDir);
-            if (cssFile != null) return $"/themes/bootswatch/{themeName}/{cssFile}";
+            if (cssFile != null)
+            {
+                return $"/themes/bootswatch/{themeName}/{cssFile}";
+            }
         }
 
         return null;
@@ -225,10 +234,14 @@ body {{
     private static string? GetThemeCssFile(string themeDir)
     {
         if (File.Exists(Path.Combine(themeDir, "bootstrap.min.css")))
+        {
             return "bootstrap.min.css";
+        }
 
         if (File.Exists(Path.Combine(themeDir, "theme.css")))
+        {
             return "theme.css";
+        }
 
         return null;
     }
@@ -340,7 +353,8 @@ body {{
             // Write the theme configuration using the existing method
             await WriteThemeToStaticFile(currentTheme, currentBackgroundImage);
 
-            _logger.LogInformation("Theme configuration initialized with theme: {Theme} and background: {BackgroundImage}",
+            _logger.LogInformation(
+                "Theme configuration initialized with theme: {Theme} and background: {BackgroundImage}",
                 currentTheme, currentBackgroundImage ?? "none");
         }
         catch (Exception ex)

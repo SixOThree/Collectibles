@@ -130,8 +130,16 @@ namespace Collectibles.Infrastructure.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
 
+                    b.Property<DateTime?>("PreviewAttemptedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("PreviewPath")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
 
                     b.HasKey("Id");
 
@@ -213,8 +221,10 @@ namespace Collectibles.Infrastructure.Migrations
                     b.Property<long?>("PreviewImageId")
                         .HasColumnType("bigint");
 
-                    b.Property<long?>("QRCodeId")
-                        .HasColumnType("bigint");
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
 
                     b.Property<bool>("ShowRelatedItemsFirst")
                         .HasColumnType("bit");
@@ -384,6 +394,11 @@ namespace Collectibles.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
 
                     b.Property<long?>("ShowcaseId")
                         .HasColumnType("bigint");
@@ -642,6 +657,9 @@ namespace Collectibles.Infrastructure.Migrations
                     b.Property<long>("LinkInfoId")
                         .HasColumnType("bigint");
 
+                    b.Property<DateTime?>("ProcessingStartedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("ScreenshotPath")
                         .HasMaxLength(1024)
                         .HasColumnType("nvarchar(1024)");
@@ -778,10 +796,12 @@ namespace Collectibles.Infrastructure.Migrations
                         .HasColumnType("bigint");
 
                     b.Property<string>("ContentType")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
 
                     b.Property<string>("CorrelationId")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
 
                     b.Property<long>("ElapsedMilliseconds")
                         .HasColumnType("bigint");
@@ -790,36 +810,45 @@ namespace Collectibles.Infrastructure.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("ExceptionType")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
 
                     b.Property<string>("Host")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
 
                     b.Property<string>("IPAddress")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(45)
+                        .HasColumnType("nvarchar(45)");
 
                     b.Property<string>("Method")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
 
                     b.Property<string>("Path")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(2048)
+                        .HasColumnType("nvarchar(2048)");
 
                     b.Property<string>("QueryString")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(2048)
+                        .HasColumnType("nvarchar(2048)");
 
                     b.Property<string>("RequestId")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
 
                     b.Property<long?>("ResponseContentLength")
                         .HasColumnType("bigint");
 
                     b.Property<string>("ResponseContentType")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
 
                     b.Property<string>("Scheme")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
 
                     b.Property<int>("StatusCode")
                         .HasColumnType("int");
@@ -828,17 +857,29 @@ namespace Collectibles.Infrastructure.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<string>("UserAgent")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
 
                     b.Property<string>("UserId")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("UserName")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
 
                     b.HasKey("Id");
 
-                    b.ToTable("RequestLogs");
+                    b.HasIndex("Timestamp")
+                        .HasDatabaseName("IX_RequestLogs_Timestamp");
+
+                    b.HasIndex("StatusCode", "Timestamp")
+                        .HasDatabaseName("IX_RequestLogs_StatusCode_Timestamp");
+
+                    b.HasIndex("UserId", "Timestamp")
+                        .HasDatabaseName("IX_RequestLogs_UserId_Timestamp");
+
+                    b.ToTable("RequestLogs", (string)null);
                 });
 
             modelBuilder.Entity("Collectibles.Domain.Entities.Showcase", b =>
@@ -885,6 +926,11 @@ namespace Collectibles.Infrastructure.Migrations
 
                     b.Property<long?>("PreviewImageId")
                         .HasColumnType("bigint");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
 
                     b.Property<int>("SortOrder")
                         .HasColumnType("int");
@@ -936,14 +982,16 @@ namespace Collectibles.Infrastructure.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<string>("Note")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<long>("ShowcaseId")
                         .HasColumnType("bigint");
 
                     b.Property<string>("Token")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
 
                     b.Property<int>("ViewCount")
                         .HasColumnType("int");
@@ -952,7 +1000,11 @@ namespace Collectibles.Infrastructure.Migrations
 
                     b.HasIndex("ShowcaseId");
 
-                    b.ToTable("ShowcaseShareTokens");
+                    b.HasIndex("Token")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ShowcaseShareTokens_Token");
+
+                    b.ToTable("ShowcaseShareTokens", (string)null);
                 });
 
             modelBuilder.Entity("Collectibles.Domain.Entities.ShowcaseTag", b =>
@@ -1008,14 +1060,21 @@ namespace Collectibles.Infrastructure.Migrations
 
                     b.Property<string>("Description")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<string>("Key")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<DateTime>("LastModified")
                         .HasColumnType("datetime2");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
 
                     b.Property<string>("Value")
                         .IsRequired()
@@ -1023,7 +1082,11 @@ namespace Collectibles.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("SiteConfigurations");
+                    b.HasIndex("Key")
+                        .IsUnique()
+                        .HasDatabaseName("IX_SiteConfigurations_Key");
+
+                    b.ToTable("SiteConfigurations", (string)null);
                 });
 
             modelBuilder.Entity("Collectibles.Domain.Entities.SysLog", b =>
@@ -1137,6 +1200,11 @@ namespace Collectibles.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Tags_Name")
+                        .HasFilter("[Deleted] IS NULL");
+
                     b.ToTable("Tags", (string)null);
                 });
 
@@ -1194,7 +1262,7 @@ namespace Collectibles.Infrastructure.Migrations
 
                     b.HasIndex("VocabularyId");
 
-                    b.ToTable("TaxonomyVocabularies", (string)null);
+                    b.ToTable("TaxonomyTerms", (string)null);
                 });
 
             modelBuilder.Entity("Collectibles.Domain.Entities.TaxonomyVocabulary", b =>
@@ -1247,7 +1315,7 @@ namespace Collectibles.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("TaxonomyTerms", (string)null);
+                    b.ToTable("TaxonomyVocabularies", (string)null);
                 });
 
             modelBuilder.Entity("Collectibles.Domain.Entities.ZipUploadJob", b =>
@@ -1268,7 +1336,8 @@ namespace Collectibles.Infrastructure.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("CurrentItemName")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<int>("ErrorCount")
                         .HasColumnType("int");
@@ -1278,7 +1347,8 @@ namespace Collectibles.Infrastructure.Migrations
 
                     b.Property<string>("FileName")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
 
                     b.Property<long>("FileSize")
                         .HasColumnType("bigint");
@@ -1301,6 +1371,11 @@ namespace Collectibles.Infrastructure.Migrations
                     b.Property<string>("ProcessingData")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
                     b.Property<long>("ShowcaseId")
                         .HasColumnType("bigint");
 
@@ -1318,11 +1393,18 @@ namespace Collectibles.Infrastructure.Migrations
 
                     b.Property<string>("UserId")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
 
                     b.HasKey("Id");
 
-                    b.ToTable("ZipUploadJobs");
+                    b.HasIndex("Status")
+                        .HasDatabaseName("IX_ZipUploadJobs_Status");
+
+                    b.HasIndex("UserId", "Created")
+                        .HasDatabaseName("IX_ZipUploadJobs_UserId_Created");
+
+                    b.ToTable("ZipUploadJobs", (string)null);
                 });
 
             modelBuilder.Entity("Collectibles.Domain.Security.PasswordHistory", b =>
@@ -1338,15 +1420,20 @@ namespace Collectibles.Infrastructure.Migrations
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
 
                     b.Property<string>("UserId")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
 
                     b.HasKey("Id");
 
-                    b.ToTable("PasswordHistories");
+                    b.HasIndex("UserId", "CreatedAt")
+                        .HasDatabaseName("IX_PasswordHistories_UserId_CreatedAt");
+
+                    b.ToTable("PasswordHistories", (string)null);
                 });
 
             modelBuilder.Entity("Collectibles.Infrastructure.Persistence.ApplicationUser", b =>
@@ -1842,6 +1929,15 @@ namespace Collectibles.Infrastructure.Migrations
                     b.Navigation("Parent");
 
                     b.Navigation("Vocabulary");
+                });
+
+            modelBuilder.Entity("Collectibles.Domain.Security.PasswordHistory", b =>
+                {
+                    b.HasOne("Collectibles.Infrastructure.Persistence.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>

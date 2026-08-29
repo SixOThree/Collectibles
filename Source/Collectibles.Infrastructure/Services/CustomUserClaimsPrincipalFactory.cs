@@ -1,5 +1,7 @@
 using System.Security.Claims;
+
 using Collectibles.Infrastructure.Persistence;
+
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 

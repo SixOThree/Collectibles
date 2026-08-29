@@ -8,6 +8,7 @@ public class SyncComparisonService
     /// <summary>
     /// Compares local files against the server manifest and classifies each entry.
     /// </summary>
+    /// <returns></returns>
     public List<SyncItem> Compare(
         Dictionary<string, (string Hash, long Size, string FullPath)> localFiles,
         List<ShowcaseManifestItemDto> serverManifest)
@@ -56,9 +57,9 @@ public class SyncComparisonService
                         ItemPath = exactMatch.ItemPath,
                         AttachmentHashId = exactMatch.AttachmentHashId,
                         AttachmentType = exactMatch.AttachmentType,
-                        Status = SyncStatus.Matched
+                        Status = SyncStatus.Matched,
                     });
-                    matchedServerEntries.Add(exactMatch.AttachmentHashId ?? "");
+                    matchedServerEntries.Add(exactMatch.AttachmentHashId ?? string.Empty);
                 }
                 else
                 {
@@ -75,9 +76,9 @@ public class SyncComparisonService
                         ItemPath = firstMatch.ItemPath,
                         AttachmentHashId = firstMatch.AttachmentHashId,
                         AttachmentType = firstMatch.AttachmentType,
-                        Status = SyncStatus.MovedCopied
+                        Status = SyncStatus.MovedCopied,
                     });
-                    matchedServerEntries.Add(firstMatch.AttachmentHashId ?? "");
+                    matchedServerEntries.Add(firstMatch.AttachmentHashId ?? string.Empty);
                 }
             }
             else if (serverByNameSize.TryGetValue($"{fileName}|{size}", out var nameMatch))
@@ -94,9 +95,9 @@ public class SyncComparisonService
                     ItemPath = nameMatch.ItemPath,
                     AttachmentHashId = nameMatch.AttachmentHashId,
                     AttachmentType = nameMatch.AttachmentType,
-                    Status = SyncStatus.Matched
+                    Status = SyncStatus.Matched,
                 });
-                matchedServerEntries.Add(nameMatch.AttachmentHashId ?? "");
+                matchedServerEntries.Add(nameMatch.AttachmentHashId ?? string.Empty);
             }
             else
             {
@@ -106,7 +107,7 @@ public class SyncComparisonService
                     LocalFileName = relativePath,
                     LocalContentHash = hash,
                     LocalFileSize = size,
-                    Status = SyncStatus.ToUpload
+                    Status = SyncStatus.ToUpload,
                 });
             }
         }
@@ -114,7 +115,7 @@ public class SyncComparisonService
         // Server-only entries
         foreach (var entry in serverManifest)
         {
-            if (!matchedServerEntries.Contains(entry.AttachmentHashId ?? ""))
+            if (!matchedServerEntries.Contains(entry.AttachmentHashId ?? string.Empty))
             {
                 results.Add(new SyncItem
                 {
@@ -124,7 +125,7 @@ public class SyncComparisonService
                     ItemPath = entry.ItemPath,
                     AttachmentHashId = entry.AttachmentHashId,
                     AttachmentType = entry.AttachmentType,
-                    Status = SyncStatus.ServerOnly
+                    Status = SyncStatus.ServerOnly,
                 });
             }
         }

@@ -1,12 +1,13 @@
-@page "/admin/diagnostics"
+﻿@page "/admin/diagnostics"
 @using Collectibles.Domain.Entities
+@using Collectibles.Application.Interfaces
 @using Collectibles.Infrastructure.Persistence
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.AspNetCore.Authorization
 @using System.IO
 @using System.Text
 @attribute [Authorize(Roles = "Administrator")]
-@inject ApplicationDbContext DbContext
+@inject IApplicationDbContextFactory DbContextFactory
 @inject IConfiguration Configuration
 @inject IWebHostEnvironment Environment
 @rendermode InteractiveServer
@@ -321,18 +322,22 @@
 
     private async Task LoadLogSummary()
     {
+        // A context per operation: this page ran queries and RemoveRange deletes straight
+        // off one circuit-scoped context.
+        await using var context = await DbContextFactory.CreateDbContextAsync(CancellationToken.None);
+
         var yesterday = DateTime.UtcNow.AddDays(-1);
         
         logSummary = new LogSummary
         {
-            TotalLogs = await DbContext.SysLogs.CountAsync(),
-            ErrorsLast24Hours = await DbContext.SysLogs
+            TotalLogs = await context.SysLogs.CountAsync(),
+            ErrorsLast24Hours = await context.SysLogs
                 .Where(l => l.Timestamp >= yesterday && l.Level == Domain.Entities.LogLevel.Error)
                 .CountAsync(),
-            WarningsLast24Hours = await DbContext.SysLogs
+            WarningsLast24Hours = await context.SysLogs
                 .Where(l => l.Timestamp >= yesterday && l.Level == Domain.Entities.LogLevel.Warning)
                 .CountAsync(),
-            InfoLast24Hours = await DbContext.SysLogs
+            InfoLast24Hours = await context.SysLogs
                 .Where(l => l.Timestamp >= yesterday && l.Level == Domain.Entities.LogLevel.Information)
                 .CountAsync()
         };
@@ -340,7 +345,9 @@
 
     private async Task ViewDatabaseLogs()
     {
-        recentDatabaseLogs = await DbContext.SysLogs
+        await using var context = await DbContextFactory.CreateDbContextAsync(CancellationToken.None);
+
+        recentDatabaseLogs = await context.SysLogs
             .OrderByDescending(l => l.Timestamp)
             .Take(100)
             .ToListAsync();
@@ -350,13 +357,15 @@
 
     private async Task ClearOldLogs()
     {
+        await using var context = await DbContextFactory.CreateDbContextAsync(CancellationToken.None);
+
         var cutoffDate = DateTime.UtcNow.AddDays(-30);
-        var logsToDelete = await DbContext.SysLogs
+        var logsToDelete = await context.SysLogs
             .Where(l => l.Timestamp < cutoffDate)
             .ToListAsync();
         
-        DbContext.SysLogs.RemoveRange(logsToDelete);
-        await DbContext.SaveChangesAsync();
+        context.SysLogs.RemoveRange(logsToDelete);
+        await context.SaveChangesAsync(CancellationToken.None);
         
         await LoadLogSummary();
     }

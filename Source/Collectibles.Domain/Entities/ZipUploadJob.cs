@@ -21,4 +21,10 @@ public class ZipUploadJob : BaseAuditableEntity
     public string? ErrorDetails { get; set; }
     public string? ProcessingData { get; set; } // JSON serialized data for resuming
     public string? StoragePath { get; set; } // Path where the zip file is stored
+
+    /// <summary>
+    /// Gets or sets the optimistic-concurrency token. Without it, two editors of the same
+    /// aggregate silently last-write-wins.
+    /// </summary>
+    public byte[]? RowVersion { get; set; }
 }

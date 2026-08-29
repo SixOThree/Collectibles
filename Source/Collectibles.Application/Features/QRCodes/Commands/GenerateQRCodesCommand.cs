@@ -1,6 +1,7 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Entities;
 using Collectibles.Domain.Interfaces;
+
 using MediatR;
 
 namespace Collectibles.Application.Features.QRCodes.Commands;
@@ -8,7 +9,6 @@ namespace Collectibles.Application.Features.QRCodes.Commands;
 public class GenerateQRCodesCommand : IRequest<GenerateQRCodesResult>
 {
     public int Quantity { get; set; }
-    public string? UserId { get; set; } // Optional UserId to handle Blazor context issues
 }
 
 public class GenerateQRCodesResult
@@ -68,8 +68,8 @@ public class GenerateQRCodesCommandHandler : IRequestHandler<GenerateQRCodesComm
 
             generatedCodes.Add(code);
 
-            // Use the provided UserId if available, otherwise fall back to CurrentUserService
-            var userId = request.UserId ?? _currentUserService.UserId;
+            // Identity always comes from the authenticated principal, never the request.
+            var userId = _currentUserService.UserId;
 
             if (string.IsNullOrEmpty(userId))
             {
@@ -114,6 +114,6 @@ public class GenerateQRCodesCommandHandler : IRequestHandler<GenerateQRCodesComm
     private static string GenerateUniqueCode()
     {
         var guid = Guid.NewGuid().ToString("N");
-        return $"QR-{guid.Substring(0, 8).ToUpper(System.Globalization.CultureInfo.CurrentCulture)}-{guid.Substring(8, 4).ToUpper(System.Globalization.CultureInfo.CurrentCulture)}";
+        return $"QR-{guid[..8].ToUpperInvariant()}-{guid.Substring(8, 4).ToUpperInvariant()}";
     }
 }

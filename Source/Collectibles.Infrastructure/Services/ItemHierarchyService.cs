@@ -1,12 +1,26 @@
-using System.Collections.Concurrent;
 using Collectibles.Application.Interfaces;
+
 using Microsoft.Extensions.Logging;
 
 namespace Collectibles.Infrastructure.Services;
 
 public class ItemHierarchyService : IItemHierarchyService
 {
-    private static readonly ConcurrentDictionary<string, SemaphoreSlim> _pathLocks = new();
+    // A fixed set of striped locks keyed by showcase.
+    //
+    // The previous lock was keyed by the *full* folder path, which does not serialize the
+    // operations that actually collide: importing "A/B" and "A/C" concurrently took two
+    // different locks and both created parent "A". It also grew a dictionary entry per
+    // distinct path forever. Locking per showcase serializes the whole hierarchy walk for
+    // that showcase, and a fixed array cannot leak.
+    //
+    // This is still a single-process guard: a multi-instance deployment needs the check to
+    // move into the database. Duplicates that slip through are reconciled below by
+    // re-querying after a failed insert.
+    private const int LockStripeCount = 64;
+
+    private static readonly SemaphoreSlim[] ShowcaseLocks =
+        [.. Enumerable.Range(0, LockStripeCount).Select(_ => new SemaphoreSlim(1, 1))];
 
     private readonly IApplicationDbContextFactory _contextFactory;
     private readonly ILogger<ItemHierarchyService> _logger;
@@ -28,8 +42,7 @@ public class ItemHierarchyService : IItemHierarchyService
             throw new ArgumentException("At least one folder segment is required.", nameof(folderSegments));
         }
 
-        var lockKey = $"{showcaseId}:{string.Join("/", folderSegments)}";
-        var semaphore = _pathLocks.GetOrAdd(lockKey, _ => new SemaphoreSlim(1, 1));
+        var semaphore = ShowcaseLocks[(int)((ulong)showcaseId % LockStripeCount)];
 
         await semaphore.WaitAsync(ct);
         try
@@ -49,10 +62,10 @@ public class ItemHierarchyService : IItemHierarchyService
 
                 var existingItem = await context.CollectibleItems
                     .Include(i => i.Showcases)
-                    .FirstOrDefaultAsync(i =>
+                    .FirstOrDefaultAsync(
+                        i =>
                         i.Name == folderName
                         && i.ParentId == parentId
-                        && i.Deleted == null
                         && i.Showcases.Any(s => s.Id == showcaseId), ct);
 
                 if (existingItem != null)
@@ -67,12 +80,44 @@ public class ItemHierarchyService : IItemHierarchyService
                     ParentId = parentId,
                     ContentDefinitionId = isLeaf ? contentDefinitionId : null,
                     Created = DateTime.UtcNow,
-                    CreatedBy = userId
+                    CreatedBy = userId,
                 };
                 newItem.Showcases.Add(showcase);
 
                 context.CollectibleItems.Add(newItem);
-                await context.SaveChangesAsync(ct);
+
+                try
+                {
+                    await context.SaveChangesAsync(ct);
+                }
+                catch (DbUpdateException ex)
+                {
+                    // Another instance may have created the same folder between the lookup
+                    // and the insert. Fall back to whatever is now in the database rather
+                    // than failing the import or creating a duplicate.
+                    _logger.LogWarning(
+                        ex,
+                        "Insert of folder item '{Name}' in showcase {ShowcaseId} failed; re-reading",
+                        folderName,
+                        showcaseId);
+
+                    var capturedParentId = parentId;
+                    var raced = await context.CollectibleItems
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(
+                            i => i.Name == folderName
+                                && i.ParentId == capturedParentId
+                                && i.Showcases.Any(s => s.Id == showcaseId),
+                            ct);
+
+                    if (raced == null)
+                    {
+                        throw;
+                    }
+
+                    parentId = raced.Id;
+                    continue;
+                }
 
                 _logger.LogInformation(
                     "Created item '{Name}' (Id={Id}) under parent {ParentId} in showcase {ShowcaseId}",
@@ -106,7 +151,7 @@ public class ItemHierarchyService : IItemHierarchyService
         item.CollectibleItemAttachments.Add(new CollectibleItemAttachment
         {
             CollectibleItemId = itemId,
-            AttachmentId = attachmentId
+            AttachmentId = attachmentId,
         });
 
         await context.SaveChangesAsync(ct);
@@ -119,7 +164,8 @@ public class ItemHierarchyService : IItemHierarchyService
 
         var attachmentId = await context.CollectibleItemAttachments
             .Where(cia => cia.CollectibleItemId == itemId)
-            .Join(context.Attachments,
+            .Join(
+                context.Attachments,
                 cia => cia.AttachmentId,
                 a => a.Id,
                 (cia, a) => a)
@@ -140,7 +186,7 @@ public class ItemHierarchyService : IItemHierarchyService
         {
             var item = await context.CollectibleItems
                 .Include(i => i.CollectibleItemAttachments)
-                .FirstOrDefaultAsync(i => i.Id == currentId && i.Deleted == null, ct);
+                .FirstOrDefaultAsync(i => i.Id == currentId, ct);
 
             if (item == null)
             {
@@ -153,7 +199,7 @@ public class ItemHierarchyService : IItemHierarchyService
             }
 
             var hasChildren = await context.CollectibleItems
-                .AnyAsync(i => i.ParentId == currentId && i.Deleted == null, ct);
+                .AnyAsync(i => i.ParentId == currentId, ct);
 
             if (hasChildren)
             {

@@ -1,4 +1,5 @@
 using Collectibles.Infrastructure.Persistence;
+
 using Microsoft.AspNetCore.Identity;
 
 namespace Collectibles.Web.Components.Account;

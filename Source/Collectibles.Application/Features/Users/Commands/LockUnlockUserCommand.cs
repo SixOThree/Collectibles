@@ -1,5 +1,6 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Constants;
+
 using MediatR;
 
 namespace Collectibles.Application.Features.Users.Commands;

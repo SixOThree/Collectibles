@@ -1,5 +1,6 @@
 using Collectibles.Application.Tests.Common;
 using Collectibles.Infrastructure.Services.Logging;
+
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 

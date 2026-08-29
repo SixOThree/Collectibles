@@ -1,4 +1,4 @@
-@page "/showcases"
+﻿@page "/showcases"
 @rendermode InteractiveServerWithoutPrerender
 @attribute [Authorize]
 @inherits LoggablePageBase
@@ -126,7 +126,7 @@ else if (_showcases.Count == 1)
 {
     @* Hero layout for single showcase *@
     <div class="showcase-hero mb-4">
-        <div class="hero-card" @onclick="() => NavigateToShowcase(_showcases[0].Id)">
+        <div class="hero-card" @onclick="() => NavigateToShowcase(_showcases[0].Id)" role="button" tabindex="0" @onkeydown="@(e => { if (e.Key == "Enter" || e.Key == " ") NavigateToShowcase(_showcases[0].Id); })">
             @if (!string.IsNullOrEmpty(_showcases[0].ImageUrl))
             {
                 <img src="@_showcases[0].ImageUrl" alt="@_showcases[0].Name" class="hero-image" />
@@ -167,7 +167,7 @@ else
     <div class="showcase-grid">
         @foreach (var showcase in _showcases)
         {
-            <div class="showcase-card" @onclick="() => NavigateToShowcase(showcase.Id)">
+            <div class="showcase-card" @onclick="() => NavigateToShowcase(showcase.Id)" role="button" tabindex="0" @onkeydown="@(e => { if (e.Key == "Enter" || e.Key == " ") NavigateToShowcase(showcase.Id); })">
                 @if (!string.IsNullOrEmpty(showcase.ImageUrl))
                 {
                     <img src="@showcase.ImageUrl" alt="@showcase.Name" class="card-image" />
@@ -216,7 +216,7 @@ else
         var user = authState.User;
         var userId = user?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         
-        _showcases = await Mediator.Send(new GetShowcasesListQuery { UserId = userId });
+        _showcases = await Mediator.Send(new GetShowcasesListQuery { OwnedOnly = true });
         
         // Debug: Log showcase data
         if (_showcases != null)

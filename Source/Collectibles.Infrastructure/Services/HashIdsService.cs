@@ -1,5 +1,7 @@
 using Collectibles.Application.Services;
+
 using HashidsNet;
+
 using Microsoft.Extensions.Configuration;
 
 namespace Collectibles.Infrastructure.Services;
@@ -63,6 +65,33 @@ public class HashIdsService : IHashIdsService
         }
 
         return result[0];
+    }
+
+    /// <inheritdoc />
+    public bool TryDecode(string? hash, out long id)
+    {
+        id = 0;
+
+        if (string.IsNullOrWhiteSpace(hash))
+        {
+            return false;
+        }
+
+        try
+        {
+            var result = _hashids.DecodeLong(hash);
+            if (result.Length == 0)
+            {
+                return false;
+            }
+
+            id = result[0];
+            return true;
+        }
+        catch (Exception ex) when (ex is ArgumentException or FormatException or OverflowException)
+        {
+            return false;
+        }
     }
 
     public string Encode(params long[] ids)

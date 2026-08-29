@@ -4,6 +4,7 @@ using Collectibles.Domain.Configuration.Storage;
 using Collectibles.Domain.Entities;
 using Collectibles.Domain.Enums;
 using Collectibles.Domain.Interfaces;
+
 using Microsoft.Extensions.Options;
 
 namespace Collectibles.Application.Tests.Features.Attachments.Commands;
@@ -56,13 +57,14 @@ public class InitiateDirectUploadCommandAuthorizationTests : BaseTestFixture
             Mock.Of<IEventLogService>(),
             _currentUserServiceMock.Object);
 
-        var act = async () => await handler.Handle(new InitiateDirectUploadCommand
-        {
-            FileName = "blocked.jpg",
-            FileSize = 100,
-            ContentType = "image/jpeg",
-            ShowcaseId = showcase.Id,
-        }, CancellationToken);
+        var act = async () => await handler.Handle(
+            new InitiateDirectUploadCommand
+            {
+                FileName = "blocked.jpg",
+                FileSize = 100,
+                ContentType = "image/jpeg",
+                ShowcaseId = showcase.Id,
+            }, CancellationToken);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>()
             .WithMessage("You are not authorized to upload to this showcase.");
@@ -99,13 +101,14 @@ public class InitiateDirectUploadCommandAuthorizationTests : BaseTestFixture
             Mock.Of<IEventLogService>(),
             _currentUserServiceMock.Object);
 
-        var result = await handler.Handle(new InitiateDirectUploadCommand
-        {
-            FileName = "photo.jpg",
-            FileSize = 200,
-            ContentType = "image/jpeg",
-            ShowcaseId = showcase.Id,
-        }, CancellationToken);
+        var result = await handler.Handle(
+            new InitiateDirectUploadCommand
+            {
+                FileName = "photo.jpg",
+                FileSize = 200,
+                ContentType = "image/jpeg",
+                ShowcaseId = showcase.Id,
+            }, CancellationToken);
 
         result.SasUrl.Should().Be("https://example.test/upload");
         result.BlobName.Should().Be("showcases/owned/photo.jpg");

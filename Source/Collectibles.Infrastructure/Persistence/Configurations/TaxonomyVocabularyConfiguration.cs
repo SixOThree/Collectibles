@@ -2,9 +2,13 @@
 
 namespace Collectibles.Infrastructure.Persistence.Configurations;
 
-public class TaxonomyTermConfiguration : IEntityTypeConfiguration<TaxonomyTerm>
+/// <summary>
+/// Maps <see cref="TaxonomyVocabulary"/> to the TaxonomyVocabularies table.
+/// See <see cref="TaxonomyTermConfiguration"/> for why these two were previously swapped.
+/// </summary>
+public class TaxonomyVocabularyConfiguration : IEntityTypeConfiguration<TaxonomyVocabulary>
 {
-    public void Configure(EntityTypeBuilder<TaxonomyTerm> builder)
+    public void Configure(EntityTypeBuilder<TaxonomyVocabulary> builder)
     {
         builder.ToTable("TaxonomyVocabularies");
         builder.Ignore(e => e.DomainEvents);

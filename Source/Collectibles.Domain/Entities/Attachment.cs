@@ -28,4 +28,17 @@ public class Attachment : BaseAuditableSoftDeleteEntity
     // Content hash for duplicate detection
     public string? ContentHash { get; set; }
     public DateTime? HashComputedAt { get; set; }
+
+    /// <summary>
+    /// Gets or sets when preview generation was last attempted for this attachment.
+    /// Lets the preview worker back off rows that keep failing instead of re-selecting
+    /// them on every run and starving newer uploads.
+    /// </summary>
+    public DateTime? PreviewAttemptedAt { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optimistic-concurrency token. Without it, two editors of the same
+    /// aggregate silently last-write-wins.
+    /// </summary>
+    public byte[]? RowVersion { get; set; }
 }

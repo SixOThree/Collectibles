@@ -1,6 +1,8 @@
 using System.Security.Cryptography;
+
 using Collectibles.Application.Setup;
 using Collectibles.Infrastructure.Persistence;
+
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
@@ -128,7 +130,12 @@ public class SetupTokenService : ISetupTokenService
             }
 
             var storedToken = await File.ReadAllTextAsync(_tokenFilePath);
-            var isValid = string.Equals(token.Trim(), storedToken.Trim(), StringComparison.Ordinal);
+
+            // Fixed-time comparison: string.Equals returns as soon as it finds a
+            // differing byte, which leaks the length of the matching prefix.
+            var isValid = System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+                System.Text.Encoding.UTF8.GetBytes(token.Trim()),
+                System.Text.Encoding.UTF8.GetBytes(storedToken.Trim()));
 
             if (isValid)
             {

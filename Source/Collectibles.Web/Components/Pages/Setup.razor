@@ -1,4 +1,4 @@
-@page "/setup"
+﻿@page "/setup"
 @using Collectibles.Application.Setup
 @using Collectibles.Infrastructure.Persistence
 @using Microsoft.AspNetCore.Authorization
@@ -62,8 +62,14 @@
                                 <InputText id="setupToken" class="form-control" @bind-Value="model.SetupToken" 
                                            placeholder="Enter the token from setup-token.txt" />
                                 <ValidationMessage For="@(() => model.SetupToken)" />
+                                @* The token file path is deliberately not rendered: this
+                                   page is anonymous, and the server's filesystem layout is
+                                   not something an unauthenticated visitor should learn.
+                                   The full path is written to the server console and log
+                                   on first start. *@
                                 <small class="form-text text-muted">
-                                    The token can be found in the file: @tokenFilePath
+                                    The token is written to <code>setup-token.txt</code> in the application's
+                                    data directory, and to the server console on first start.
                                 </small>
                             </div>
 
@@ -124,14 +130,12 @@
     private bool isProcessing = false;
     private bool setupComplete = false;
     private string errorMessage = string.Empty;
-    private string tokenFilePath = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
             isSetupRequired = await SetupTokenService.IsSetupRequiredAsync();
-            tokenFilePath = SetupTokenService.GetTokenFilePath();
             
             if (!isSetupRequired)
             {

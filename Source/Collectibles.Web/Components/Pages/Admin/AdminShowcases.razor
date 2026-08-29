@@ -1,4 +1,4 @@
-@page "/admin/showcases"
+﻿@page "/admin/showcases"
 @rendermode InteractiveServerWithoutPrerender
 @inherits LoggablePageBase
 @using Microsoft.AspNetCore.Authorization
@@ -55,7 +55,7 @@ else
                         <i class="bi bi-search"></i>
                     </span>
                     <input type="text" class="form-control" placeholder="Search showcases…" aria-label="Search showcases"
-                           @bind="_searchTerm" @bind:event="oninput" @onkeyup="@((e) => { if (e.Key == "Enter") SearchShowcases(); })">
+                           @bind="_searchTerm" @bind:event="oninput" @onkeyup="@(async (e) => { if (e.Key == "Enter") await SearchShowcases(); })">
                 </div>
             </div>
             <div class="col-md-3">
@@ -213,7 +213,7 @@ else
         };
     }
 
-    private async void SearchShowcases()
+    private async Task SearchShowcases()
     {
         ApplyFiltersAndSort();
         await LogAction(EventAction.Search, new
@@ -224,7 +224,7 @@ else
         });
     }
 
-    private async void ResetFilters()
+    private async Task ResetFilters()
     {
         _searchTerm = string.Empty;
         _sortBy = "name";
@@ -236,7 +236,7 @@ else
         });
     }
 
-    private async void OnSortChanged()
+    private async Task OnSortChanged()
     {
         ApplyFiltersAndSort();
         await LogAction(EventAction.Search, new

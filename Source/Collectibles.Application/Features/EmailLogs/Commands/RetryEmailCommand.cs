@@ -1,7 +1,9 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Configuration.Email;
 using Collectibles.Domain.Entities;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -19,21 +21,30 @@ public class RetryEmailCommandHandler : IRequestHandler<RetryEmailCommand>
     private readonly ILogger<RetryEmailCommandHandler> _logger;
     private readonly IEventLogService _eventLogService;
     private readonly EmailSettings _emailSettings;
+    private readonly ICurrentUserService _currentUserService;
 
     public RetryEmailCommandHandler(
         IApplicationDbContext context,
         ILogger<RetryEmailCommandHandler> logger,
         IEventLogService eventLogService,
-        IOptions<EmailSettings> emailSettings)
+        IOptions<EmailSettings> emailSettings,
+        ICurrentUserService currentUserService)
     {
         _context = context;
         _logger = logger;
         _eventLogService = eventLogService;
         _emailSettings = emailSettings.Value;
+        _currentUserService = currentUserService;
     }
 
     public async Task Handle(RetryEmailCommand request, CancellationToken cancellationToken)
     {
+        // Re-sending a stored email to its original recipient is an administrative action.
+        if (!_currentUserService.IsAdministrator)
+        {
+            throw new UnauthorizedAccessException("Only administrators can retry emails.");
+        }
+
         var originalEmailLog = await _context.EmailLogs
             .FirstOrDefaultAsync(e => e.Id == request.EmailLogId, cancellationToken);
 

@@ -1,8 +1,11 @@
 using System.Diagnostics;
+
 using Collectibles.Application.Features.Attachments.Dtos;
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Interfaces;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -13,19 +16,29 @@ public class MigrateAttachmentsToAzureCommandHandler : IRequestHandler<MigrateAt
     private readonly IApplicationDbContextFactory _dbContextFactory;
     private readonly IFileStorage _fileStorage;
     private readonly ILogger<MigrateAttachmentsToAzureCommandHandler> _logger;
+    private readonly ICurrentUserService _currentUserService;
 
     public MigrateAttachmentsToAzureCommandHandler(
         IApplicationDbContextFactory dbContextFactory,
         IFileStorage fileStorage,
-        ILogger<MigrateAttachmentsToAzureCommandHandler> logger)
+        ILogger<MigrateAttachmentsToAzureCommandHandler> logger,
+        ICurrentUserService currentUserService)
     {
         _dbContextFactory = dbContextFactory;
         _fileStorage = fileStorage;
         _logger = logger;
+        _currentUserService = currentUserService;
     }
 
     public async Task<MigrationResult> Handle(MigrateAttachmentsToAzureCommand request, CancellationToken cancellationToken)
     {
+        // Its Cleanup/Rollback siblings already require administrator; this bulk storage
+        // operation is at least as privileged.
+        if (!_currentUserService.IsAdministrator)
+        {
+            throw new UnauthorizedAccessException("Only administrators can migrate attachments to Azure.");
+        }
+
         var result = new MigrationResult
         {
             StartTime = DateTime.UtcNow,

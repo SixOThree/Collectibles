@@ -3,7 +3,9 @@ using System.Diagnostics;
 using Collectibles.Application.Features.Attachments.Dtos;
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Interfaces;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -14,19 +16,29 @@ public class VerifyAttachmentMigrationCommandHandler : IRequestHandler<VerifyAtt
     private readonly IApplicationDbContextFactory _dbContextFactory;
     private readonly IFileStorage _fileStorage;
     private readonly ILogger<VerifyAttachmentMigrationCommandHandler> _logger;
+    private readonly ICurrentUserService _currentUserService;
 
     public VerifyAttachmentMigrationCommandHandler(
         IApplicationDbContextFactory dbContextFactory,
         IFileStorage fileStorage,
-        ILogger<VerifyAttachmentMigrationCommandHandler> logger)
+        ILogger<VerifyAttachmentMigrationCommandHandler> logger,
+        ICurrentUserService currentUserService)
     {
         _dbContextFactory = dbContextFactory;
         _fileStorage = fileStorage;
         _logger = logger;
+        _currentUserService = currentUserService;
     }
 
     public async Task<VerificationResult> Handle(VerifyAttachmentMigrationCommand request, CancellationToken cancellationToken)
     {
+        // Its Cleanup/Rollback siblings already require administrator; this bulk storage
+        // operation is at least as privileged.
+        if (!_currentUserService.IsAdministrator)
+        {
+            throw new UnauthorizedAccessException("Only administrators can verify attachment migrations.");
+        }
+
         var result = new VerificationResult
         {
             StartTime = DateTime.UtcNow,
@@ -45,7 +57,7 @@ public class VerifyAttachmentMigrationCommandHandler : IRequestHandler<VerifyAtt
             await using (var countContext = await _dbContextFactory.CreateDbContextAsync(cancellationToken))
             {
                 result.TotalMigratedAttachments = await countContext.Attachments
-                    .Where(a => a.IsMigrated && a.Deleted == null)
+                    .Where(a => a.IsMigrated)
                     .CountAsync(cancellationToken);
             }
 
@@ -65,7 +77,7 @@ public class VerifyAttachmentMigrationCommandHandler : IRequestHandler<VerifyAtt
 
                 // Get next batch of migrated attachments
                 var attachmentsBatch = await context.Attachments
-                    .Where(a => a.IsMigrated && a.Deleted == null && a.Id > lastProcessedId)
+                    .Where(a => a.IsMigrated && a.Id > lastProcessedId)
                     .OrderBy(a => a.Id)
                     .Take(request.BatchSize)
                     .Select(a => new
