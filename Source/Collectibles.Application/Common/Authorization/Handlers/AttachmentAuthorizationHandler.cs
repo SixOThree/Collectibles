@@ -13,13 +13,16 @@ public class ViewAttachmentAuthorizationHandler :
 {
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IShareAccessContext _shareAccessContext;
 
     public ViewAttachmentAuthorizationHandler(
         IApplicationDbContext context,
-        ICurrentUserService currentUserService)
+        ICurrentUserService currentUserService,
+        IShareAccessContext shareAccessContext)
     {
         _context = context;
         _currentUserService = currentUserService;
+        _shareAccessContext = shareAccessContext;
     }
 
     protected override async Task HandleRequirementAsync(
@@ -40,8 +43,18 @@ public class ViewAttachmentAuthorizationHandler :
             // Get all showcases containing items with this attachment
             var showcases = attachmentItems.SelectMany(i => i.Showcases).Distinct().ToList();
 
-            // Owner can always view
-            if (showcases.Any(s => s.UserId == userId))
+            // Owner can always view. Compared only when we actually have an identity, so an
+            // anonymous caller cannot match a showcase whose owner is somehow unset.
+            if (!string.IsNullOrEmpty(userId)
+                && showcases.Any(s => string.Equals(s.UserId, userId, StringComparison.Ordinal)))
+            {
+                context.Succeed(requirement);
+                return;
+            }
+
+            // A validated share token is the one way an anonymous caller reaches a private
+            // showcase; without this the endpoint's token check and this decision disagree.
+            if (_shareAccessContext.HasAccessToAny(showcases.Select(s => s.Id)))
             {
                 context.Succeed(requirement);
                 return;
@@ -55,8 +68,12 @@ public class ViewAttachmentAuthorizationHandler :
         }
         else
         {
-            // Attachment not associated with any item - allow viewing by uploader
-            if (resource.CreatedBy == userId)
+            // Attachment not associated with any item - allow viewing by uploader.
+            // Both sides must be present: "anonymous" and "creator unknown" are not the same
+            // thing, and a null-to-null comparison would otherwise satisfy this for any caller.
+            if (!string.IsNullOrEmpty(userId)
+                && !string.IsNullOrEmpty(resource.CreatedBy)
+                && string.Equals(resource.CreatedBy, userId, StringComparison.Ordinal))
             {
                 context.Succeed(requirement);
             }

@@ -29,6 +29,7 @@ public static class SyncEndpoints
             .WithName("GetShowcaseManifest")
             .WithTags("Sync")
             .RequireAuthorization("ApiKeyOnly")
+            .RequireRateLimiting("ApiEndpoints")
             .DisableAntiforgery()
             .Produces<List<ShowcaseManifestItemDto>>(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status401Unauthorized)
@@ -38,6 +39,7 @@ public static class SyncEndpoints
             .WithName("MoveAttachment")
             .WithTags("Sync")
             .RequireAuthorization("ApiKeyOnly")
+            .RequireRateLimiting("ApiEndpoints")
             .DisableAntiforgery()
             .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status400BadRequest)
@@ -45,6 +47,7 @@ public static class SyncEndpoints
 
         endpoints.MapPost($"{RoutePrefix}/upload", InitiateSyncUpload)
             .RequireAuthorization("ApiKeyOnly")
+            .RequireRateLimiting("ApiEndpoints")
             .DisableAntiforgery()
             .Produces<SyncUploadResult>(200)
             .Produces(400)
@@ -52,6 +55,7 @@ public static class SyncEndpoints
 
         endpoints.MapPost($"{RoutePrefix}/upload/complete", CompleteSyncUpload)
             .RequireAuthorization("ApiKeyOnly")
+            .RequireRateLimiting("ApiEndpoints")
             .DisableAntiforgery()
             .Produces<long>(200)
             .Produces(400)

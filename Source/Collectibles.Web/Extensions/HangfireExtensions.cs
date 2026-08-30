@@ -21,16 +21,33 @@ public static class HangfireExtensions
     public static IApplicationBuilder UseHangfireDashboardWithAuth(this IApplicationBuilder app, IConfiguration configuration)
     {
         var dashboardPath = configuration["Hangfire:DashboardPath"] ?? "/hangfire";
-        var requireAuthorization = configuration.GetValue<bool>("Hangfire:RequireAuthorization");
+        var environment = app.ApplicationServices.GetRequiredService<IWebHostEnvironment>();
+        var logger = app.ApplicationServices.GetRequiredService<ILogger<Program>>();
 
-        var dashboardOptions = new DashboardOptions
+        // The dashboard exposes job arguments and lets a caller trigger and delete jobs, so it is
+        // administrative surface. An empty filter collection means Hangfire applies *no* authorization
+        // at all, so the bypass must never be reachable from configuration: outside Development the
+        // filter is installed unconditionally, whatever the configured value says.
+        var bypassRequested = !configuration.GetValue("Hangfire:RequireAuthorization", true);
+
+        if (bypassRequested && !environment.IsDevelopment())
         {
-            Authorization = requireAuthorization
-                ? new[] { new HangfireAuthorizationFilter() }
-                : Array.Empty<IDashboardAuthorizationFilter>(),
-        };
+            throw new InvalidOperationException(
+                "Hangfire:RequireAuthorization is false outside the Development environment. " +
+                "This would publish the Hangfire dashboard anonymously. Remove the setting or set it to true.");
+        }
 
-        app.UseHangfireDashboard(dashboardPath, dashboardOptions);
+        var authorizationFilters = bypassRequested
+            ? Array.Empty<IDashboardAuthorizationFilter>()
+            : new IDashboardAuthorizationFilter[] { new HangfireAuthorizationFilter() };
+
+        if (bypassRequested)
+        {
+            logger.LogWarning(
+                "Hangfire dashboard authorization is DISABLED. This is permitted only in Development and must never be used elsewhere.");
+        }
+
+        app.UseHangfireDashboard(dashboardPath, new DashboardOptions { Authorization = authorizationFilters });
 
         return app;
     }

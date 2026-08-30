@@ -73,10 +73,12 @@ public class RequestLoggingMiddleware
         var requestId = Activity.Current?.Id ?? context.TraceIdentifier;
         var correlationId = context.TraceIdentifier;
 
-        // Capture initial request details
+        // Capture initial request details. Share routes carry a bearer token in the path, so the
+        // logged value is redacted rather than the request being dropped: the access is still
+        // recorded, without persisting a credential that would remain usable to any log reader.
         var method = context.Request.Method;
-        var path = context.Request.Path.ToString();
-        var queryString = context.Request.QueryString.ToString();
+        var path = SensitiveRequestDataRedactor.RedactPath(context.Request.Path.ToString());
+        var queryString = SensitiveRequestDataRedactor.RedactQueryString(context.Request.QueryString.ToString());
         var scheme = context.Request.Scheme;
         var host = context.Request.Host.ToString();
         var ipAddress = GetIPAddress(context);

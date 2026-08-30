@@ -1,3 +1,4 @@
+using Collectibles.Domain.Common;
 using Collectibles.Domain.Constants;
 
 namespace Collectibles.Infrastructure.Persistence.Configurations;
@@ -15,15 +16,19 @@ public class ShowcaseShareTokenConfiguration : IEntityTypeConfiguration<Showcase
         builder.ToTable("ShowcaseShareTokens");
         builder.Ignore(e => e.DomainEvents);
 
-        builder.Property(t => t.Token)
-            .HasMaxLength(ApplicationConstants.ValidationLengths.ShareTokenMaxLength)
+        builder.Property(t => t.TokenHash)
+            .HasMaxLength(ShareTokenHash.Length)
+            .IsRequired()
+            .IsFixedLength();
+
+        builder.Property(t => t.ExpiresAt)
             .IsRequired();
 
         builder.Property(t => t.Note)
             .HasMaxLength(ApplicationConstants.ValidationLengths.DescriptionMaxLength);
 
-        builder.HasIndex(t => t.Token)
+        builder.HasIndex(t => t.TokenHash)
             .IsUnique()
-            .HasDatabaseName("IX_ShowcaseShareTokens_Token");
+            .HasDatabaseName("IX_ShowcaseShareTokens_TokenHash");
     }
 }

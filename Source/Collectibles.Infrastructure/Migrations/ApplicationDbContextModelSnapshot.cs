@@ -966,7 +966,7 @@ namespace Collectibles.Infrastructure.Migrations
                     b.Property<string>("DeletedBy")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<DateTime?>("ExpiresAt")
+                    b.Property<DateTime>("ExpiresAt")
                         .HasColumnType("datetime2");
 
                     b.Property<bool>("IsActive")
@@ -988,10 +988,11 @@ namespace Collectibles.Infrastructure.Migrations
                     b.Property<long>("ShowcaseId")
                         .HasColumnType("bigint");
 
-                    b.Property<string>("Token")
+                    b.Property<string>("TokenHash")
                         .IsRequired()
                         .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
+                        .HasColumnType("nchar(64)")
+                        .IsFixedLength();
 
                     b.Property<int>("ViewCount")
                         .HasColumnType("int");
@@ -1000,9 +1001,9 @@ namespace Collectibles.Infrastructure.Migrations
 
                     b.HasIndex("ShowcaseId");
 
-                    b.HasIndex("Token")
+                    b.HasIndex("TokenHash")
                         .IsUnique()
-                        .HasDatabaseName("IX_ShowcaseShareTokens_Token");
+                        .HasDatabaseName("IX_ShowcaseShareTokens_TokenHash");
 
                     b.ToTable("ShowcaseShareTokens", (string)null);
                 });

@@ -1,3 +1,4 @@
+using Collectibles.Domain.Common;
 using Collectibles.Domain.Interfaces;
 using Collectibles.Infrastructure.Persistence;
 
@@ -21,6 +22,9 @@ public class ShowcaseShareTokenRepository : IShowcaseShareTokenRepository
 
     public async Task<ShowcaseShareToken?> GetByTokenAsync(string token, CancellationToken cancellationToken = default)
     {
+        // Storage holds only the hash, so the presented token is hashed and matched against it.
+        var tokenHash = ShareTokenHash.Compute(token);
+
         return await _context.ShowcaseShareTokens
             .Include(s => s.Showcase)
                 .ThenInclude(s => s.CollectibleItems)
@@ -31,7 +35,7 @@ public class ShowcaseShareTokenRepository : IShowcaseShareTokenRepository
             .Include(s => s.Showcase)
                 .ThenInclude(s => s.ShowcaseTags)
                     .ThenInclude(st => st.Tag)
-            .FirstOrDefaultAsync(s => s.Token == token, cancellationToken);
+            .FirstOrDefaultAsync(s => s.TokenHash == tokenHash, cancellationToken);
     }
 
     public async Task<IEnumerable<ShowcaseShareToken>> GetByShowcaseIdAsync(long showcaseId, CancellationToken cancellationToken = default)
@@ -76,8 +80,10 @@ public class ShowcaseShareTokenRepository : IShowcaseShareTokenRepository
 
     public async Task IncrementViewCountAsync(string token, CancellationToken cancellationToken = default)
     {
+        var tokenHash = ShareTokenHash.Compute(token);
+
         var shareToken = await _context.ShowcaseShareTokens
-            .FirstOrDefaultAsync(s => s.Token == token, cancellationToken);
+            .FirstOrDefaultAsync(s => s.TokenHash == tokenHash, cancellationToken);
 
         if (shareToken != null)
         {
@@ -89,7 +95,9 @@ public class ShowcaseShareTokenRepository : IShowcaseShareTokenRepository
 
     public async Task<bool> TokenExistsAsync(string token, CancellationToken cancellationToken = default)
     {
+        var tokenHash = ShareTokenHash.Compute(token);
+
         return await _context.ShowcaseShareTokens
-            .AnyAsync(s => s.Token == token, cancellationToken);
+            .AnyAsync(s => s.TokenHash == tokenHash, cancellationToken);
     }
 }

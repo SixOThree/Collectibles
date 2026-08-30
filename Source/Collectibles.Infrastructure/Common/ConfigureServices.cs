@@ -77,6 +77,9 @@ public static class ConfigureServices
         services.AddScoped<ICollectibleItemPreviewService, CollectibleItemPreviewService>();
         services.AddScoped<ICollectibleItemPreviewResolver, CollectibleItemPreviewResolver>();
 
+        // Scoped so a share-token grant lives exactly as long as the request that proved it.
+        services.AddScoped<IShareAccessContext, ShareAccessContext>();
+
         // Register ICurrentUserService with appropriate implementation based on context
         services.AddScoped<ICurrentUserService>(serviceProvider =>
         {

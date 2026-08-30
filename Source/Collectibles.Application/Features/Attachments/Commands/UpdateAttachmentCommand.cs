@@ -1,4 +1,6 @@
+using Collectibles.Application.Common;
 using Collectibles.Application.Interfaces;
+using Collectibles.Domain.Common;
 using Collectibles.Domain.Common.Enums;
 using Collectibles.Domain.Configuration.Storage;
 using Collectibles.Domain.Entities;
@@ -38,7 +40,9 @@ public class UpdateAttachmentCommandValidator : AbstractValidator<UpdateAttachme
             .MaximumLength(255);
 
         RuleFor(v => v.FileType)
-            .MaximumLength(100);
+            .MaximumLength(100)
+            .Must(AttachmentContentRules.BeAnAcceptableContentType)
+            .WithMessage(AttachmentContentRules.UnsupportedContentTypeMessage);
 
         RuleFor(v => v.Base64Content)
             .Must(BeValidBase64)
@@ -49,6 +53,12 @@ public class UpdateAttachmentCommandValidator : AbstractValidator<UpdateAttachme
             .Must(BeValidBase64)
             .When(v => !string.IsNullOrEmpty(v.Base64PreviewThumbnail))
             .WithMessage("Preview thumbnail must be valid base64 encoded string.");
+
+        // A preview is served inline, so its bytes must be an image and not merely claim to be.
+        RuleFor(v => v.Base64PreviewThumbnail)
+            .Must(AttachmentContentRules.BeARecognisedImage)
+            .When(v => !string.IsNullOrEmpty(v.Base64PreviewThumbnail))
+            .WithMessage(AttachmentContentRules.PreviewNotAnImageMessage);
     }
 
     private bool BeValidBase64(string? value)
@@ -153,7 +163,14 @@ public class UpdateAttachmentCommandHandler : IRequestHandler<UpdateAttachmentCo
 
         entity.Name = request.Name;
         entity.OriginalFilename = request.OriginalFilename;
-        entity.FileType = request.FileType;
+
+        // The declared type is a caller-supplied hint and is what later responses would announce
+        // to a browser. Screen it here; where new content is supplied the signature refines it
+        // further below.
+        var storedFileType = FileContentType.IsAcceptableDeclaredType(request.FileType)
+            ? request.FileType
+            : FileContentType.Fallback;
+
         entity.AttachmentType = request.AttachmentType;
 
         // Track the GUID for file naming consistency
@@ -166,6 +183,9 @@ public class UpdateAttachmentCommandHandler : IRequestHandler<UpdateAttachmentCo
         if (!string.IsNullOrEmpty(request.Base64Content))
         {
             var content = Convert.FromBase64String(request.Base64Content);
+
+            // New content is in memory, so its own signature decides the stored type.
+            storedFileType = FileContentType.ResolveStoredType(content, request.FileType);
 
             // Update file size
             entity.FileSize = content.Length;
@@ -186,7 +206,7 @@ public class UpdateAttachmentCommandHandler : IRequestHandler<UpdateAttachmentCo
             entity.FilePath = await _fileStorage.SaveFileAsync(
                 content,
                 guidFileName,
-                request.FileType ?? "application/octet-stream",
+                storedFileType ?? FileContentType.Fallback,
                 showcaseId,
                 cancellationToken);
 
@@ -296,6 +316,9 @@ public class UpdateAttachmentCommandHandler : IRequestHandler<UpdateAttachmentCo
                 }
             }
         }
+
+        // Assigned last so it reflects any refinement the new content's signature produced above.
+        entity.FileType = storedFileType;
 
         await context.SaveChangesAsync(cancellationToken);
 

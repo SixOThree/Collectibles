@@ -20,6 +20,7 @@ public static class LinkCacheEndpoints
             .WithName("GetLinkCacheContent")
             .WithTags("LinkCaches")
             .RequireAuthorization()
+            .RequireRateLimiting("ApiEndpoints")
             .Produces<FileResult>(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status404NotFound);
 
@@ -27,6 +28,7 @@ public static class LinkCacheEndpoints
             .WithName("GetLinkCacheScreenshot")
             .WithTags("LinkCaches")
             .RequireAuthorization()
+            .RequireRateLimiting("ApiEndpoints")
             .Produces<FileResult>(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status404NotFound);
 

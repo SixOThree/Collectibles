@@ -1,4 +1,5 @@
 using Collectibles.Application.Features.Attachments.Queries;
+using Collectibles.Application.Interfaces;
 using Collectibles.Application.Services;
 using Collectibles.Application.Showcases.Queries.GetPublicShowcase;
 using Collectibles.Domain.Constants;
@@ -18,7 +19,6 @@ namespace Collectibles.Web.Endpoints;
 public static class PublicEndpoints
 {
     private const string RoutePrefix = ApplicationConstants.ApiRoutes.PublicApiBase;
-    private const string CacheControlHeader = ApplicationConstants.HttpCache.PublicAttachmentCacheHeader;
 
     /// <summary>
     /// Maps all public API endpoints.
@@ -29,6 +29,7 @@ public static class PublicEndpoints
         // Public preview endpoint - no authentication required
         endpoints.MapGet($"{RoutePrefix}/attachments/{{hash}}/preview/{{token}}", GetPublicAttachmentPreview)
             .AllowAnonymous()
+            .RequireRateLimiting("PublicEndpoints")
             .WithName("GetPublicAttachmentPreview")
             .WithTags("Public")
             .Produces<FileResult>(StatusCodes.Status200OK)
@@ -38,6 +39,7 @@ public static class PublicEndpoints
         // Public thumbnail endpoint - no authentication required
         endpoints.MapGet($"{RoutePrefix}/attachments/{{hash}}/thumbnail/{{token}}", GetPublicAttachmentThumbnail)
             .AllowAnonymous()
+            .RequireRateLimiting("PublicEndpoints")
             .WithName("GetPublicAttachmentThumbnail")
             .WithTags("Public")
             .Produces<FileResult>(StatusCodes.Status200OK)
@@ -55,13 +57,14 @@ public static class PublicEndpoints
         string token,
         [FromServices] IHashIdsService hashIdsService,
         [FromServices] IMediator mediator,
-        [FromServices] IHttpContextAccessor httpContextAccessor)
+        [FromServices] IHttpContextAccessor httpContextAccessor,
+        [FromServices] IShareAccessContext shareAccessContext)
     {
         try
         {
             // Validate and get attachment
             var validationResult = await ValidatePublicAttachmentAccessAsync(
-                hash, token, hashIdsService, mediator);
+                hash, token, hashIdsService, mediator, shareAccessContext);
 
             if (!validationResult.IsValid)
             {
@@ -84,16 +87,19 @@ public static class PublicEndpoints
             }
 
             // Parse and return the image
-            var imageResult = ParseBase64Image(attachment.Base64PreviewThumbnail, attachment.FileType);
-
-            // Set cache headers
-            SetCacheHeaders(httpContextAccessor.HttpContext, hash);
-
-            return Results.File(imageResult.ImageBytes, imageResult.ContentType);
+            return ServeImage(httpContextAccessor.HttpContext, hash, attachment.Base64PreviewThumbnail);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // The share token was valid but the resource authorization denied the request.
+            // Report it as absent rather than as a server fault: this is an access decision,
+            // and 404 avoids confirming to an anonymous caller that the attachment exists.
+            return Results.NotFound("Preview not available");
         }
         catch (Exception ex)
         {
-            Log.Error(ex, "Error serving public preview for attachment {Hash} with token {Token}", hash, token);
+            // The token is a bearer credential; it must never reach durable log storage.
+            Log.Error(ex, "Error serving public preview for attachment {Hash}", hash);
             return Results.StatusCode(StatusCodes.Status500InternalServerError);
         }
     }
@@ -106,13 +112,14 @@ public static class PublicEndpoints
         string token,
         [FromServices] IHashIdsService hashIdsService,
         [FromServices] IMediator mediator,
-        [FromServices] IHttpContextAccessor httpContextAccessor)
+        [FromServices] IHttpContextAccessor httpContextAccessor,
+        [FromServices] IShareAccessContext shareAccessContext)
     {
         try
         {
             // Validate and get attachment
             var validationResult = await ValidatePublicAttachmentAccessAsync(
-                hash, token, hashIdsService, mediator);
+                hash, token, hashIdsService, mediator, shareAccessContext);
 
             if (!validationResult.IsValid)
             {
@@ -135,16 +142,17 @@ public static class PublicEndpoints
             }
 
             // Parse and return the image
-            var imageResult = ParseBase64Image(attachment.Base64PreviewThumbnail, attachment.FileType);
-
-            // Set cache headers
-            SetCacheHeaders(httpContextAccessor.HttpContext, hash);
-
-            return Results.File(imageResult.ImageBytes, imageResult.ContentType);
+            return ServeImage(httpContextAccessor.HttpContext, hash, attachment.Base64PreviewThumbnail);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // See GetPublicAttachmentPreview: an access decision, not a server fault.
+            return Results.NotFound("Thumbnail not available");
         }
         catch (Exception ex)
         {
-            Log.Error(ex, "Error serving public thumbnail for attachment {Hash} with token {Token}", hash, token);
+            // The token is a bearer credential; it must never reach durable log storage.
+            Log.Error(ex, "Error serving public thumbnail for attachment {Hash}", hash);
             return Results.StatusCode(StatusCodes.Status500InternalServerError);
         }
     }
@@ -156,7 +164,8 @@ public static class PublicEndpoints
         string hash,
         string token,
         IHashIdsService hashIdsService,
-        IMediator mediator)
+        IMediator mediator,
+        IShareAccessContext shareAccessContext)
     {
         // Decode the hash to get the attachment ID
         if (!hashIdsService.TryDecode(hash, out var attachmentId))
@@ -192,6 +201,14 @@ public static class PublicEndpoints
                 IsValid = false,
                 ErrorMessage = "Attachment not found in this showcase",
             };
+        }
+
+        // The token has now been proven for this showcase. Record it so resource authorization,
+        // which runs later and would otherwise see only an anonymous caller, can honour the grant
+        // instead of denying a legitimate share link to a private showcase.
+        if (hashIdsService.TryDecode(publicShowcase.HashId, out var showcaseId))
+        {
+            shareAccessContext.GrantShowcaseAccess(showcaseId);
         }
 
         return new AttachmentValidationResult
@@ -241,33 +258,10 @@ public static class PublicEndpoints
     }
 
     /// <summary>
-    /// Parses a base64 image string and returns the image bytes and content type.
+    /// Serves a stored preview image under a signature-derived content type.
     /// </summary>
-    private static (byte[] ImageBytes, string ContentType) ParseBase64Image(string base64Data, string? fileType)
-    {
-        // Parse the base64 data URI to get the actual image bytes
-        if (base64Data.Contains(','))
-        {
-            base64Data = base64Data.Split(',')[1];
-        }
-
-        var imageBytes = Convert.FromBase64String(base64Data);
-        var contentType = fileType ?? "image/jpeg";
-
-        return (imageBytes, contentType);
-    }
-
-    /// <summary>
-    /// Sets cache headers for the HTTP response.
-    /// </summary>
-    private static void SetCacheHeaders(HttpContext? httpContext, string hash)
-    {
-        if (httpContext != null)
-        {
-            httpContext.Response.Headers.CacheControl = CacheControlHeader;
-            httpContext.Response.Headers.ETag = $"\"{hash}\"";
-        }
-    }
+    private static IResult ServeImage(HttpContext? httpContext, string hash, string base64Data) =>
+        AttachmentImageResults.ServeImage(httpContext, hash, base64Data);
 
     /// <summary>
     /// Result of attachment validation.

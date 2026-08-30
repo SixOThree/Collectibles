@@ -2,6 +2,8 @@ using System.Security.Cryptography;
 using System.Text.Json;
 
 using Collectibles.Application.Interfaces;
+using Collectibles.Domain.Common;
+using Collectibles.Domain.Constants;
 using Collectibles.Domain.Entities;
 using Collectibles.Domain.Interfaces;
 
@@ -54,12 +56,15 @@ public class GenerateShareLinkCommandHandler : IRequestHandler<GenerateShareLink
             token = GenerateUniqueToken();
         }
 
-        // Create the share token entity
+        var expiresAt = ResolveExpiry(request.ExpiresAt);
+
+        // Create the share token entity. Only the hash is persisted: the plaintext leaves this
+        // method in the returned URL and is never recoverable from storage afterwards.
         var shareToken = new ShowcaseShareToken
         {
             ShowcaseId = request.ShowcaseId,
-            Token = token,
-            ExpiresAt = request.ExpiresAt,
+            TokenHash = ShareTokenHash.Compute(token),
+            ExpiresAt = expiresAt,
             Note = request.Note,
             IsActive = true,
             ViewCount = 0,
@@ -73,7 +78,7 @@ public class GenerateShareLinkCommandHandler : IRequestHandler<GenerateShareLink
             entityType: "Showcase",
             entityId: request.ShowcaseId,
             entityName: null,
-            additionalData: JsonSerializer.Serialize(new { Action = "ShareLinkGenerated", TokenId = shareToken.Id, ExpiresAt = request.ExpiresAt }),
+            additionalData: JsonSerializer.Serialize(new { Action = "ShareLinkGenerated", TokenId = shareToken.Id, ExpiresAt = expiresAt }),
             cancellationToken: cancellationToken);
 
         // Generate the share URL (relative - will be completed on the client side)
@@ -83,9 +88,34 @@ public class GenerateShareLinkCommandHandler : IRequestHandler<GenerateShareLink
         {
             Token = token,
             ShareUrl = shareUrl,
-            ExpiresAt = request.ExpiresAt,
+            ExpiresAt = expiresAt,
             Created = shareToken.Created ?? DateTime.UtcNow,
         };
+    }
+
+    /// <summary>
+    /// Applies the default expiry when the caller chose none, and clamps anything further out than
+    /// the maximum window. A share link is a bearer credential, so it always ages out.
+    /// </summary>
+    private static DateTime ResolveExpiry(DateTime? requested)
+    {
+        var now = DateTime.UtcNow;
+        var latest = now.AddDays(ApplicationConstants.ValidationLengths.ShareTokenMaxExpiryDays);
+
+        if (requested is not { } value)
+        {
+            return now.AddDays(ApplicationConstants.ValidationLengths.ShareTokenDefaultExpiryDays);
+        }
+
+        var utc = value.Kind == DateTimeKind.Utc ? value : value.ToUniversalTime();
+
+        // A date already in the past would create a link that never worked.
+        if (utc <= now)
+        {
+            return now.AddDays(ApplicationConstants.ValidationLengths.ShareTokenDefaultExpiryDays);
+        }
+
+        return utc > latest ? latest : utc;
     }
 
     private static string GenerateUniqueToken()
