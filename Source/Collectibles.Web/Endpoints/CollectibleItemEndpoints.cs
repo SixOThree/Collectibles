@@ -17,6 +17,7 @@ public static class CollectibleItemEndpoints
             .WithName("DeleteCollectibleItem")
             .WithTags("CollectibleItems")
             .RequireAuthorization("ApiKeyOrCookie")
+            .RequireRateLimiting("ApiEndpoints")
             .DisableAntiforgery()
             .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status400BadRequest)
