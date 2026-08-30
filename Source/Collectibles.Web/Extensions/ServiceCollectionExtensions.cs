@@ -36,6 +36,8 @@ public static class ServiceCollectionExtensions
     /// <returns></returns>
     public static IServiceCollection AddWebServices(this IServiceCollection services)
     {
+        var isDevelopment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development";
+
         // Add Razor Components with Interactive Server mode
         services.AddRazorComponents()
             .AddInteractiveServerComponents(options =>
@@ -54,7 +56,10 @@ public static class ServiceCollectionExtensions
                 options.ClientTimeoutInterval = TimeSpan.FromMinutes(ApplicationConstants.Web.SignalRClientTimeoutMinutes);
                 options.KeepAliveInterval = TimeSpan.FromSeconds(ApplicationConstants.Web.SignalRKeepAliveSeconds);
                 options.HandshakeTimeout = TimeSpan.FromSeconds(ApplicationConstants.Web.SignalRHandshakeSeconds);
-                options.EnableDetailedErrors = true;
+
+                // Every interactive component event runs over this hub, so detailed errors would
+                // return exception type, message, and stack detail to the browser. Development only.
+                options.EnableDetailedErrors = isDevelopment;
             });
 
         // Add Blazor Bootstrap
@@ -94,7 +99,6 @@ public static class ServiceCollectionExtensions
                 timeout: TimeSpan.FromSeconds(ApplicationConstants.Database.ConnectionTimeoutSeconds));
 
         // Add MiniProfiler for performance profiling (Development only)
-        var isDevelopment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development";
         if (isDevelopment)
         {
             services.AddMiniProfiler(options =>
@@ -359,16 +363,47 @@ public static class ServiceCollectionExtensions
         // Throttle the credential-handling surface. Identity lockout guards a known
         // account; this adds a defence-in-depth limit at the HTTP layer, which the
         // first-run setup gate in particular had none of.
+        //
+        // A named policy only covers the endpoints that opt into it, so a global limiter
+        // provides the baseline every route inherits, and the named policies below tighten
+        // the surfaces that warrant it. Authenticated traffic partitions by user identity so
+        // one account cannot spread load across many addresses; anonymous traffic partitions
+        // by the resolved client address.
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
+            options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(CreateGlobalRateLimitPartition);
+
             options.AddPolicy("AuthEndpoints", context =>
                 RateLimitPartition.GetFixedWindowLimiter(
-                    context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    ResolveRateLimitPartitionKey(context),
                     _ => new FixedWindowRateLimiterOptions
                     {
-                        PermitLimit = 20,
+                        PermitLimit = ApplicationConstants.RateLimits.AuthPermitLimit,
+                        Window = TimeSpan.FromMinutes(1),
+                        QueueLimit = 0,
+                    }));
+
+            // Anonymous, token-bearing routes: the tightest budget, because these are the
+            // surfaces an unauthenticated caller can probe for valid tokens or hashes.
+            options.AddPolicy("PublicEndpoints", context =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    ResolveRateLimitPartitionKey(context),
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = ApplicationConstants.RateLimits.PublicPermitLimit,
+                        Window = TimeSpan.FromMinutes(1),
+                        QueueLimit = 0,
+                    }));
+
+            // Authenticated API surface, including uploads and downloads.
+            options.AddPolicy("ApiEndpoints", context =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    ResolveRateLimitPartitionKey(context),
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = ApplicationConstants.RateLimits.ApiPermitLimit,
                         Window = TimeSpan.FromMinutes(1),
                         QueueLimit = 0,
                     }));
@@ -391,5 +426,47 @@ public static class ServiceCollectionExtensions
         services.AddHangfireSchemaInitializer();
 
         return services;
+    }
+
+    /// <summary>
+    /// Builds the global rate-limit partition, exempting framework and static-asset paths so a
+    /// normal page load - which issues many requests for assets and Blazor plumbing - is not
+    /// charged against a caller's budget.
+    /// </summary>
+    private static RateLimitPartition<string> CreateGlobalRateLimitPartition(HttpContext context)
+    {
+        var path = context.Request.Path.Value ?? string.Empty;
+
+        foreach (var exempt in ApplicationConstants.RateLimits.ExemptPathPrefixes)
+        {
+            if (path.StartsWith(exempt, StringComparison.OrdinalIgnoreCase))
+            {
+                return RateLimitPartition.GetNoLimiter("exempt");
+            }
+        }
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            ResolveRateLimitPartitionKey(context),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = ApplicationConstants.RateLimits.GlobalPermitLimit,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            });
+    }
+
+    /// <summary>
+    /// Partitions rate limits by authenticated user where one is present, so a single account
+    /// cannot spread its load across many addresses, and by client address otherwise. The
+    /// connection address is used directly because forwarded-headers processing runs earlier in
+    /// the pipeline and has already rewritten it for known proxies.
+    /// </summary>
+    private static string ResolveRateLimitPartitionKey(HttpContext context)
+    {
+        var userId = context.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        return !string.IsNullOrEmpty(userId)
+            ? $"user:{userId}"
+            : $"ip:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
     }
 }

@@ -425,6 +425,17 @@ public static class ApplicationConstants
         public const int ShareTokenMaxLength = 64;
 
         /// <summary>
+        /// Expiry applied to a share link when its creator does not choose one. Share links are
+        /// bearer credentials, so they age out by default rather than lasting forever.
+        /// </summary>
+        public const int ShareTokenDefaultExpiryDays = 30;
+
+        /// <summary>
+        /// Longest expiry a share link may be given. A requested date beyond this is clamped.
+        /// </summary>
+        public const int ShareTokenMaxExpiryDays = 365;
+
+        /// <summary>
         /// Configuration key max length.
         /// </summary>
         public const int ConfigurationKeyMaxLength = 200;
@@ -449,6 +460,51 @@ public static class ApplicationConstants
         /// Viewer role name.
         /// </summary>
         public const string Viewer = "Viewer";
+    }
+
+    /// <summary>
+    /// HTTP-layer rate limits. Permits are per partition (authenticated user, else client
+    /// address) per one-minute fixed window.
+    /// </summary>
+    public static class RateLimits
+    {
+        /// <summary>
+        /// Baseline budget every route inherits from the global limiter.
+        /// </summary>
+        public const int GlobalPermitLimit = 300;
+
+        /// <summary>
+        /// Credential-handling endpoints (sign-in, registration, reset, first-run setup).
+        /// </summary>
+        public const int AuthPermitLimit = 20;
+
+        /// <summary>
+        /// Anonymous, token-bearing share routes. The tightest budget, because these are the
+        /// surfaces an unauthenticated caller can probe for valid tokens or attachment hashes.
+        /// </summary>
+        public const int PublicPermitLimit = 60;
+
+        /// <summary>
+        /// Authenticated API surface, including uploads and downloads.
+        /// </summary>
+        public const int ApiPermitLimit = 120;
+
+        /// <summary>
+        /// Paths exempt from the global limiter: framework plumbing and static assets, which a
+        /// single page load requests many times over.
+        /// </summary>
+        public static readonly string[] ExemptPathPrefixes =
+        [
+            "/_blazor",
+            "/_framework",
+            "/_content",
+            "/css",
+            "/js",
+            "/lib",
+            "/images",
+            "/favicon.ico",
+            "/health",
+        ];
     }
 
     /// <summary>
