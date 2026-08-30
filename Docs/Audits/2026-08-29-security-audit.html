@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Collectibles — Application Security Audit</title>
+<style>
+  :root{
+    --bg:#f7f7f5; --panel:#fff; --ink:#1b1b19; --muted:#5f5f58; --line:#e2e2dc;
+    --crit:#8b1a1a; --critbg:#fbeaea; --high:#a8410a; --highbg:#fdefe6;
+    --med:#8a6a06; --medbg:#fbf4e0; --low:#3a5f7d; --lowbg:#eaf1f6;
+    --ok:#2f6b3f; --okbg:#e9f3ec; --info:#4a4a80; --infobg:#eeeef8;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{max-width:1140px;margin:0 auto;padding:32px 20px 96px}
+  header.doc{border-bottom:3px solid var(--ink);padding-bottom:20px;margin-bottom:28px}
+  h1{font-size:30px;line-height:1.2;margin:0 0 6px;letter-spacing:-.02em}
+  .sub{color:var(--muted);font-size:14px}
+  h2{font-size:21px;margin:44px 0 12px;padding-bottom:7px;border-bottom:2px solid var(--line);letter-spacing:-.01em}
+  h3{font-size:16px;margin:26px 0 8px}
+  h4{font-size:14px;margin:18px 0 6px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+  p,li{color:#2a2a26}
+  code,kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;
+    background:#efefea;border:1px solid var(--line);border-radius:3px;padding:1px 5px}
+  pre{background:#1e1e1c;color:#e8e8e2;padding:13px 15px;border-radius:6px;overflow-x:auto;font-size:12.5px;line-height:1.5}
+  pre code{background:none;border:none;color:inherit;padding:0}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px;background:var(--panel)}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:#efefea;font-weight:650;font-size:12.5px;text-transform:uppercase;letter-spacing:.04em}
+  .scroll{overflow-x:auto;border:1px solid var(--line);border-radius:6px}
+  .scroll table{margin:0;border:0}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px 18px;margin:16px 0}
+  .callout{border-left:4px solid var(--info);background:var(--infobg);padding:13px 16px;border-radius:0 6px 6px 0;margin:16px 0}
+  .callout.warn{border-left-color:var(--high);background:var(--highbg)}
+  .callout.stop{border-left-color:var(--crit);background:var(--critbg)}
+  .callout.good{border-left-color:var(--ok);background:var(--okbg)}
+  .tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:11px;
+    text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+  .t-crit{background:var(--critbg);color:var(--crit);border:1px solid var(--crit)}
+  .t-high{background:var(--highbg);color:var(--high);border:1px solid var(--high)}
+  .t-med{background:var(--medbg);color:var(--med);border:1px solid var(--med)}
+  .t-low{background:var(--lowbg);color:var(--low);border:1px solid var(--low)}
+  .t-ok{background:var(--okbg);color:var(--ok);border:1px solid var(--ok)}
+  .t-info{background:var(--infobg);color:var(--info);border:1px solid var(--info)}
+  .counts{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:11px;margin:18px 0}
+  .count{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:13px;text-align:center}
+  .count .n{font-size:27px;font-weight:700;line-height:1.1}
+  .count .l{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-top:3px}
+  .f{background:var(--panel);border:1px solid var(--line);border-left-width:5px;border-radius:7px;padding:17px 19px;margin:18px 0}
+  .f.high{border-left-color:var(--high)} .f.med{border-left-color:var(--med)} .f.low{border-left-color:var(--low)}
+  .f h3{margin:0 0 4px;font-size:16.5px}
+  .fid{font-family:ui-monospace,monospace;font-size:12px;color:var(--muted)}
+  .meta{display:flex;flex-wrap:wrap;gap:7px;margin:9px 0 13px}
+  .kv{margin:11px 0}
+  .kv .k{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:700;margin-bottom:3px}
+  ul,ol{padding-left:22px;margin:8px 0}
+  li{margin:3px 0}
+  .toc{columns:2;column-gap:34px;font-size:13.5px}
+  .toc a{color:#26527a;text-decoration:none;display:block;padding:2px 0;break-inside:avoid}
+  .toc a:hover{text-decoration:underline}
+  footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px}
+  .redact{background:#3a3a36;color:#c9c9c2;padding:1px 6px;border-radius:3px;font-family:ui-monospace,monospace;font-size:12px}
+  @media (max-width:720px){.toc{columns:1}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="doc">
+  <h1>Application Security Audit — Collectibles</h1>
+  <div class="sub">
+    Static, read-only, threat-led security assessment &middot; .NET&nbsp;10 Blazor Server, Clean Architecture / CQRS<br>
+    Audit date <strong>2026-08-29</strong> &middot; Branch <code>FullAudit</code> &middot; Working tree at time of audit: clean (tracked files)
+  </div>
+</header>
+
+<div class="callout stop">
+  <strong>Read this first — what this report is and is not.</strong>
+  This is a <strong>static-analysis-only</strong> audit. No dynamic testing, exploitation, or runtime verification was
+  authorized or performed. Every finding below is derived from source-to-sink code reading. Findings are labelled
+  <span class="tag t-ok">CONFIRMED&nbsp;(STATIC)</span> where the complete data path was read end to end in source, and
+  <span class="tag t-info">PLAUSIBLE</span> where a runtime or deployment condition remains unverified.
+  <strong>Nothing in this report establishes that the application is secure.</strong> Coverage is bounded by the
+  limitations in §3; unexamined surface and undiscovered issues certainly remain. No overall security score is
+  calculated, by design — a single number would misrepresent the confidence available from static review alone.
+</div>
+
+<h2 id="toc">Contents</h2>
+<div class="toc">
+  <a href="#s1">1. Scope and target</a>
+  <a href="#s2">2. Methodology</a>
+  <a href="#s3">3. Limitations, deviations, and disclosures</a>
+  <a href="#s4">4. Dynamic verification status and proposed plan</a>
+  <a href="#s5">5. Threat model</a>
+  <a href="#s6">6. Applicability and coverage matrix</a>
+  <a href="#s7">7. Reconstructed authorization matrix</a>
+  <a href="#s8">8. Findings summary</a>
+  <a href="#s9">9. Findings — High</a>
+  <a href="#s10">10. Findings — Medium</a>
+  <a href="#s11">11. Findings — Low</a>
+  <a href="#s12">12. Verified positive controls</a>
+  <a href="#s13">13. Remediation roadmap</a>
+  <a href="#s14">14. Allowed writes</a>
+</div>
+
+<h2 id="s1">1. Scope and target</h2>
+
+<table>
+  <tr><th style="width:210px">Property</th><th>Value</th></tr>
+  <tr><td>Application</td><td>Collectibles — collection management with attachments, showcases, sharing, and templating</td></tr>
+  <tr><td>Primary stack</td><td>.NET 10 / C# 14; Blazor Server (InteractiveServer render mode); EF Core 10; SQL Server</td></tr>
+  <tr><td>Architecture</td><td>Clean Architecture with CQRS via MediatR 14.1 (Domain / Application / Infrastructure / Web)</td></tr>
+  <tr><td>Identity</td><td>ASP.NET Core Identity, cookie authentication, plus a custom <code>ApiKey</code> authentication scheme</td></tr>
+  <tr><td>Authorization</td><td>Named policies + resource-based <code>AuthorizationHandler&lt;TRequirement, TResource&gt;</code> handlers</td></tr>
+  <tr><td>Background work</td><td>Hangfire (recurring jobs + dashboard); hosted <code>BackgroundService</code> loops</td></tr>
+  <tr><td>Pluggable providers</td><td>Storage: LocalFileSystem / AzureBlobStorage / Database. Email: SMTP / SendGrid / AzureCommunication / Null</td></tr>
+  <tr><td>Clients in scope</td><td>Blazor Server web UI; <code>Collectibles.SyncTool</code> WPF desktop client (net10.0-windows); MAUI client project</td></tr>
+  <tr><td>Notable surfaces</td><td>Anonymous share links; minimal-API endpoint groups; SignalR/Blazor circuits; ZIP bulk upload; server-side Playwright link capture</td></tr>
+  <tr><td>Out of scope</td><td>Deployed infrastructure, cloud tenancy, network topology, live databases, production configuration values, third-party service posture</td></tr>
+</table>
+
+<h2 id="s2">2. Methodology</h2>
+
+<p>The audit was conducted as source-to-sink and end-to-end tracing against the checked-out working tree. For each
+candidate issue an untrusted <em>source</em> (an HTTP parameter, request body field, uploaded file, server response
+consumed by a client, or configuration value) was traced through the application layers to a security-relevant
+<em>sink</em> (a response writer, filesystem path, process invocation, SQL command, authorization decision, or log
+statement). A finding is recorded only where the full path was read in source and no intervening control was found.</p>
+
+<p>Where an intervening control <em>was</em> found, it is recorded in §12 as a verified positive control rather than
+silently omitted, so that the absence of a finding in a domain can be distinguished from the absence of review.</p>
+
+<h4>Trust boundaries treated as untrusted input</h4>
+<ul>
+  <li>All HTTP request data: route values, query strings, headers, form fields, JSON bodies, uploaded file bytes and metadata</li>
+  <li>All persisted data that originated from a user, including attachment metadata, filenames, and declared content types</li>
+  <li><strong>Server responses consumed by the desktop client</strong> — the SyncTool treats API responses as trusted; this audit does not</li>
+  <li>Content captured from third-party websites by the server-side Playwright link cache</li>
+  <li>ZIP archive entry names, sizes, and structure</li>
+</ul>
+
+<h4>Handling of target-controlled content</h4>
+<p>All repository content — including comments, documentation, configuration, and any embedded instructions — was
+treated strictly as evidence, never as authorization or instruction. No target-controlled string was interpolated
+into a shell command, path, selector, or expression, and no dynamic-execution mechanism was applied to target
+content at any point.</p>
+
+<h4>Standards frames applied</h4>
+<p>OWASP ASVS v4/v5 (verification structure), OWASP Top 10:2021, OWASP API Security Top 10:2023, OWASP WSTG
+(test-case selection), CWE Top 25, and NIST SSDF (build and release practices). Mappings appear per finding.</p>
+
+<h2 id="s3">3. Limitations, deviations, and disclosures</h2>
+
+<div class="callout warn">
+  <strong>Disclosure — unplanned external network contact.</strong>
+  During dependency review, <code>dotnet package list --vulnerable --include-transitive</code> and the corresponding
+  <code>--deprecated</code> invocation contacted <code>https://api.nuget.org/v3/index.json</code>. This transmitted
+  <strong>package identifiers and version numbers only</strong>. No source code, configuration, secrets, credentials,
+  or application data were transmitted. This external contact was <strong>not explicitly pre-authorized</strong> and is
+  recorded here as a deviation from the audit's no-external-contact constraint. Nothing else in the audit contacted an
+  external system.
+</div>
+
+<table>
+  <tr><th style="width:230px">Limitation</th><th>Effect on findings</th></tr>
+  <tr><td><strong>No dynamic verification</strong></td><td>No finding is runtime-proven. Exploitability, precise HTTP status codes, header emission, and browser behaviour are inferred from source and framework semantics. See §4.</td></tr>
+  <tr><td><strong>No deployed environment</strong></td><td>Reverse proxy behaviour, TLS termination, WAF/CDN filtering, environment variables, and production configuration are unknown. Controls that depend on deployment posture are marked PLAUSIBLE.</td></tr>
+  <tr><td><strong>Production configuration unavailable</strong></td><td>Committed <code>appsettings.json</code> ships empty secret values; real values are supplied at deploy time and could not be reviewed. Configuration-dependent findings state the setting under which they apply.</td></tr>
+  <tr><td><strong>No database access</strong></td><td>Claims about persisted data (e.g. how many share tokens exist, whether any attachment has a null creator) could not be measured. Data-state-dependent findings are marked accordingly.</td></tr>
+  <tr><td><strong>Infrastructure and cloud out of scope</strong></td><td>Storage account permissions, network segmentation, key management, and identity federation were not assessed.</td></tr>
+  <tr><td><strong>Third-party code not audited</strong></td><td>NuGet and npm dependencies were checked for <em>known advisories</em> only; their code was not reviewed.</td></tr>
+  <tr><td><strong>Windows platform constraint</strong></td><td>The audit host lacks <code>dir_fd</code> and <code>O_NOFOLLOW</code> support, so a true <code>openat</code>-based write could not be used for the report. Compensating control: canonicalization with ancestor reparse-point checks, parent directory identity binding, atomic <code>O_CREAT|O_EXCL</code> creation, and post-create identity re-verification. See §14.</td></tr>
+</table>
+
+<h4>Secret handling</h4>
+<p>No secret value is reproduced anywhere in this report or in working evidence. Configuration was inspected by
+<strong>key path and value state only</strong> (<span class="redact">EMPTY</span> /
+<span class="redact">PLACEHOLDER</span> / <span class="redact">NON-EMPTY, length&nbsp;N</span>), and connection strings
+were probed for the <em>presence of credential keywords</em> without reading their values. Findings that concern
+credentials state the type, location, exposure, and rotation need only.</p>
+
+<h2 id="s4">4. Dynamic verification status and proposed plan</h2>
+
+<div class="callout stop">
+  <strong>Dynamic verification status: NOT PERFORMED — NOT AUTHORIZED.</strong>
+  No safe non-production target and no testing authorization were available. No request was issued to the application,
+  no service was started, no build or repository-controlled script was executed, and no database, queue, mail, browser,
+  or cloud resource was written to. Accordingly, <strong>no check in this report may be presented as runtime-verified
+  behaviour.</strong>
+</div>
+
+<p>The following plan would convert the static findings into verified results. It is written for an isolated,
+non-production instance with seeded synthetic data, and deliberately excludes production testing, destructive
+payloads, persistence, stealth, lateral movement, real-data modification, uncontrolled brute force, lockout induction,
+denial of service, denial of wallet, resource exhaustion, and undeclared third-party interaction.</p>
+
+<div class="scroll">
+<table>
+  <tr><th style="width:88px">Test ID</th><th style="width:98px">Finding</th><th>Procedure</th><th style="width:230px">Expected result if the finding is real</th></tr>
+  <tr><td>DV-01</td><td>SEC-001</td><td>As an authenticated test user, create an attachment with <code>FileType</code> set to a markup MIME type and a base64 preview payload containing benign, inert marker markup. Request the preview endpoint and record the full response headers.</td><td>Response carries the attacker-chosen <code>Content-Type</code> and <strong>no</strong> <code>Content-Disposition: attachment</code>; the browser renders rather than downloads.</td></tr>
+  <tr><td>DV-02</td><td>SEC-001</td><td>Stage a second attachment whose declared type is a script MIME type, and reference it by <code>&lt;script src&gt;</code> from the first. Observe CSP enforcement in the browser console.</td><td>CSP <code>script-src 'self'</code> permits the load because the URL is same-origin, demonstrating the bypass.</td></tr>
+  <tr><td>DV-03</td><td>SEC-002 / SEC-003</td><td>Stand up a mock manifest endpoint returning an <code>ItemPath</code> containing traversal and rooted segments and a crafted <code>OriginalFilename</code>. Point a SyncTool build at it in a disposable VM with filesystem auditing enabled.</td><td>A file is written outside the configured <code>LocalFolder</code>.</td></tr>
+  <tr><td>DV-04</td><td>SEC-004</td><td>Issue a request to a <code>/share/{token}</code> URL, then read the <code>RequestLogs</code> table and the error log file.</td><td>The token value appears verbatim in persisted log storage.</td></tr>
+  <tr><td>DV-05</td><td>SEC-005</td><td>Run the application with <code>ASPNETCORE_ENVIRONMENT=Production</code>; trigger a handled server-side component exception; capture the SignalR frame delivered to the client.</td><td>The frame contains exception type, message, and stack detail.</td></tr>
+  <tr><td>DV-06</td><td>SEC-006</td><td>Set <code>Hangfire:RequireAuthorization=false</code> in an isolated instance and request the dashboard path unauthenticated.</td><td>Dashboard renders without authentication.</td></tr>
+  <tr><td>DV-07</td><td>SEC-010</td><td>Create a private showcase, generate a share link, and request an attachment preview through the share route anonymously.</td><td>HTTP 500 is returned for a legitimate share link, and the token is written to the error log.</td></tr>
+  <tr><td>DV-08</td><td>SEC-011</td><td>Issue a bounded, rate-capped burst (well below any resource-exhaustion threshold) against an API endpoint and against an Identity endpoint; compare responses.</td><td>Identity endpoint returns 429 after its window; the API endpoint does not throttle.</td></tr>
+  <tr><td>DV-09</td><td>SEC-009</td><td>Seed an attachment with no collectible-item association and a null creator; request it anonymously through the share route.</td><td>Authorization succeeds for an anonymous principal.</td></tr>
+  <tr><td>DV-10</td><td>SEC-018</td><td>Submit registration with an address already registered and capture the rendered error.</td><td>Error text discloses that the address is already taken.</td></tr>
+  <tr><td>DV-11</td><td>SEC-014</td><td>From a page context, attempt a WebSocket connection to an unrelated external host; observe CSP enforcement.</td><td>Connection is permitted by <code>connect-src ws: wss:</code>.</td></tr>
+</table>
+</div>
+
+<h2 id="s5">5. Threat model</h2>
+
+<h4>Assets</h4>
+<table>
+  <tr><th style="width:230px">Asset</th><th>Why it matters</th></tr>
+  <tr><td>User accounts and sessions</td><td>Compromise yields the user's full data and, for administrators, control of the application</td></tr>
+  <tr><td>Attachment content and previews</td><td>The primary user data; may be private and is served over anonymous-capable routes</td></tr>
+  <tr><td>Showcase privacy state</td><td>The central authorization decision in the product; <code>IsPrivate</code> gates non-owner access</td></tr>
+  <tr><td>Share tokens</td><td>Bearer credentials that grant anonymous access to a showcase without authentication</td></tr>
+  <tr><td>API keys (SyncTool)</td><td>Non-interactive credentials that authenticate the desktop client to the sync API</td></tr>
+  <tr><td>Administrative capability</td><td>Hangfire dashboard, user management, and the management UI</td></tr>
+  <tr><td>The server's network position</td><td>The Playwright capture browser can reach internal targets — an SSRF-relevant asset</td></tr>
+  <tr><td>Desktop client host</td><td>The SyncTool writes files and launches processes on the operator's workstation</td></tr>
+</table>
+
+<h4>Attackers</h4>
+<table>
+  <tr><th style="width:230px">Attacker</th><th>Capability assumed</th></tr>
+  <tr><td>Unauthenticated internet user</td><td>Can reach public routes, registration, login, health, and any share link they obtain or guess</td></tr>
+  <tr><td>Share-link recipient</td><td>Holds a valid token for one showcase; is not otherwise trusted</td></tr>
+  <tr><td>Authenticated low-privilege user</td><td>Can register (self-service), create showcases, and upload attachments with attacker-chosen metadata</td></tr>
+  <tr><td>Malicious or compromised server</td><td>Relevant to the desktop client, which currently trusts server-supplied paths and filenames</td></tr>
+  <tr><td>Log or backup reader</td><td>Operator or intruder with read access to log files or the <code>RequestLogs</code> table</td></tr>
+</table>
+
+<h4>Primary attack paths (ordered transitions)</h4>
+
+<div class="panel">
+<p><strong>AP-1 — Self-registered user to script execution in the application origin, and onward to administrator action.</strong></p>
+<ol>
+  <li>Attacker self-registers and confirms an account (registration is anonymous; email confirmation is required).</li>
+  <li>Attacker creates a showcase and uploads an attachment, supplying <code>FileType</code> and <code>Base64PreviewThumbnail</code> directly. Neither is constrained to image types.</li>
+  <li>The server stores both verbatim (<span class="tag t-high">SEC-007</span>).</li>
+  <li>The preview route returns the stored bytes with the attacker's declared content type and <strong>no</strong> <code>Content-Disposition</code>, so the browser renders it inline in the application's own origin (<span class="tag t-high">SEC-001</span>).</li>
+  <li>CSP <code>script-src 'self'</code> does not contain the attacker, because a second attacker-uploaded attachment is itself a same-origin script URL (<span class="tag t-med">SEC-014</span>).</li>
+  <li>A victim who opens the attacker's shared content executes attacker script. Cookies are <code>HttpOnly</code>, so the session cookie is not readable — but the script rides the victim's authenticated session to act on their behalf, and can read the antiforgery token from the DOM.</li>
+  <li>If the victim is an administrator, the attacker reaches administrative capability.</li>
+</ol>
+</div>
+
+<div class="panel">
+<p><strong>AP-2 — Malicious or compromised server to code execution on the operator's workstation.</strong></p>
+<ol>
+  <li>The SyncTool requests a showcase manifest.</li>
+  <li>The server returns <code>ItemPath</code> and <code>OriginalFilename</code> values chosen by the attacker.</li>
+  <li>The client composes a download path with <code>Path.Combine</code> over those segments and performs no validation. A rooted segment discards the configured base folder entirely; <code>..</code> segments are not removed (<span class="tag t-high">SEC-002</span>).</li>
+  <li>The client creates the directory and writes the file — anywhere the user can write, including startup folders.</li>
+  <li>The operator opens the downloaded item; the client launches it with <code>UseShellExecute = true</code> and no type restriction, executing whatever it is (<span class="tag t-high">SEC-003</span>).</li>
+</ol>
+</div>
+
+<div class="panel">
+<p><strong>AP-3 — Log reader to anonymous access to shared showcases.</strong></p>
+<ol>
+  <li>A visitor follows a share link; the token travels in the URL path.</li>
+  <li>Request logging persists path and query string to the database, and <code>/share/</code> and <code>/api/public/</code> are not in the exclusion list (<span class="tag t-high">SEC-004</span>).</li>
+  <li>The error path for public attachment routes additionally writes the token into the log message as a structured property.</li>
+  <li>Because share tokens are stored in plaintext and may be created with no expiry (<span class="tag t-med">SEC-008</span>), a token recovered from logs or a backup remains usable indefinitely until manually revoked.</li>
+</ol>
+</div>
+
+<h2 id="s6">6. Applicability and coverage matrix</h2>
+
+<p>Every domain below received exactly one disposition. <strong>Reviewed</strong> means the domain's code paths were
+read and traced. <strong>Partially reviewed</strong> means material paths were traced but the domain also depends on
+deployment or runtime state that was unavailable. <strong>Not applicable</strong> means the capability is absent from
+the codebase. No domain is left implicit.</p>
+
+<div class="scroll">
+<table>
+  <tr><th style="width:230px">Domain</th><th style="width:150px">Disposition</th><th>Basis / outcome</th></tr>
+  <tr><td>Identity &amp; authentication</td><td><span class="tag t-ok">Reviewed</span></td><td>Identity configuration, password policy, lockout, 2FA pages, cookie flags. Findings: SEC-018. Positives: PC-04, PC-05.</td></tr>
+  <tr><td>Session management</td><td><span class="tag t-ok">Reviewed</span></td><td>Cookie <code>HttpOnly</code>/<code>Secure</code>/<code>SameSite=Lax</code>; durable Data Protection keys. Positive: PC-04.</td></tr>
+  <tr><td>Authorization &amp; access control</td><td><span class="tag t-ok">Reviewed</span></td><td>Policies, resource handlers, endpoint gates, ownership checks. Findings: SEC-009, SEC-010. See §7.</td></tr>
+  <tr><td>Injection (SQL/NoSQL/command/expression)</td><td><span class="tag t-ok">Reviewed</span></td><td>All raw-SQL sites parameterized; no dynamic execution primitives. Positive: PC-01.</td></tr>
+  <tr><td>Browser &amp; cross-origin security</td><td><span class="tag t-ok">Reviewed</span></td><td>CSP, security headers, antiforgery, markup sinks. Findings: SEC-001, SEC-014. Positive: PC-03.</td></tr>
+  <tr><td>Files, uploads, archives, content</td><td><span class="tag t-ok">Reviewed</span></td><td>Upload validation, ZIP handling, storage path construction. Findings: SEC-007. Positives: PC-06, PC-07.</td></tr>
+  <tr><td>Server-side request forgery</td><td><span class="tag t-ok">Reviewed</span></td><td>Egress guard validates initial URL and re-validates every document navigation. Positive: PC-02.</td></tr>
+  <tr><td>Serialization &amp; deserialization</td><td><span class="tag t-ok">Reviewed</span></td><td>No <code>BinaryFormatter</code>, no <code>TypeNameHandling</code>, no unsafe XML resolvers. Positive: PC-08.</td></tr>
+  <tr><td>API design &amp; exposure</td><td><span class="tag t-ok">Reviewed</span></td><td>Full endpoint inventory reconstructed with per-endpoint policy. Finding: SEC-016. See §7.</td></tr>
+  <tr><td>Business logic</td><td><span class="tag t-ok">Reviewed</span></td><td>Showcase ownership, sharing, revocation, sync flows. Finding: SEC-008.</td></tr>
+  <tr><td>Cryptography</td><td><span class="tag t-ok">Reviewed</span></td><td>Token and API-key generation use CSPRNG at 256-bit strength. Findings: SEC-008 (storage). Positive: PC-09.</td></tr>
+  <tr><td>Sensitive data handling</td><td><span class="tag t-ok">Reviewed</span></td><td>Credential-bearing values in logs and at rest. Findings: SEC-004, SEC-008.</td></tr>
+  <tr><td>Error handling &amp; information disclosure</td><td><span class="tag t-ok">Reviewed</span></td><td>Findings: SEC-005, SEC-010, SEC-015.</td></tr>
+  <tr><td>Resource controls</td><td><span class="tag t-ok">Reviewed</span></td><td>Rate limits, body/form limits, timeouts, ZIP limits. Findings: SEC-011, SEC-012. Positive: PC-07.</td></tr>
+  <tr><td>Realtime / SignalR</td><td><span class="tag t-ok">Reviewed</span></td><td>Hub options, message size, circuit retention. Finding: SEC-005, SEC-012.</td></tr>
+  <tr><td>Desktop client (WPF SyncTool)</td><td><span class="tag t-ok">Reviewed</span></td><td>Path composition, process launch, API key transport. Findings: SEC-002, SEC-003, SEC-017.</td></tr>
+  <tr><td>Secrets management</td><td><span class="tag t-ok">Reviewed</span></td><td>Committed configuration ships empty secrets; environment-specific files are gitignored. Positive: PC-10.</td></tr>
+  <tr><td>Dependencies &amp; supply chain</td><td><span class="tag t-ok">Reviewed</span></td><td>No known vulnerable or deprecated NuGet packages; npm advisories clear. Positive: PC-11. See §3 disclosure.</td></tr>
+  <tr><td>Build, release &amp; CI/CD</td><td><span class="tag t-ok">Reviewed</span></td><td>No pipeline definitions exist in the repository. Finding: SEC-013.</td></tr>
+  <tr><td>Configuration management</td><td><span class="tag t-ok">Reviewed</span></td><td>Fail-open authorization switch identified. Finding: SEC-006.</td></tr>
+  <tr><td>Transport security</td><td><span class="tag t-info">Partially reviewed</span></td><td>HTTPS redirection, HSTS, and forwarded-headers handling are present in code; actual TLS configuration and proxy trust are deployment-determined and unavailable.</td></tr>
+  <tr><td>Logging, monitoring &amp; detection</td><td><span class="tag t-info">Partially reviewed</span></td><td>Sink configuration and content reviewed; alerting, retention enforcement, and aggregation are operational and unavailable. Findings: SEC-004, SEC-020.</td></tr>
+  <tr><td>Data systems &amp; persistence</td><td><span class="tag t-info">Partially reviewed</span></td><td>Schema, query filters, and concurrency tokens reviewed in source; live database, permissions, and encryption-at-rest not accessible.</td></tr>
+  <tr><td>Infrastructure &amp; hosting</td><td><span class="tag t-info">Partially reviewed</span></td><td>Application-level hosting configuration reviewed; deployed infrastructure out of scope per §1.</td></tr>
+  <tr><td>Resilience &amp; operational readiness</td><td><span class="tag t-info">Partially reviewed</span></td><td>Health checks, retry, and stuck-job recovery reviewed in code; runbooks, backups, and incident process not available.</td></tr>
+  <tr><td>Containers &amp; orchestration</td><td><span class="tag t-info">Not applicable</span></td><td>No Dockerfile, compose file, or orchestration manifest present in the repository.</td></tr>
+  <tr><td>Webhooks &amp; inbound integrations</td><td><span class="tag t-info">Not applicable</span></td><td>No inbound webhook receiver exists.</td></tr>
+  <tr><td>Multi-tenancy isolation</td><td><span class="tag t-info">Not applicable</span></td><td>The application is single-tenant with per-user ownership; no tenant partition exists to isolate.</td></tr>
+  <tr><td>Payments / financial flows</td><td><span class="tag t-info">Not applicable</span></td><td>No payment, billing, or financial capability present.</td></tr>
+</table>
+</div>
+
+<h2 id="s7">7. Reconstructed authorization matrix</h2>
+
+<p>Reconstructed from endpoint registrations and the resource-authorization handlers. "Endpoint gate" is the policy or
+attribute applied at routing; "resource check" is the ownership or visibility decision applied inside the handler.
+Both must hold for access.</p>
+
+<div class="scroll">
+<table>
+  <tr>
+    <th>Route</th><th>Method</th><th>Endpoint gate</th><th>Anon</th><th>Share token</th>
+    <th>Authenticated non-owner</th><th>Owner</th><th>API key</th><th>Admin</th><th>Resource check</th><th>Antiforgery</th><th>Rate limited</th>
+  </tr>
+  <tr><td><code>/api/attachments/{hash}/preview</code></td><td>GET</td><td>AllowAnonymous</td><td>Public showcases only</td><td>n/a</td><td>Public showcases only</td><td>Allow</td><td>Via cookie/principal</td><td>No bypass</td><td>Endpoint gate + <code>ViewAttachment</code></td><td>n/a</td><td class="t-none">No</td></tr>
+  <tr><td><code>/api/attachments/{hash}/thumbnail</code></td><td>GET</td><td>AllowAnonymous</td><td>Public showcases only</td><td>n/a</td><td>Public showcases only</td><td>Allow</td><td>Via cookie/principal</td><td>No bypass</td><td>Endpoint gate + <code>ViewAttachment</code></td><td>n/a</td><td>No</td></tr>
+  <tr><td><code>/api/attachments/{hash}/download</code></td><td>GET</td><td>AllowAnonymous</td><td>Public showcases only</td><td>n/a</td><td>Public showcases only</td><td>Allow</td><td>Via cookie/principal</td><td>No bypass</td><td>Endpoint gate + ownership</td><td>Disabled</td><td>No</td></tr>
+  <tr><td><code>/api/attachments/{hash}/context</code></td><td>GET</td><td><code>ApiKeyOrCookie</code></td><td>Deny</td><td>n/a</td><td>Ownership-checked</td><td>Allow</td><td>Allow</td><td>Ownership-checked</td><td>Ownership</td><td>Enabled</td><td>No</td></tr>
+  <tr><td><code>/api/attachments/initiate-upload</code></td><td>POST</td><td><code>ApiKeyOrCookie</code></td><td>Deny</td><td>n/a</td><td>Own showcases</td><td>Allow</td><td>Allow</td><td>Own showcases</td><td>Showcase ownership</td><td>Disabled</td><td>No</td></tr>
+  <tr><td><code>/api/attachments/complete-upload</code></td><td>POST</td><td><code>ApiKeyOrCookie</code></td><td>Deny</td><td>n/a</td><td>Own showcases</td><td>Allow</td><td>Allow</td><td>Own showcases</td><td>Showcase ownership</td><td>Disabled</td><td>No</td></tr>
+  <tr><td><code>/api/attachments/{hash}/delete</code></td><td>POST</td><td><code>ApiKeyOrCookie</code></td><td>Deny</td><td>n/a</td><td>Deny</td><td>Allow</td><td>Allow</td><td>Ownership-checked</td><td><code>DeleteAttachment</code></td><td>Disabled</td><td>No</td></tr>
+  <tr><td><code>/api/collectible-items/{hash}/delete</code></td><td>POST</td><td><code>ApiKeyOrCookie</code></td><td>Deny</td><td>n/a</td><td>Deny</td><td>Allow</td><td>Allow</td><td>Ownership-checked</td><td>Ownership</td><td>Disabled</td><td>No</td></tr>
+  <tr><td><code>/api/public/attachments/{hash}/preview/{token}</code></td><td>GET</td><td>AllowAnonymous</td><td>Token required</td><td>Allow for public showcases; <strong>fails with 500 for private</strong> (SEC-010)</td><td>Same as anon</td><td>Allow</td><td>n/a</td><td>No bypass</td><td>Token validity + <code>ViewAttachment</code></td><td>n/a</td><td>No</td></tr>
+  <tr><td><code>/api/public/attachments/{hash}/thumbnail/{token}</code></td><td>GET</td><td>AllowAnonymous</td><td>Token required</td><td>As above</td><td>Same as anon</td><td>Allow</td><td>n/a</td><td>No bypass</td><td>Token validity + <code>ViewAttachment</code></td><td>n/a</td><td>No</td></tr>
+  <tr><td><code>/api/linkcache/{id:long}/content</code></td><td>GET</td><td><code>RequireAuthorization()</code></td><td>Deny</td><td>n/a</td><td>Deny (ownership enforced)</td><td>Allow</td><td>Via principal</td><td>Ownership-checked</td><td>Ownership enforced in handler</td><td>Enabled</td><td>No</td></tr>
+  <tr><td><code>/api/linkcache/{id:long}/screenshot</code></td><td>GET</td><td><code>RequireAuthorization()</code></td><td>Deny</td><td>n/a</td><td>Deny (ownership enforced)</td><td>Allow</td><td>Via principal</td><td>Ownership-checked</td><td>Ownership enforced in handler</td><td>Enabled</td><td>No</td></tr>
+  <tr><td><code>/api/sync/manifest/{showcaseHashId}</code></td><td>GET</td><td><code>ApiKeyOnly</code></td><td>Deny</td><td>n/a</td><td>Deny</td><td>Allow</td><td>Allow</td><td>No role bypass</td><td>Showcase ownership</td><td>Disabled</td><td>No</td></tr>
+  <tr><td><code>/api/sync/attachments/{hash}/move</code></td><td>POST</td><td><code>ApiKeyOnly</code></td><td>Deny</td><td>n/a</td><td>Deny</td><td>Allow</td><td>Allow</td><td>No role bypass</td><td>Ownership</td><td>Disabled</td><td>No</td></tr>
+  <tr><td><code>/api/sync/upload</code></td><td>POST</td><td><code>ApiKeyOnly</code></td><td>Deny</td><td>n/a</td><td>Deny</td><td>Allow</td><td>Allow</td><td>No role bypass</td><td>Showcase ownership</td><td>Disabled</td><td>No</td></tr>
+  <tr><td><code>/api/sync/upload/complete</code></td><td>POST</td><td><code>ApiKeyOnly</code></td><td>Deny</td><td>n/a</td><td>Deny</td><td>Allow</td><td>Allow</td><td>No role bypass</td><td>Showcase ownership</td><td>Disabled</td><td>No</td></tr>
+  <tr><td><code>/health</code></td><td>GET</td><td>Anonymous</td><td>Allow (detailed body — SEC-015)</td><td>n/a</td><td>Allow</td><td>Allow</td><td>Allow</td><td>Allow</td><td>None</td><td>n/a</td><td>No</td></tr>
+  <tr><td><code>/hangfire</code></td><td>GET</td><td>Dashboard filter</td><td>Deny by default; <strong>allow if <code>RequireAuthorization=false</code></strong> (SEC-006)</td><td>n/a</td><td>Deny</td><td>Deny</td><td>Not supported</td><td>Allow</td><td>Authenticated + Administrator role</td><td>n/a</td><td>No</td></tr>
+  <tr><td>Identity endpoints (<code>/Account/*</code>)</td><td>Various</td><td>Framework</td><td>Allow for login/register/reset</td><td>n/a</td><td>Allow</td><td>Allow</td><td>n/a</td><td>Allow</td><td>Framework</td><td>Enabled</td><td class="t-yes"><strong>Yes</strong></td></tr>
+</table>
+</div>
+
+<div class="callout">
+  <strong>Structural observation.</strong> The API-key principal is issued <code>NameIdentifier</code>,
+  <code>Name</code>, and <code>AuthenticationMethod</code> claims only — <strong>no role claims</strong>. An API key
+  therefore cannot reach administrator-gated surface even if the owning account is an administrator. This is a
+  deliberate and desirable property; it is recorded here so that any future change adding role claims to the API-key
+  path is recognised as a privilege expansion.
+</div>
+
+<h2 id="s8">8. Findings summary</h2>
+
+<div class="counts">
+  <div class="count"><div class="n" style="color:var(--crit)">0</div><div class="l">Critical</div></div>
+  <div class="count"><div class="n" style="color:var(--high)">4</div><div class="l">High</div></div>
+  <div class="count"><div class="n" style="color:var(--med)">10</div><div class="l">Medium</div></div>
+  <div class="count"><div class="n" style="color:var(--low)">6</div><div class="l">Low</div></div>
+  <div class="count"><div class="n">20</div><div class="l">Total</div></div>
+</div>
+
+<h4>By classification</h4>
+<table>
+  <tr><th style="width:280px">Classification</th><th style="width:70px">Count</th><th>Finding IDs</th></tr>
+  <tr><td>Broken access control / authorization</td><td>3</td><td>SEC-006, SEC-009, SEC-010</td></tr>
+  <tr><td>Injection &amp; cross-site scripting</td><td>1</td><td>SEC-001</td></tr>
+  <tr><td>Path traversal &amp; untrusted execution (client)</td><td>3</td><td>SEC-002, SEC-003, SEC-017</td></tr>
+  <tr><td>Sensitive data exposure</td><td>4</td><td>SEC-004, SEC-008, SEC-015, SEC-019</td></tr>
+  <tr><td>Security misconfiguration</td><td>4</td><td>SEC-005, SEC-007, SEC-014, SEC-016</td></tr>
+  <tr><td>Resource control &amp; availability</td><td>2</td><td>SEC-011, SEC-012</td></tr>
+  <tr><td>Supply chain, build &amp; operations</td><td>3</td><td>SEC-013, SEC-018, SEC-020</td></tr>
+</table>
+
+<h4>Index</h4>
+<div class="scroll">
+<table>
+  <tr><th style="width:82px">ID</th><th style="width:96px">Severity</th><th>Title</th><th style="width:130px">Verdict</th></tr>
+  <tr><td><code>SEC-001</code></td><td><span class="tag t-high">High</span></td><td>Stored cross-site scripting: attacker-controlled preview bytes served inline under an attacker-controlled content type</td><td><span class="tag t-ok">Confirmed (static)</span></td></tr>
+  <tr><td><code>SEC-002</code></td><td><span class="tag t-high">High</span></td><td>Desktop client writes downloads to server-controlled paths without validation (arbitrary file write)</td><td><span class="tag t-ok">Confirmed (static)</span></td></tr>
+  <tr><td><code>SEC-003</code></td><td><span class="tag t-high">High</span></td><td>Desktop client shell-executes server-supplied files with no type restriction</td><td><span class="tag t-ok">Confirmed (static)</span></td></tr>
+  <tr><td><code>SEC-004</code></td><td><span class="tag t-high">High</span></td><td>Share tokens persisted to request logs and error logs</td><td><span class="tag t-ok">Confirmed (static)</span></td></tr>
+  <tr><td><code>SEC-005</code></td><td><span class="tag t-med">Medium</span></td><td>SignalR detailed errors enabled unconditionally, including in production</td><td><span class="tag t-ok">Confirmed (static)</span></td></tr>
+  <tr><td><code>SEC-006</code></td><td><span class="tag t-med">Medium</span></td><td>Hangfire dashboard authorization is a fail-open configuration switch</td><td><span class="tag t-ok">Confirmed (static)</span></td></tr>
+  <tr><td><code>SEC-007</code></td><td><span class="tag t-med">Medium</span></td><td>No upload type allowlist, signature validation, or content-type constraint</td><td><span class="tag t-ok">Confirmed (static)</span></td></tr>
+  <tr><td><code>SEC-008</code></td><td><span class="tag t-med">Medium</span></td><td>Share tokens stored in plaintext with optional (frequently absent) expiry</td><td><span class="tag t-ok">Confirmed (static)</span></td></tr>
+  <tr><td><code>SEC-009</code></td><td><span class="tag t-med">Medium</span></td><td>Null-equality comparison in attachment authorization equates "anonymous" with "unknown creator"</td><td><span class="tag t-info">Plausible</span></td></tr>
+  <tr><td><code>SEC-010</code></td><td><span class="tag t-med">Medium</span></td><td>Share-token grant is not represented in resource authorization; private share links fail as 500 and leak the token</td><td><span class="tag t-ok">Confirmed (static)</span></td></tr>
+  <tr><td><code>SEC-011</code></td><td><span class="tag t-med">Medium</span></td><td>Rate limiting covers only Identity endpoints; all API and share routes are unthrottled</td><td><span class="tag t-ok">Confirmed (static)</span></td></tr>
+  <tr><td><code>SEC-012</code></td><td><span class="tag t-med">Medium</span></td><td>Form and request limits effectively disabled (<code>int.MaxValue</code>, 20&nbsp;GB body, 32&nbsp;MB hub messages)</td><td><span class="tag t-ok">Confirmed (static)</span></td></tr>
+  <tr><td><code>SEC-013</code></td><td><span class="tag t-med">Medium</span></td><td>No CI/CD pipeline: no automated build, test, dependency, secret, or static-analysis gate</td><td><span class="tag t-ok">Confirmed (static)</span></td></tr>
+  <tr><td><code>SEC-014</code></td><td><span class="tag t-med">Medium</span></td><td>CSP permits WebSocket connections to any host and inline styles; <code>'self'</code> covers user-uploaded content</td><td><span class="tag t-ok">Confirmed (static)</span></td></tr>
+  <tr><td><code>SEC-015</code></td><td><span class="tag t-low">Low</span></td><td>Anonymous health endpoint discloses per-check names, descriptions, and timings</td><td><span class="tag t-ok">Confirmed (static)</span></td></tr>
+  <tr><td><code>SEC-016</code></td><td><span class="tag t-low">Low</span></td><td>Link-cache endpoints expose raw sequential identifiers at the HTTP boundary</td><td><span class="tag t-ok">Confirmed (static)</span></td></tr>
+  <tr><td><code>SEC-017</code></td><td><span class="tag t-low">Low</span></td><td>Desktop client builds an <code>explorer.exe</code> command line by string interpolation</td><td><span class="tag t-ok">Confirmed (static)</span></td></tr>
+  <tr><td><code>SEC-018</code></td><td><span class="tag t-low">Low</span></td><td>Registration discloses whether an email address is already registered</td><td><span class="tag t-ok">Confirmed (static)</span></td></tr>
+  <tr><td><code>SEC-019</code></td><td><span class="tag t-low">Low</span></td><td>API keys have no expiry, rotation, or last-used metadata</td><td><span class="tag t-ok">Confirmed (static)</span></td></tr>
+  <tr><td><code>SEC-020</code></td><td><span class="tag t-low">Low</span></td><td>Logs are local files only, with no integrity protection or central aggregation</td><td><span class="tag t-info">Plausible</span></td></tr>
+</table>
+</div>
+
+<h2 id="s9">9. Findings — High</h2>
+
+<div class="f high">
+<h3>Stored cross-site scripting: attacker-controlled preview bytes served inline under an attacker-controlled content type</h3>
+<div class="fid">SEC-001</div>
+<div class="meta">
+  <span class="tag t-high">High</span>
+  <span class="tag t-ok">Confirmed (static)</span>
+  <span class="tag t-info">CWE-79</span>
+  <span class="tag t-info">CWE-434</span>
+  <span class="tag t-info">OWASP A03:2021</span>
+  <span class="tag t-info">API8:2023</span>
+  <span class="tag t-info">ASVS V5.3</span>
+</div>
+
+<div class="kv"><div class="k">Location</div>
+<code>Source/Collectibles.Web/Endpoints/PublicEndpoints.cs</code> (<code>ParseBase64Image</code>, and its call sites returning <code>Results.File</code>);
+<code>Source/Collectibles.Web/Endpoints/AttachmentEndpoints.cs</code> (<code>GetAttachmentPreview</code>, <code>GetAttachmentThumbnail</code>);
+<code>Source/Collectibles.Application/Features/Attachments/Commands/CreateAttachmentCommand.cs</code>
+</div>
+
+<div class="kv"><div class="k">What the code does</div>
+<p>The attachment creation command accepts <code>FileType</code> and <code>Base64PreviewThumbnail</code> directly from
+the caller. Validation constrains <code>FileType</code> to a maximum length only, and
+<code>Base64PreviewThumbnail</code> to being well-formed base64. When a preview is supplied, it overrides any
+server-generated one and is stored verbatim:</p>
+<pre><code>// Use provided thumbnail if available
+if (!string.IsNullOrEmpty(request.Base64PreviewThumbnail))
+{
+    previewThumbnail = Convert.FromBase64String(request.Base64PreviewThumbnail);
+}</code></pre>
+<p>The preview and thumbnail routes then return those stored bytes with the stored, caller-chosen content type:</p>
+<pre><code>var contentType = fileType ?? "image/jpeg";      // fileType == attachment.FileType
+...
+return Results.File(imageResult.ImageBytes, imageResult.ContentType);</code></pre>
+<p>This is the two-argument <code>Results.File</code> overload. Because no <code>fileDownloadName</code> is supplied,
+<strong>no <code>Content-Disposition: attachment</code> header is emitted</strong> and the response is rendered inline
+by the browser according to the declared type.</p>
+</div>
+
+<div class="kv"><div class="k">Why the existing controls do not contain it</div>
+<ul>
+  <li><code>X-Content-Type-Options: nosniff</code> prevents type <em>sniffing</em>. It does not help here, because the
+      server explicitly declares the attacker's chosen type rather than leaving it to be inferred.</li>
+  <li>CSP <code>script-src 'self'</code> blocks inline script, but the attacker can stage a second attachment declared
+      as a script type. Its preview URL is same-origin, so <code>'self'</code> permits it. Serving user-controlled
+      content from the application origin makes <code>'self'</code> attacker-inclusive.</li>
+  <li>Session cookies are <code>HttpOnly</code>, so the cookie itself cannot be read — but script running in the origin
+      rides the victim's authenticated session and can read the antiforgery token from the DOM.</li>
+</ul>
+</div>
+
+<div class="kv"><div class="k">Failure scenario</div>
+<p>A self-registered user creates an attachment with <code>FileType</code> set to a markup MIME type and
+<code>Base64PreviewThumbnail</code> set to base64-encoded markup that loads a second, script-typed attachment from the
+same origin. They place it in a public showcase or send a share link. Any user who opens the preview URL — including an
+administrator — executes the attacker's script inside the application's origin, with the victim's session available for
+same-origin requests. Because the preview routes are <code>AllowAnonymous</code> and public showcases are readable
+without authentication, the payload is reachable by any visitor holding the link.</p>
+</div>
+
+<div class="kv"><div class="k">Remediation</div>
+<ol>
+  <li><strong>Never echo a caller-supplied content type.</strong> Derive the response content type from a fixed
+      server-side allowlist keyed on the validated attachment type. Previews are thumbnails; they should be served as
+      <code>image/jpeg</code> or <code>image/png</code> and nothing else.</li>
+  <li><strong>Do not accept caller-supplied preview bytes.</strong> Generate previews server-side from the uploaded
+      content, and drop <code>Base64PreviewThumbnail</code> from the request contract. If a client-supplied preview is
+      genuinely required, re-encode it through the image pipeline so only pixels survive.</li>
+  <li>Add <code>Content-Disposition: attachment</code> (or <code>inline</code> with an explicit safe filename) to every
+      user-content response, and serve user content from a separate origin or a sandboxed subdomain so that
+      <code>script-src 'self'</code> no longer covers it.</li>
+  <li>Constrain <code>FileType</code> at the validator to a known MIME allowlist.</li>
+</ol>
+</div>
+</div>
+
+<div class="f high">
+<h3>Desktop client writes downloads to server-controlled paths without validation (arbitrary file write)</h3>
+<div class="fid">SEC-002</div>
+<div class="meta">
+  <span class="tag t-high">High</span>
+  <span class="tag t-ok">Confirmed (static)</span>
+  <span class="tag t-info">CWE-22</span>
+  <span class="tag t-info">CWE-73</span>
+  <span class="tag t-info">OWASP A01:2021</span>
+  <span class="tag t-info">ASVS V12.3</span>
+</div>
+
+<div class="kv"><div class="k">Location</div>
+<code>Source/Collectibles.SyncTool/ViewModels/MainViewModel.cs</code> — <code>BuildDownloadPath</code>, used by the two download paths in the same file</div>
+
+<div class="kv"><div class="k">What the code does</div>
+<pre><code>private string BuildDownloadPath(SyncItem item)
+{
+    var segments = item.ItemPath?.Split(" &gt; ", StringSplitOptions.RemoveEmptyEntries) ?? [];
+    var folder = Path.Combine([LocalFolder, .. segments]);
+    return Path.Combine(folder, item.ServerFileName ?? "download");
+}</code></pre>
+<p>Both <code>ItemPath</code> and <code>ServerFileName</code> originate from the server manifest
+(<code>ShowcaseManifestItemDto.ItemPath</code> and <code>OriginalFilename</code>). The result is passed to
+<code>Directory.CreateDirectory</code> and <code>File.WriteAllBytesAsync</code>.</p>
+</div>
+
+<div class="kv"><div class="k">Why this is unsafe</div>
+<p><code>Path.Combine</code> has two behaviours that make it unsuitable as a containment boundary:
+if any segment is rooted (for example an absolute path or a drive-qualified path), <strong>every preceding segment is
+discarded</strong>; and <code>..</code> segments are not removed, so the combined path can traverse above
+<code>LocalFolder</code>. Neither the segments nor the filename are validated, canonicalized, or checked for
+containment after combination.</p>
+</div>
+
+<div class="kv"><div class="k">Failure scenario</div>
+<p>A malicious or compromised server returns a manifest entry whose <code>ItemPath</code> contains a rooted or
+traversing segment. The client writes the attachment's bytes to a location of the server's choosing anywhere the
+running user can write — including per-user autostart locations, configuration directories, or files consumed by other
+applications. Combined with SEC-003, this yields code execution on the operator's workstation (attack path AP-2).</p>
+</div>
+
+<div class="kv"><div class="k">Remediation</div>
+<ol>
+  <li>Sanitize each path segment to a safe leaf: reject or strip separators, <code>..</code>, drive qualifiers, control
+      characters, reserved device names, and trailing dots or spaces.</li>
+  <li>Combine, then <strong>canonicalize the result and verify containment</strong> under the canonicalized
+      <code>LocalFolder</code> by path component comparison — not by string prefix — before creating or writing
+      anything. Abort on failure.</li>
+  <li>Apply the same treatment to <code>ServerFileName</code>; do not trust a server-supplied filename as a leaf.</li>
+</ol>
+</div>
+</div>
+
+<div class="f high">
+<h3>Desktop client shell-executes server-supplied files with no type restriction</h3>
+<div class="fid">SEC-003</div>
+<div class="meta">
+  <span class="tag t-high">High</span>
+  <span class="tag t-ok">Confirmed (static)</span>
+  <span class="tag t-info">CWE-434</span>
+  <span class="tag t-info">CWE-676</span>
+  <span class="tag t-info">OWASP A08:2021</span>
+  <span class="tag t-info">ASVS V12.4</span>
+</div>
+
+<div class="kv"><div class="k">Location</div>
+<code>Source/Collectibles.SyncTool/MainWindow.xaml.cs</code> — <code>OpenFileWithDefault</code></div>
+
+<div class="kv"><div class="k">What the code does</div>
+<pre><code>private static void OpenFileWithDefault(string filePath)
+{
+    if (!File.Exists(filePath)) return;
+    Process.Start(new ProcessStartInfo(filePath) { UseShellExecute = true });
+}</code></pre>
+<p><code>UseShellExecute = true</code> hands the path to the operating system shell, which resolves it by file
+association. There is no extension allowlist, no content inspection, and no confirmation prompt. The file in question
+was downloaded from the server, with a server-chosen name and extension.</p>
+</div>
+
+<div class="kv"><div class="k">Failure scenario</div>
+<p>The server supplies an attachment whose filename carries an executable or script extension. The user clicks to open
+what they believe is a document; the shell executes it with the user's privileges. Chained with SEC-002, the server
+additionally controls <em>where</em> the file lands, which broadens the outcome from "user opens a malicious file" to
+"attacker places an executable in a location that runs without user interaction".</p>
+</div>
+
+<div class="kv"><div class="k">Remediation</div>
+<ol>
+  <li>Restrict shell-open to an explicit allowlist of safe, non-executable extensions; refuse everything else and tell
+      the user why.</li>
+  <li>Prefer revealing the file in the file manager over opening it, so the operating system's own
+      mark-of-the-web and warning prompts apply.</li>
+  <li>Ensure downloaded files carry the mark-of-the-web so SmartScreen and equivalent controls engage.</li>
+</ol>
+</div>
+</div>
+
+<div class="f high">
+<h3>Share tokens persisted to request logs and error logs</h3>
+<div class="fid">SEC-004</div>
+<div class="meta">
+  <span class="tag t-high">High</span>
+  <span class="tag t-ok">Confirmed (static)</span>
+  <span class="tag t-info">CWE-532</span>
+  <span class="tag t-info">CWE-598</span>
+  <span class="tag t-info">OWASP A09:2021</span>
+  <span class="tag t-info">ASVS V7.1</span>
+</div>
+
+<div class="kv"><div class="k">Location</div>
+<code>Source/Collectibles.Web/Middleware/RequestLoggingMiddleware.cs</code>;
+<code>Source/Collectibles.Web/Endpoints/PublicEndpoints.cs</code> (error paths of both public routes)</div>
+
+<div class="kv"><div class="k">What the code does</div>
+<p>Request logging writes the request <code>Path</code> and <code>QueryString</code> to the <code>RequestLogs</code>
+table. Its exclusion list covers <code>/health</code>, <code>/metrics</code>, <code>/_blazor</code>,
+<code>/_framework</code>, <code>/css</code>, <code>/js</code>, <code>/images</code>, and <code>/favicon.ico</code> —
+<strong>but not <code>/share/</code> or <code>/api/public/</code></strong>, which are exactly the routes that carry a
+share token in the URL path.</p>
+<p>Separately, the public attachment routes place the token into the log message itself as a structured property:</p>
+<pre><code>Log.Error(ex, "Error serving public preview for attachment {Hash} with token {Token}", hash, token);</code></pre>
+</div>
+
+<div class="kv"><div class="k">Why this matters</div>
+<p>A share token is a bearer credential: possession alone grants anonymous access to the shared showcase. Writing it to
+durable storage moves that credential into systems with a different — usually broader — access model than the
+application's own authorization, and into backups and log exports that may outlive the token's intended life. Because
+tokens are stored in plaintext and expiry is optional (SEC-008), a token recovered from a log remains valid
+indefinitely unless someone revokes it by hand.</p>
+</div>
+
+<div class="kv"><div class="k">Remediation</div>
+<ol>
+  <li>Add <code>/share/</code> and <code>/api/public/</code> to the request-logging exclusion list, or redact the token
+      segment before persisting the path.</li>
+  <li>Remove the token from the error log statement; log the token's database identifier or a truncated hash instead.</li>
+  <li>Move share tokens out of the URL path where the design allows, so they are not captured by proxies, referrer
+      headers, or browser history.</li>
+  <li>Treat existing log stores as containing live credentials: review retention and consider revoking tokens issued
+      before the fix.</li>
+</ol>
+</div>
+</div>
+
+<h2 id="s10">10. Findings — Medium</h2>
+
+<div class="f med">
+<h3>SignalR detailed errors enabled unconditionally, including in production</h3>
+<div class="fid">SEC-005</div>
+<div class="meta"><span class="tag t-med">Medium</span><span class="tag t-ok">Confirmed (static)</span><span class="tag t-info">CWE-209</span><span class="tag t-info">OWASP A05:2021</span><span class="tag t-info">ASVS V7.4</span></div>
+<div class="kv"><div class="k">Location</div><code>Source/Collectibles.Web/Extensions/ServiceCollectionExtensions.cs</code> — <code>AddHubOptions</code></div>
+<div class="kv"><div class="k">Detail</div>
+<pre><code>options.EnableDetailedErrors = true;</code></pre>
+<p>There is no environment guard. In a Blazor Server application every interactive component event runs over this hub,
+so unhandled server-side exceptions are returned to the browser with their type, message, and detail. That commonly
+exposes internal type and assembly names, file paths, database error text, and the shape of internal queries —
+material that shortens the path from probing to a working attack.</p>
+</div>
+<div class="kv"><div class="k">Failure scenario</div><p>An attacker submits input that provokes a handled-but-surfaced exception in a component; the returned frame reveals database schema details or internal paths that inform a follow-on attack.</p></div>
+<div class="kv"><div class="k">Remediation</div><p>Set the flag from the environment: <code>options.EnableDetailedErrors = builder.Environment.IsDevelopment();</code>. Pair this with a generic client-facing error message and full server-side logging.</p></div>
+</div>
+
+<div class="f med">
+<h3>Hangfire dashboard authorization is a fail-open configuration switch</h3>
+<div class="fid">SEC-006</div>
+<div class="meta"><span class="tag t-med">Medium</span><span class="tag t-ok">Confirmed (static)</span><span class="tag t-info">CWE-1188</span><span class="tag t-info">CWE-306</span><span class="tag t-info">OWASP A05:2021</span><span class="tag t-info">ASVS V1.4</span></div>
+<div class="kv"><div class="k">Location</div><code>Source/Collectibles.Web/Extensions/HangfireExtensions.cs</code>; <code>Source/Collectibles.Web/Authorization/HangfireAuthorizationFilter.cs</code></div>
+<div class="kv"><div class="k">Detail</div>
+<pre><code>Authorization = requireAuthorization
+    ? new[] { new HangfireAuthorizationFilter() }
+    : Array.Empty&lt;IDashboardAuthorizationFilter&gt;()</code></pre>
+<p>The filter itself is correct — it requires an authenticated principal in the Administrator role, and it is registered
+after <code>UseAuthentication</code>, so the principal is populated. The problem is the false branch: an
+<strong>empty</strong> filter collection means Hangfire applies <em>no</em> authorization at all, publishing the
+dashboard to anonymous users. The committed default is <code>true</code>, so this is latent rather than active, but a
+single configuration value flips a fully unauthenticated administrative interface into existence.</p>
+</div>
+<div class="kv"><div class="k">Failure scenario</div><p>An operator sets <code>Hangfire:RequireAuthorization=false</code> — plausibly while debugging a local dashboard access problem — and the setting reaches a deployed environment. Any anonymous visitor can then enumerate jobs, read job arguments, trigger jobs, and delete them.</p></div>
+<div class="kv"><div class="k">Remediation</div><ol>
+  <li>Remove the fail-open branch. Always install the authorization filter.</li>
+  <li>If a development bypass is genuinely needed, gate it on <code>IHostEnvironment.IsDevelopment()</code> in code so it cannot be enabled by configuration in a deployed environment.</li>
+  <li>Add a startup guard that refuses to start when a non-development environment is configured without dashboard authorization.</li>
+</ol></div>
+</div>
+
+<div class="f med">
+<h3>No upload type allowlist, signature validation, or content-type constraint</h3>
+<div class="fid">SEC-007</div>
+<div class="meta"><span class="tag t-med">Medium</span><span class="tag t-ok">Confirmed (static)</span><span class="tag t-info">CWE-434</span><span class="tag t-info">CWE-646</span><span class="tag t-info">OWASP A04:2021</span><span class="tag t-info">ASVS V12.1</span></div>
+<div class="kv"><div class="k">Location</div><code>CreateAttachmentCommand.cs</code>, <code>CreateAttachmentStreamCommand.cs</code>, <code>UpdateAttachmentCommand.cs</code></div>
+<div class="kv"><div class="k">Detail</div>
+<p>Across all three upload commands the file extension is read only to compose a storage filename
+(<code>Path.GetExtension(originalFileName)</code>). There is no allowlist or denylist of extensions, no magic-byte or
+signature check, no verification that the declared <code>FileType</code> matches the actual bytes, and no malware
+scanning. <code>AttachmentType</code> is likewise taken from the request. The declared type is subsequently trusted
+when serving the file, which is what makes SEC-001 exploitable.</p>
+</div>
+<div class="kv"><div class="k">Failure scenario</div><p>An authenticated user uploads content whose real format has nothing to do with its declared type. The mismatch is never detected, and the declared type is echoed back to browsers on retrieval.</p></div>
+<div class="kv"><div class="k">Remediation</div><ol>
+  <li>Define a server-side allowlist of accepted types and reject anything outside it.</li>
+  <li>Verify the leading bytes of the uploaded content against the declared type; reject on mismatch rather than correcting silently.</li>
+  <li>Derive the stored and served content type from the verified signature, never from caller input.</li>
+  <li>Consider re-encoding images through an imaging pipeline so only pixel data is retained.</li>
+</ol></div>
+</div>
+
+<div class="f med">
+<h3>Share tokens stored in plaintext with optional (frequently absent) expiry</h3>
+<div class="fid">SEC-008</div>
+<div class="meta"><span class="tag t-med">Medium</span><span class="tag t-ok">Confirmed (static)</span><span class="tag t-info">CWE-522</span><span class="tag t-info">CWE-613</span><span class="tag t-info">OWASP A02:2021</span><span class="tag t-info">ASVS V3.3</span></div>
+<div class="kv"><div class="k">Location</div><code>Source/Collectibles.Domain/Entities/ShowcaseShareToken.cs</code>; <code>Source/Collectibles.Application/Showcases/Commands/GenerateShareLink/GenerateShareLinkCommandHandler.cs</code></div>
+<div class="kv"><div class="k">Detail</div>
+<p>Token <em>generation</em> is strong — 32 bytes from a CSPRNG, base64url-encoded, with a uniqueness re-roll. Two
+properties around it are weaker:</p>
+<ul>
+  <li>The token is persisted <strong>as the literal value</strong>, so anyone with read access to the table holds live
+      credentials for every shared showcase.</li>
+  <li><code>ExpiresAt</code> is <code>DateTime?</code> and <code>IsExpired()</code> treats null as "never expires", so
+      a share link can be perpetual. Revocation is manual, via <code>IsActive</code> or soft delete.</li>
+</ul>
+</div>
+<div class="kv"><div class="k">Failure scenario</div><p>A database backup, a read-only reporting connection, or a SQL-level compromise yields every active share token in usable form; perpetual tokens mean the exposure does not age out.</p></div>
+<div class="kv"><div class="k">Remediation</div><ol>
+  <li>Store a hash of the token (the token is high-entropy, so a fast hash is adequate) and look up by hash. Show the plaintext once, at creation.</li>
+  <li>Require an expiry, with a bounded default, and expire tokens server-side.</li>
+  <li>Record last-used timestamp and use count to support review and anomaly detection.</li>
+</ol></div>
+</div>
+
+<div class="f med">
+<h3>Null-equality comparison in attachment authorization equates "anonymous" with "unknown creator"</h3>
+<div class="fid">SEC-009</div>
+<div class="meta"><span class="tag t-med">Medium</span><span class="tag t-info">Plausible</span><span class="tag t-info">CWE-863</span><span class="tag t-info">CWE-476</span><span class="tag t-info">OWASP A01:2021</span><span class="tag t-info">ASVS V4.1</span></div>
+<div class="kv"><div class="k">Location</div><code>Source/Collectibles.Application/Common/Authorization/Handlers/AttachmentAuthorizationHandler.cs</code> — <code>ViewAttachmentAuthorizationHandler</code></div>
+<div class="kv"><div class="k">Detail</div>
+<pre><code>else
+{
+    // Attachment not associated with any item - allow viewing by uploader
+    if (resource.CreatedBy == userId)
+    {
+        context.Succeed(requirement);
+    }
+}</code></pre>
+<p>For an anonymous principal <code>userId</code> is <code>null</code>. <code>CreatedBy</code> is
+<code>string?</code> and can be null for records created outside an HTTP user context — for example by the Hangfire
+ZIP-processing job. When both are null the comparison is true and the requirement <strong>succeeds for an anonymous
+caller</strong>. A security decision should never be satisfied by two absent values comparing equal.</p>
+</div>
+<div class="kv"><div class="k">Reachability and why this is Medium, not High</div>
+<p>On <code>/api/attachments/{hash}/*</code> the endpoint-level gate independently denies anonymous callers whenever the
+attachment is not in a public showcase, so the flaw is not reachable there. It <em>is</em> reachable through the
+share-token routes, which reach the handler with an anonymous principal — but those require a valid token first. The
+issue is therefore a defence-in-depth failure rather than a directly exploitable bypass. It is marked
+<strong>Plausible</strong> because confirming it requires knowing whether any attachment actually has a null
+<code>CreatedBy</code>, which needs database access this audit did not have.</p>
+</div>
+<div class="kv"><div class="k">Remediation</div><p>Guard the comparison explicitly: fail unless <code>userId</code> is non-null <em>and</em> <code>CreatedBy</code> is non-null <em>and</em> they match, using an ordinal string comparison. Apply the same pattern to every ownership comparison involving nullable identity values.</p></div>
+</div>
+
+<div class="f med">
+<h3>Share-token grant is not represented in resource authorization; private share links fail as 500 and leak the token</h3>
+<div class="fid">SEC-010</div>
+<div class="meta"><span class="tag t-med">Medium</span><span class="tag t-ok">Confirmed (static)</span><span class="tag t-info">CWE-863</span><span class="tag t-info">CWE-209</span><span class="tag t-info">OWASP A01:2021</span><span class="tag t-info">ASVS V4.2</span></div>
+<div class="kv"><div class="k">Location</div><code>Source/Collectibles.Web/Endpoints/PublicEndpoints.cs</code>; <code>Source/Collectibles.Application/Features/Attachments/Queries/GetAttachmentForPreviewQuery.cs</code>; <code>AttachmentAuthorizationHandler.cs</code></div>
+<div class="kv"><div class="k">Detail</div>
+<p>The public routes apply two independent gates in sequence. First the share token is validated. Then the query handler
+runs the resource authorization requirement, which decides on owner identity or <code>IsPrivate</code> alone:</p>
+<pre><code>// Non-owners can only view attachments in public showcases
+if (showcases.All(s =&gt; !s.IsPrivate))
+{
+    context.Succeed(requirement);
+}</code></pre>
+<p>The second gate has no knowledge of the first. For an anonymous visitor holding a valid token for a
+<strong>private</strong> showcase, <code>userId</code> is null and <code>IsPrivate</code> is true, so the requirement is
+not satisfied, the handler throws <code>UnauthorizedAccessException</code>, and the endpoint's catch-all converts it to
+<strong>HTTP 500</strong> — while writing the share token into the error log (SEC-004).</p>
+</div>
+<div class="kv"><div class="k">Failure scenario</div><p>A legitimate recipient of a private share link receives a server error instead of the content. Every such failure writes a live bearer token to the error log. The functional break is also a security-model gap: "access granted by share token" has no representation in the authorization layer, so the two gates cannot be reasoned about together.</p></div>
+<div class="kv"><div class="k">Remediation</div><ol>
+  <li>Model the share-token grant as part of the authorization context — for example a scoped principal or an explicit
+      requirement carrying the validated token's showcase — so the resource handler can succeed on that basis.</li>
+  <li>Distinguish authorization failure from unexpected failure in the endpoint: return 403 or 404 for
+      <code>UnauthorizedAccessException</code>, and reserve 500 for genuine faults.</li>
+  <li>Remove the token from the error log statement (see SEC-004).</li>
+</ol></div>
+</div>
+
+<div class="f med">
+<h3>Rate limiting covers only Identity endpoints; all API and share routes are unthrottled</h3>
+<div class="fid">SEC-011</div>
+<div class="meta"><span class="tag t-med">Medium</span><span class="tag t-ok">Confirmed (static)</span><span class="tag t-info">CWE-770</span><span class="tag t-info">CWE-799</span><span class="tag t-info">OWASP API4:2023</span><span class="tag t-info">ASVS V11.1</span></div>
+<div class="kv"><div class="k">Location</div><code>Source/Collectibles.Web/Extensions/ServiceCollectionExtensions.cs</code> (<code>AddRateLimiter</code>); <code>Source/Collectibles.Web/Program.cs</code></div>
+<div class="kv"><div class="k">Detail</div>
+<p>Exactly one policy is defined — <code>AuthEndpoints</code>, a fixed window of 20 requests per minute partitioned by
+remote address — and it is applied at exactly one place, the Identity endpoint group. There is no global limiter. Every
+API route in §7, including uploads, downloads, previews, the sync API, and the anonymous share routes, is unthrottled.</p>
+<p>The partition key uses <code>Connection.RemoteIpAddress</code>, which is correct here because forwarded-headers
+processing runs earlier in the pipeline and rewrites it for known proxies.</p>
+</div>
+<div class="kv"><div class="k">Failure scenario</div><p>An unauthenticated client enumerates share tokens or attachment hashes, or repeatedly requests expensive preview and download operations, with no server-side friction.</p></div>
+<div class="kv"><div class="k">Remediation</div><ol>
+  <li>Add a global limiter as a baseline, with per-endpoint policies layered over it.</li>
+  <li>Apply a specific, tighter policy to anonymous share and public routes, and to upload initiation.</li>
+  <li>Partition authenticated traffic by user identity rather than address, so a single account cannot spread load across many addresses.</li>
+</ol></div>
+</div>
+
+<div class="f med">
+<h3>Form and request limits effectively disabled</h3>
+<div class="fid">SEC-012</div>
+<div class="meta"><span class="tag t-med">Medium</span><span class="tag t-ok">Confirmed (static)</span><span class="tag t-info">CWE-770</span><span class="tag t-info">CWE-400</span><span class="tag t-info">OWASP A05:2021</span><span class="tag t-info">ASVS V11.1</span></div>
+<div class="kv"><div class="k">Location</div><code>Source/Collectibles.Web/Extensions/ServiceCollectionExtensions.cs</code>; <code>Source/Collectibles.Domain/Constants/ApplicationConstants.cs</code></div>
+<div class="kv"><div class="k">Detail</div>
+<table>
+  <tr><th style="width:290px">Setting</th><th>Value</th><th>Concern</th></tr>
+  <tr><td><code>FormOptions.ValueLengthLimit</code></td><td><code>int.MaxValue</code></td><td>A single form value may consume up to 2&nbsp;GB of memory</td></tr>
+  <tr><td><code>FormOptions.MultipartHeadersLengthLimit</code></td><td><code>int.MaxValue</code></td><td>Multipart section headers are unbounded</td></tr>
+  <tr><td><code>FormOptions.MultipartBoundaryLengthLimit</code></td><td><code>int.MaxValue</code></td><td>Boundary parsing is unbounded</td></tr>
+  <tr><td><code>MaxRequestBodySize</code></td><td>20&nbsp;GB</td><td>Very large single-request uploads</td></tr>
+  <tr><td><code>SignalR MaximumReceiveMessageSize</code></td><td>32&nbsp;MB</td><td>Large per-message allocation on every circuit</td></tr>
+</table>
+<p>These were presumably raised to support large-attachment upload, which is a real requirement — but raising the
+<em>body</em> limit does not require removing the <em>header</em>, <em>boundary</em>, and <em>value</em> limits, which
+exist to bound parser memory rather than payload size.</p>
+</div>
+<div class="kv"><div class="k">Failure scenario</div><p>An authenticated client sends a request with an enormous form value or multipart header section; the server allocates proportionally during parsing. With no rate limiting on these routes (SEC-011), modest concurrency can exhaust memory.</p></div>
+<div class="kv"><div class="k">Remediation</div><ol>
+  <li>Restore bounded values for <code>ValueLengthLimit</code>, <code>MultipartHeadersLengthLimit</code>, and <code>MultipartBoundaryLengthLimit</code>. Large <em>file</em> uploads do not need large <em>header</em> or <em>value</em> limits.</li>
+  <li>Scope the elevated body-size limit to the specific upload endpoints rather than applying it server-wide.</li>
+  <li>Prefer the streaming/direct-upload path for large files so bytes are not buffered.</li>
+</ol></div>
+</div>
+
+<div class="f med">
+<h3>No CI/CD pipeline: no automated build, test, dependency, secret, or static-analysis gate</h3>
+<div class="fid">SEC-013</div>
+<div class="meta"><span class="tag t-med">Medium</span><span class="tag t-ok">Confirmed (static)</span><span class="tag t-info">CWE-1395</span><span class="tag t-info">OWASP A06:2021</span><span class="tag t-info">NIST SSDF PO.4 / PW.7 / PW.8 / RV.1</span></div>
+<div class="kv"><div class="k">Location</div>Repository root — no <code>.github/workflows/</code>, and no other pipeline definition present</div>
+<div class="kv"><div class="k">Detail</div>
+<p>There is no automated pipeline of any kind. Every quality and security gate — build, test, dependency advisory
+review, secret scanning, static analysis, format enforcement — depends on a developer choosing to run it locally. The
+project does have a substantial test suite and analyzer configuration, which makes the absence of automation the
+binding constraint rather than the absence of checks.</p>
+</div>
+<div class="kv"><div class="k">Failure scenario</div><p>A change introducing a vulnerable dependency, a committed credential, or a regression in an authorization path reaches the default branch because nothing independent of the author's local habits examined it.</p></div>
+<div class="kv"><div class="k">Remediation</div><ol>
+  <li>Add a pipeline that runs restore, build, and the full test suite on every push and pull request.</li>
+  <li>Add dependency advisory scanning (<code>dotnet list package --vulnerable --include-transitive</code> and <code>npm audit</code>) as a failing gate.</li>
+  <li>Add secret scanning with push protection, and enable analyzer warnings-as-errors in the pipeline.</li>
+  <li>Protect the default branch so the pipeline must pass before merge.</li>
+</ol></div>
+</div>
+
+<div class="f med">
+<h3>CSP permits WebSocket connections to any host and inline styles; <code>'self'</code> covers user-uploaded content</h3>
+<div class="fid">SEC-014</div>
+<div class="meta"><span class="tag t-med">Medium</span><span class="tag t-ok">Confirmed (static)</span><span class="tag t-info">CWE-1021</span><span class="tag t-info">CWE-693</span><span class="tag t-info">OWASP A05:2021</span><span class="tag t-info">ASVS V14.4</span></div>
+<div class="kv"><div class="k">Location</div><code>Source/Collectibles.Web/Program.cs</code> — security-headers middleware</div>
+<div class="kv"><div class="k">Detail</div>
+<pre><code>default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none';
+img-src 'self' data: blob:; font-src 'self' data: https://fonts.gstatic.com;
+script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+connect-src 'self' ws: wss: https://*.blob.core.windows.net</code></pre>
+<p>The policy is well above average — <code>object-src 'none'</code>, <code>frame-ancestors 'none'</code>,
+<code>base-uri 'self'</code>, and no <code>'unsafe-inline'</code> on <code>script-src</code> are all correct. Three
+weaknesses remain:</p>
+<ul>
+  <li><strong><code>connect-src</code> allows bare <code>ws:</code> and <code>wss:</code></strong>, which match
+      <em>any</em> host. Blazor's circuit needs same-origin WebSocket only. As written, this is an open exfiltration
+      channel for any script that does execute.</li>
+  <li><strong><code>style-src 'unsafe-inline'</code></strong> permits injected style, which enables layout-based
+      exfiltration and clickjacking-style overlays.</li>
+  <li><strong><code>script-src 'self'</code> is weakened by SEC-001</strong>: because user-uploaded content is served
+      from the application origin, <code>'self'</code> includes attacker-controlled resources.</li>
+</ul>
+</div>
+<div class="kv"><div class="k">Remediation</div><ol>
+  <li>Replace <code>ws: wss:</code> with the specific origin, or rely on <code>'self'</code>, which already covers the same-origin circuit.</li>
+  <li>Remove <code>'unsafe-inline'</code> from <code>style-src</code> using nonces or hashes.</li>
+  <li>Serve user content from a distinct origin so <code>'self'</code> stops covering it (see SEC-001).</li>
+  <li>Add <code>form-action 'self'</code> and consider <code>require-trusted-types-for 'script'</code>.</li>
+</ol></div>
+</div>
+
+<h2 id="s11">11. Findings — Low</h2>
+
+<div class="f low">
+<h3>Anonymous health endpoint discloses per-check names, descriptions, and timings</h3>
+<div class="fid">SEC-015</div>
+<div class="meta"><span class="tag t-low">Low</span><span class="tag t-ok">Confirmed (static)</span><span class="tag t-info">CWE-200</span><span class="tag t-info">OWASP A01:2021</span><span class="tag t-info">ASVS V7.4</span></div>
+<div class="kv"><div class="k">Location</div><code>Source/Collectibles.Web/Program.cs</code> — <code>MapHealthChecks("/health")</code> with a custom <code>ResponseWriter</code></div>
+<div class="kv"><div class="k">Detail</div><p>The endpoint is anonymous and its response writer emits each check's name, status, description, and duration. This reveals internal component inventory (for example that a SQL Server dependency named <code>database</code> exists) and, through timings, a coarse side channel on backend health.</p></div>
+<div class="kv"><div class="k">Remediation</div><p>Expose an unauthenticated liveness endpoint that returns status only, and put the detailed readiness report behind authentication or restrict it to the infrastructure network.</p></div>
+</div>
+
+<div class="f low">
+<h3>Link-cache endpoints expose raw sequential identifiers at the HTTP boundary</h3>
+<div class="fid">SEC-016</div>
+<div class="meta"><span class="tag t-low">Low</span><span class="tag t-ok">Confirmed (static)</span><span class="tag t-info">CWE-639</span><span class="tag t-info">OWASP API1:2023</span><span class="tag t-info">ASVS V4.2</span></div>
+<div class="kv"><div class="k">Location</div><code>Source/Collectibles.Web/Endpoints/LinkCacheEndpoints.cs</code></div>
+<div class="kv"><div class="k">Detail</div><p>These routes bind <code>{id:long}</code> directly, unlike every other resource route, which uses HashIds-obfuscated identifiers. <strong>Ownership is correctly enforced</strong> in both handlers, so this is not an IDOR. The issues are that sequential identifiers permit volume inference and enumeration probing, and that the inconsistency with the codebase's own boundary convention makes the next handler added here more likely to omit the ownership check.</p></div>
+<div class="kv"><div class="k">Remediation</div><p>Use the HashIds boundary convention here as elsewhere, and keep the ownership check regardless.</p></div>
+</div>
+
+<div class="f low">
+<h3>Desktop client builds an <code>explorer.exe</code> command line by string interpolation</h3>
+<div class="fid">SEC-017</div>
+<div class="meta"><span class="tag t-low">Low</span><span class="tag t-ok">Confirmed (static)</span><span class="tag t-info">CWE-88</span><span class="tag t-info">ASVS V5.2</span></div>
+<div class="kv"><div class="k">Location</div><code>Source/Collectibles.SyncTool/MainWindow.xaml.cs</code> — <code>OpenContainingFolder</code></div>
+<div class="kv"><div class="k">Detail</div>
+<pre><code>Process.Start("explorer.exe", $"/select,\"{item.LocalFilePath}\"");</code></pre>
+<p>The path derives from server-supplied values (see SEC-002). A quote character in that path terminates the quoted
+argument early, allowing additional arguments to be introduced into the command line.</p></div>
+<div class="kv"><div class="k">Remediation</div><p>Use <code>ProcessStartInfo</code> with <code>ArgumentList</code>, which passes arguments individually and removes command-line quoting from the equation. Fix SEC-002 so the path is trustworthy in the first place.</p></div>
+</div>
+
+<div class="f low">
+<h3>Registration discloses whether an email address is already registered</h3>
+<div class="fid">SEC-018</div>
+<div class="meta"><span class="tag t-low">Low</span><span class="tag t-ok">Confirmed (static)</span><span class="tag t-info">CWE-204</span><span class="tag t-info">OWASP A07:2021</span><span class="tag t-info">ASVS V2.2</span></div>
+<div class="kv"><div class="k">Location</div><code>Source/Collectibles.Web/Components/Account/Pages/Register.razor</code></div>
+<div class="kv"><div class="k">Detail</div>
+<pre><code>private string? Message =&gt; identityErrors is null ? null
+    : $"Error: {string.Join(", ", identityErrors.Select(error =&gt; error.Description))}";</code></pre>
+<p>Identity's duplicate-account error description is rendered verbatim, confirming that a given address already has an
+account. This is notable because the neighbouring flows get it right — forgot-password explicitly avoids revealing
+whether a user exists, and login returns a generic "Invalid login attempt." Registration is the inconsistent one.</p></div>
+<div class="kv"><div class="k">Remediation</div><p>Return a neutral confirmation regardless of outcome and deliver the difference by email — either a confirmation link or a notice that an account already exists. Filter duplicate-account errors out of the rendered message.</p></div>
+</div>
+
+<div class="f low">
+<h3>API keys have no expiry, rotation, or last-used metadata</h3>
+<div class="fid">SEC-019</div>
+<div class="meta"><span class="tag t-low">Low</span><span class="tag t-ok">Confirmed (static)</span><span class="tag t-info">CWE-613</span><span class="tag t-info">OWASP A07:2021</span><span class="tag t-info">ASVS V3.3</span></div>
+<div class="kv"><div class="k">Location</div><code>Source/Collectibles.Infrastructure/Services/ApiKeyService.cs</code>; <code>ApplicationUser</code></div>
+<div class="kv"><div class="k">Detail</div><p>Key generation is sound: 32 bytes from <code>RandomNumberGenerator</code>, base64url-encoded, stored as a SHA-256 hash rather than in plaintext. The gap is lifecycle. <code>ApplicationUser</code> carries only <code>ApiKeyHash</code>, <code>IsActive</code>, and <code>SyncToolEnabled</code> — there is no issued-at, expires-at, last-used, or key identifier. A key is valid until someone manually clears it, one key exists per user so rotation is a break-then-fix operation, and there is no signal for detecting an unused or stolen key.</p>
+<p>A useful compensating control is already present: the API-key principal receives no role claims, so a key cannot reach administrator surface.</p></div>
+<div class="kv"><div class="k">Remediation</div><ol><li>Add issued-at, expires-at, and last-used-at fields, and enforce expiry at authentication.</li><li>Support multiple concurrent keys per user so rotation is overlap-then-revoke.</li><li>Surface last-used to the user and notify on first use of a new key.</li></ol></div>
+</div>
+
+<div class="f low">
+<h3>Logs are local files only, with no integrity protection or central aggregation</h3>
+<div class="fid">SEC-020</div>
+<div class="meta"><span class="tag t-low">Low</span><span class="tag t-info">Plausible</span><span class="tag t-info">CWE-778</span><span class="tag t-info">OWASP A09:2021</span><span class="tag t-info">ASVS V7.3</span></div>
+<div class="kv"><div class="k">Location</div><code>Source/Collectibles.Web/appsettings.json</code> — Serilog configuration; custom database sink</div>
+<div class="kv"><div class="k">Detail</div><p>Configured sinks are rolling local files (30-day retention) plus a database sink. There is no forwarding to an external or append-only store, so an attacker with host access can alter or delete the evidence of their activity, and there is no alerting on the authorization-failure warnings the code already emits. Marked <strong>Plausible</strong> because a deployment may forward logs by means outside the repository.</p></div>
+<div class="kv"><div class="k">Remediation</div><ol><li>Forward logs to an append-only external store or SIEM.</li><li>Alert on authorization-failure and share-token-validation-failure events, which are already logged with structure.</li><li>Confirm retention meets the organisation's incident-investigation needs.</li></ol></div>
+</div>
+
+<h2 id="s12">12. Verified positive controls</h2>
+
+<p>These were traced and found correct. They are listed so that a future change which removes one is recognisable as a
+regression, and so that the absence of a finding in these areas reflects review rather than omission.</p>
+
+<div class="scroll">
+<table>
+  <tr><th style="width:74px">ID</th><th style="width:220px">Control</th><th>What was verified</th></tr>
+  <tr><td>PC-01</td><td>SQL injection resistance</td><td>Only two <code>ExecuteSqlRawAsync</code> call sites exist (<code>EmailBackgroundService</code>, <code>ZipUploadJobService</code>); both use positional <code>{0}</code> placeholders, which EF Core converts to bound parameters, with typed non-string arguments. The one <code>CommandText</code> assignment is the literal <code>SELECT 1</code>. No string-concatenated SQL was found.</td></tr>
+  <tr><td>PC-02</td><td>SSRF defence on link capture</td><td><code>ScopedLinkProcessorService</code> validates the target URL through <code>IUrlEgressGuard</code> before any fetch, and re-validates <strong>every document navigation</strong> via a Playwright route interceptor, so a redirect cannot land on an internal target after the initial check passed. Blocked navigations abort and are logged.</td></tr>
+  <tr><td>PC-03</td><td>Markup rendering</td><td>The single first-party <code>MarkupString</code> sink (<code>UserStories.razor</code>) is on an Administrator-only page, and every interpolated value passes through <code>HtmlEncoder.Default.Encode</code>; the one unencoded value derives from an enum. No unsafe DOM sinks were found in first-party JavaScript.</td></tr>
+  <tr><td>PC-04</td><td>Cookie hardening</td><td>The application cookie sets <code>HttpOnly = true</code>, <code>SecurePolicy = Always</code>, and <code>SameSite = Lax</code> explicitly rather than relying on defaults. The Identity status cookie uses <code>SameSite = Strict</code> and <code>HttpOnly</code>.</td></tr>
+  <tr><td>PC-05</td><td>Password and lockout policy</td><td>Minimum length 12 with all four complexity classes and 6 unique characters required; confirmed accounts required; unique email required; lockout enabled for new users. Two-factor and recovery-code flows are present.</td></tr>
+  <tr><td>PC-06</td><td>ZIP path handling</td><td>Entry names are reduced with <code>Path.GetFileName(entry.Name)</code> and content type is derived from a server-side extension map, so archive entries cannot direct writes outside the storage root. Zip-slip is not present.</td></tr>
+  <tr><td>PC-07</td><td>Archive resource limits</td><td><code>EnsureArchiveWithinLimits</code> bounds entry count, total uncompressed size, and nesting depth before extraction, providing zip-bomb resistance.</td></tr>
+  <tr><td>PC-08</td><td>Deserialization safety</td><td>No <code>BinaryFormatter</code>, no <code>TypeNameHandling</code>, no <code>Assembly.Load</code> or <code>Activator.CreateInstance</code> over untrusted input, and no unsafe XML resolver configuration.</td></tr>
+  <tr><td>PC-09</td><td>Token and key entropy</td><td>Share tokens and API keys both draw 32 bytes from a cryptographic RNG. API keys are stored as SHA-256 hashes, never in plaintext. (Share-token <em>storage</em> is a separate matter — see SEC-008.)</td></tr>
+  <tr><td>PC-10</td><td>Secret hygiene in the repository</td><td>Every secret-bearing key in committed <code>appsettings.json</code> is empty. Environment-specific files are covered by <code>.gitignore</code> (<code>appsettings.*.json</code>) and are untracked; the local development connection string uses integrated authentication and embeds no credential.</td></tr>
+  <tr><td>PC-11</td><td>Dependency advisory state</td><td>No vulnerable or deprecated NuGet packages were reported, including transitively; npm advisories are clear. See the §3 disclosure regarding the network contact this check made.</td></tr>
+  <tr><td>PC-12</td><td>Open-redirect resistance</td><td><code>IdentityRedirectManager.RedirectTo</code> forces any non-relative URI through <code>ToBaseRelativePath</code> before navigating, so post-authentication redirect targets cannot be pointed off-origin.</td></tr>
+  <tr><td>PC-13</td><td>Link-cache ownership</td><td>Despite exposing raw identifiers (SEC-016), both link-cache handlers enforce ownership before returning content or screenshots.</td></tr>
+  <tr><td>PC-14</td><td>Transport and header baseline</td><td><code>UseHsts</code>, <code>UseHttpsRedirection</code>, <code>X-Content-Type-Options: nosniff</code>, <code>X-Frame-Options: DENY</code>, <code>Referrer-Policy: no-referrer</code>, and a <code>Permissions-Policy</code> are all applied. Forwarded-headers processing is restricted to configured known proxies and runs first in the pipeline.</td></tr>
+  <tr><td>PC-15</td><td>Pipeline ordering</td><td>Authentication precedes the API-key principal middleware, which precedes authorization, rate limiting, and antiforgery. The Hangfire dashboard is mapped after authentication, so its filter sees a populated principal.</td></tr>
+  <tr><td>PC-16</td><td>API-key privilege containment</td><td>The API-key handler issues <code>NameIdentifier</code>, <code>Name</code>, and <code>AuthenticationMethod</code> claims only — no role claims — so API keys cannot reach administrator-gated surface. The scheme is additionally gated behind <code>SyncToolSettings.Enabled</code>, which defaults to <code>false</code>.</td></tr>
+  <tr><td>PC-17</td><td>Email construction</td><td>Provider integrations build recipients and senders through typed address objects rather than raw header concatenation, and header values are not taken from end-user input, so header injection was not observed.</td></tr>
+</table>
+</div>
+
+<h2 id="s13">13. Remediation roadmap</h2>
+
+<p>Ordered by risk reduction per unit of effort, not strictly by severity. SEC-001 and SEC-007 are listed together
+because fixing the upload contract and the serving contract are two halves of one defect.</p>
+
+<div class="scroll">
+<table>
+  <tr><th style="width:96px">Phase</th><th style="width:170px">Findings</th><th>Objective and rationale</th></tr>
+  <tr>
+    <td><strong>1 — Immediate</strong></td>
+    <td>SEC-001, SEC-007, SEC-004, SEC-010</td>
+    <td>Close the stored-XSS path and stop persisting bearer credentials. Stop echoing caller-supplied content types, stop accepting caller-supplied preview bytes, and add the upload allowlist. In the same pass, exclude share routes from request logging and remove the token from the error log statement — which also removes the credential leak from the SEC-010 failure path. Fixing SEC-010's authorization gap additionally restores private share links, so this phase carries a functional win.</td>
+  </tr>
+  <tr>
+    <td><strong>2 — Near term</strong></td>
+    <td>SEC-002, SEC-003, SEC-017</td>
+    <td>Harden the desktop client against a hostile server: sanitize and containment-check every download path, restrict shell-open to a safe-extension allowlist, and replace interpolated command lines with <code>ArgumentList</code>. These are self-contained changes in one project and remove attack path AP-2 entirely.</td>
+  </tr>
+  <tr>
+    <td><strong>3 — Configuration and exposure</strong></td>
+    <td>SEC-005, SEC-006, SEC-014, SEC-015</td>
+    <td>Remove fail-open and over-permissive settings: gate detailed SignalR errors on the environment, delete the Hangfire no-filter branch, tighten <code>connect-src</code> and <code>style-src</code>, and split health into liveness and authenticated readiness. Small diffs, low regression risk.</td>
+  </tr>
+  <tr>
+    <td><strong>4 — Resource and lifecycle controls</strong></td>
+    <td>SEC-011, SEC-012, SEC-008, SEC-019</td>
+    <td>Add a global rate limiter with per-route policies; restore bounded form and multipart limits while keeping large-file upload working through the streaming path; hash share tokens and require expiry; give API keys real lifecycle metadata. These need schema and configuration changes, so they warrant their own phase.</td>
+  </tr>
+  <tr>
+    <td><strong>5 — Assurance and hygiene</strong></td>
+    <td>SEC-013, SEC-009, SEC-016, SEC-018, SEC-020</td>
+    <td>Stand up the CI pipeline with build, test, dependency, and secret gates so later regressions are caught automatically; fix the null-equality authorization comparison; move link-cache routes onto the HashIds boundary convention; neutralize the registration enumeration response; forward logs to an append-only store with alerting.</td>
+  </tr>
+  <tr>
+    <td><strong>6 — Verification</strong></td>
+    <td>All</td>
+    <td>Execute the §4 dynamic plan against an isolated instance to convert static findings into verified results and confirm each remediation. Until this runs, no finding in this report has been observed at runtime.</td>
+  </tr>
+</table>
+</div>
+
+<h2 id="s14">14. Allowed writes</h2>
+
+<div class="callout good">
+<p><strong>Confirmation of write boundaries.</strong> This audit was read-only with respect to the application. Specifically:</p>
+<ul>
+  <li><strong>No application source file was created, modified, or deleted.</strong></li>
+  <li>No build, test, or repository-controlled script was executed. No service was started. No database, storage account, queue, mail system, browser, or cloud resource was written to.</li>
+  <li>No tool was installed.</li>
+  <li>The only file intentionally created in the repository is <strong>this report</strong>, at
+      <code>Docs/Audits/2026-08-29-security-audit.html</code>.</li>
+  <li>All other working artifacts were written to a session-scoped temporary scratchpad outside the repository.</li>
+  <li>One external network contact occurred, disclosed in full in §3.</li>
+</ul>
+<p><strong>Output path handling.</strong> The destination was canonicalized; all six ancestors were checked for
+symlinks and reparse points (none redirect); the parent directory's identity was recorded and re-verified; containment
+was confirmed by canonical path-component comparison and by directory identity, not by string prefix; and the leaf was
+confirmed absent before writing. Because the audit host provides neither <code>dir_fd</code> nor
+<code>O_NOFOLLOW</code>, a true <code>openat</code>-anchored write was unavailable; the compensating control was an
+atomic <code>O_CREAT|O_EXCL</code> creation — which fails rather than following a symlink or overwriting an existing
+file — followed by post-create re-verification that the created file's parent identity still matches the one recorded
+during preflight. No pre-existing file was replaced.</p>
+</div>
+
+<footer>
+  Collectibles application security audit &middot; 2026-08-29 &middot; Static analysis only; no dynamic verification performed.<br>
+  No secret values are reproduced in this document. No overall security score is calculated. This report does not
+  establish that the application is secure.
+</footer>
+
+</div>
+</body>
+</html>
