@@ -2,10 +2,14 @@ using Collectibles.Application.Features.Attachments.Commands;
 using Collectibles.Application.Features.Attachments.Queries;
 using Collectibles.Application.Interfaces;
 using Collectibles.Application.Services;
+using Collectibles.Domain.Common;
 using Collectibles.Domain.Constants;
+
 using MediatR;
+
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+
 using Serilog;
 
 namespace Collectibles.Web.Endpoints;
@@ -16,7 +20,6 @@ namespace Collectibles.Web.Endpoints;
 public static class AttachmentEndpoints
 {
     private const string RoutePrefix = ApplicationConstants.ApiRoutes.AttachmentApiBase;
-    private const string CacheControlHeader = ApplicationConstants.HttpCache.PublicAttachmentCacheHeader;
 
     /// <summary>
     /// Maps all attachment-related endpoints.
@@ -28,6 +31,7 @@ public static class AttachmentEndpoints
             .WithName("GetAttachmentPreview")
             .WithTags("Attachments")
             .AllowAnonymous() // Allow anonymous - we handle authorization internally based on showcase visibility
+            .RequireRateLimiting("PublicEndpoints")
             .Produces<FileResult>(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status401Unauthorized)
             .Produces(StatusCodes.Status403Forbidden)
@@ -38,6 +42,7 @@ public static class AttachmentEndpoints
             .WithName("GetAttachmentThumbnail")
             .WithTags("Attachments")
             .AllowAnonymous() // Allow anonymous - we handle authorization internally based on showcase visibility
+            .RequireRateLimiting("PublicEndpoints")
             .Produces<FileResult>(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status401Unauthorized)
             .Produces(StatusCodes.Status403Forbidden)
@@ -48,6 +53,7 @@ public static class AttachmentEndpoints
             .WithName("DownloadAttachment")
             .WithTags("Attachments")
             .AllowAnonymous() // Allow anonymous - we handle authorization internally based on showcase visibility
+            .RequireRateLimiting("PublicEndpoints")
             .Produces<FileResult>(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status401Unauthorized)
             .Produces(StatusCodes.Status403Forbidden)
@@ -61,6 +67,7 @@ public static class AttachmentEndpoints
             .WithName("InitiateDirectUpload")
             .WithTags("Attachments")
             .RequireAuthorization("ApiKeyOrCookie")
+            .RequireRateLimiting("ApiEndpoints")
             .DisableAntiforgery()
             .Produces<DirectUploadInitiation>(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status400BadRequest)
@@ -71,6 +78,7 @@ public static class AttachmentEndpoints
             .WithName("CompleteDirectUpload")
             .WithTags("Attachments")
             .RequireAuthorization("ApiKeyOrCookie")
+            .RequireRateLimiting("ApiEndpoints")
             .DisableAntiforgery()
             .Produces<long>(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status400BadRequest)
@@ -81,6 +89,7 @@ public static class AttachmentEndpoints
             .WithName("DeleteAttachment")
             .WithTags("Attachments")
             .RequireAuthorization("ApiKeyOrCookie")
+            .RequireRateLimiting("ApiEndpoints")
             .DisableAntiforgery()
             .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status400BadRequest)
@@ -93,6 +102,7 @@ public static class AttachmentEndpoints
             .WithName("GetAttachmentContext")
             .WithTags("Attachments")
             .RequireAuthorization("ApiKeyOrCookie")
+            .RequireRateLimiting("ApiEndpoints")
             .Produces<AttachmentContextDto>(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status404NotFound);
 
@@ -107,8 +117,9 @@ public static class AttachmentEndpoints
         [FromServices] IHashIdsService hashIdsService,
         [FromServices] IMediator mediator)
     {
-        var attachmentId = hashIdsService.Decode(hash);
-        if (attachmentId == 0)
+        // TryDecode, not Decode: this route had no try/catch, so a malformed hash threw
+        // out of the endpoint and surfaced as an unhandled 500 rather than a 404.
+        if (!hashIdsService.TryDecode(hash, out var attachmentId))
         {
             return Results.NotFound("Invalid attachment identifier");
         }
@@ -131,8 +142,7 @@ public static class AttachmentEndpoints
         try
         {
             // Decode the hash to get the attachment ID
-            var attachmentId = hashIdsService.Decode(hash);
-            if (attachmentId == 0)
+            if (!hashIdsService.TryDecode(hash, out var attachmentId))
             {
                 return Results.NotFound("Invalid attachment identifier");
             }
@@ -192,12 +202,13 @@ public static class AttachmentEndpoints
             }
 
             // Parse and return the image
-            var imageResult = ParseBase64Image(attachment.Base64PreviewThumbnail, attachment.FileType);
-
-            // Set cache headers
-            SetCacheHeaders(httpContextAccessor.HttpContext, hash);
-
-            return Results.File(imageResult.ImageBytes, imageResult.ContentType);
+            return AttachmentImageResults.ServeImage(
+                httpContextAccessor.HttpContext, hash, attachment.Base64PreviewThumbnail);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // An access decision, not a server fault.
+            return Results.NotFound("Preview not available");
         }
         catch (Exception ex)
         {
@@ -220,8 +231,7 @@ public static class AttachmentEndpoints
         try
         {
             // Decode the hash to get the attachment ID
-            var attachmentId = hashIdsService.Decode(hash);
-            if (attachmentId == 0)
+            if (!hashIdsService.TryDecode(hash, out var attachmentId))
             {
                 return Results.NotFound("Invalid attachment identifier");
             }
@@ -281,12 +291,13 @@ public static class AttachmentEndpoints
             }
 
             // Parse and return the image
-            var imageResult = ParseBase64Image(attachment.Base64PreviewThumbnail, attachment.FileType);
-
-            // Set cache headers
-            SetCacheHeaders(httpContextAccessor.HttpContext, hash);
-
-            return Results.File(imageResult.ImageBytes, imageResult.ContentType);
+            return AttachmentImageResults.ServeImage(
+                httpContextAccessor.HttpContext, hash, attachment.Base64PreviewThumbnail, "Thumbnail not available");
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // An access decision, not a server fault.
+            return Results.NotFound("Thumbnail not available");
         }
         catch (Exception ex)
         {
@@ -308,8 +319,7 @@ public static class AttachmentEndpoints
     {
         try
         {
-            var attachmentId = hashIdsService.Decode(hash);
-            if (attachmentId == 0)
+            if (!hashIdsService.TryDecode(hash, out var attachmentId))
             {
                 return Results.NotFound("Invalid attachment identifier");
             }
@@ -335,7 +345,13 @@ public static class AttachmentEndpoints
             }
 
             var fileName = downloadDto.OriginalFilename ?? downloadDto.Name;
-            var contentType = downloadDto.FileType ?? "application/octet-stream";
+
+            // Supplying a download name makes this Content-Disposition: attachment, so the browser
+            // saves rather than renders. The stored type is still screened, so a row written before
+            // the upload-time normalisation cannot resurrect an executable type here.
+            var contentType = FileContentType.IsAcceptableDeclaredType(downloadDto.FileType)
+                ? downloadDto.FileType ?? FileContentType.Fallback
+                : FileContentType.Fallback;
 
             return Results.File(downloadDto.Content, contentType, fileName);
         }
@@ -359,14 +375,16 @@ public static class AttachmentEndpoints
         var showcaseId = request.ShowcaseId;
         if (showcaseId == null && !string.IsNullOrWhiteSpace(request.ShowcaseHashId))
         {
-            showcaseId = hashIdsService.Decode(request.ShowcaseHashId);
-            if (showcaseId == 0)
+            if (!hashIdsService.TryDecode(request.ShowcaseHashId, out var decodedShowcaseId))
             {
                 return Results.BadRequest(new { error = "Invalid showcase identifier." });
             }
+
+            showcaseId = decodedShowcaseId;
         }
 
-        Log.Information("InitiateDirectUpload called: FileName={FileName}, FileSize={FileSize}, ContentType={ContentType}, ShowcaseId={ShowcaseId}",
+        Log.Information(
+            "InitiateDirectUpload called: FileName={FileName}, FileSize={FileSize}, ContentType={ContentType}, ShowcaseId={ShowcaseId}",
             request.FileName, request.FileSize, request.ContentType, showcaseId);
 
         try
@@ -413,11 +431,12 @@ public static class AttachmentEndpoints
             var showcaseId = request.ShowcaseId;
             if (showcaseId == null && !string.IsNullOrWhiteSpace(request.ShowcaseHashId))
             {
-                showcaseId = hashIdsService.Decode(request.ShowcaseHashId);
-                if (showcaseId == 0)
+                if (!hashIdsService.TryDecode(request.ShowcaseHashId, out var decodedShowcaseId))
                 {
                     return Results.BadRequest(new { error = "Invalid showcase identifier." });
                 }
+
+                showcaseId = decodedShowcaseId;
             }
 
             var command = new CompleteDirectUploadCommand
@@ -456,8 +475,7 @@ public static class AttachmentEndpoints
     {
         try
         {
-            var attachmentId = hashIdsService.Decode(hash);
-            if (attachmentId == 0)
+            if (!hashIdsService.TryDecode(hash, out var attachmentId))
             {
                 return Results.NotFound("Invalid attachment identifier");
             }
@@ -745,35 +763,6 @@ public static class AttachmentEndpoints
         }
 
         return userHasAccess;
-    }
-
-    /// <summary>
-    /// Parses a base64 image string and returns the image bytes and content type.
-    /// </summary>
-    private static (byte[] ImageBytes, string ContentType) ParseBase64Image(string base64Data, string? fileType)
-    {
-        // Parse the base64 data URI to get the actual image bytes
-        if (base64Data.Contains(','))
-        {
-            base64Data = base64Data.Split(',')[1];
-        }
-
-        var imageBytes = Convert.FromBase64String(base64Data);
-        var contentType = fileType ?? "image/jpeg";
-
-        return (imageBytes, contentType);
-    }
-
-    /// <summary>
-    /// Sets cache headers for the HTTP response.
-    /// </summary>
-    private static void SetCacheHeaders(HttpContext? httpContext, string hash)
-    {
-        if (httpContext != null)
-        {
-            httpContext.Response.Headers.CacheControl = CacheControlHeader;
-            httpContext.Response.Headers.ETag = $"\"{hash}\"";
-        }
     }
 
     /// <summary>

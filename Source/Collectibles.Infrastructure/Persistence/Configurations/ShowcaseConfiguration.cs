@@ -19,6 +19,8 @@ public class ShowcaseConfiguration : IEntityTypeConfiguration<Showcase>
             .WithOne(st => st.Showcase)
             .HasForeignKey(st => st.ShowcaseId);
 
+        builder.Property(s => s.RowVersion).IsRowVersion();
+
         // Configure relationship with PreviewImage
         builder.HasOne(s => s.PreviewImage)
             .WithMany()

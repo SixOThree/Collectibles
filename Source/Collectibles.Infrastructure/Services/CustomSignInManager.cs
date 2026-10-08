@@ -1,5 +1,6 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Infrastructure.Persistence;
+
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;

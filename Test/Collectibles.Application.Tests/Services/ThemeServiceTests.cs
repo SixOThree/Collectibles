@@ -2,9 +2,11 @@ using Collectibles.Application.Interfaces;
 using Collectibles.Application.Tests.Helpers;
 using Collectibles.Infrastructure.Persistence;
 using Collectibles.Infrastructure.Services;
+
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+
 using Moq;
 
 namespace Collectibles.Application.Tests.Services;

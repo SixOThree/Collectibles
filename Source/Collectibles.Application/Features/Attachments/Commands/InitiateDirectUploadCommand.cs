@@ -3,8 +3,11 @@ using Collectibles.Domain.Configuration.Storage;
 using Collectibles.Domain.Entities;
 using Collectibles.Domain.Enums;
 using Collectibles.Domain.Interfaces;
+
 using FluentValidation;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -16,22 +19,22 @@ namespace Collectibles.Application.Features.Attachments.Commands;
 public record DirectUploadInitiation
 {
     /// <summary>
-    /// Unique identifier for this upload session.
+    /// Gets unique identifier for this upload session.
     /// </summary>
     public required string UploadId { get; init; }
 
     /// <summary>
-    /// The SAS URL to upload the file directly to Azure Blob Storage.
+    /// Gets the SAS URL to upload the file directly to Azure Blob Storage.
     /// </summary>
     public required string SasUrl { get; init; }
 
     /// <summary>
-    /// The blob name/path where the file will be stored.
+    /// Gets the blob name/path where the file will be stored.
     /// </summary>
     public required string BlobName { get; init; }
 
     /// <summary>
-    /// When the SAS URL expires (UTC).
+    /// Gets when the SAS URL expires (UTC).
     /// </summary>
     public required DateTime ExpiresAt { get; init; }
 }
@@ -43,22 +46,22 @@ public record DirectUploadInitiation
 public record InitiateDirectUploadCommand : IRequest<DirectUploadInitiation>
 {
     /// <summary>
-    /// The original file name.
+    /// Gets the original file name.
     /// </summary>
     public required string FileName { get; init; }
 
     /// <summary>
-    /// The file size in bytes.
+    /// Gets the file size in bytes.
     /// </summary>
     public required long FileSize { get; init; }
 
     /// <summary>
-    /// The MIME type of the file.
+    /// Gets the MIME type of the file.
     /// </summary>
     public required string ContentType { get; init; }
 
     /// <summary>
-    /// Optional showcase ID for folder organization.
+    /// Gets optional showcase ID for folder organization.
     /// </summary>
     public long? ShowcaseId { get; init; }
 }
@@ -109,7 +112,7 @@ public class InitiateDirectUploadCommandHandler : IRequestHandler<InitiateDirect
         {
             await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
             var showcaseOwnerId = await context.Showcases
-                .Where(s => s.Id == request.ShowcaseId.Value && s.Deleted == null)
+                .Where(s => s.Id == request.ShowcaseId.Value)
                 .Select(s => s.UserId)
                 .FirstOrDefaultAsync(cancellationToken);
 

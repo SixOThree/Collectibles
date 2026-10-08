@@ -1,7 +1,10 @@
 using Collectibles.Application.Features.CollectibleItems.Commands;
 using Collectibles.Application.Services;
+
 using MediatR;
+
 using Microsoft.AspNetCore.Mvc;
+
 using Serilog;
 
 namespace Collectibles.Web.Endpoints;
@@ -14,6 +17,7 @@ public static class CollectibleItemEndpoints
             .WithName("DeleteCollectibleItem")
             .WithTags("CollectibleItems")
             .RequireAuthorization("ApiKeyOrCookie")
+            .RequireRateLimiting("ApiEndpoints")
             .DisableAntiforgery()
             .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status400BadRequest)
@@ -30,8 +34,7 @@ public static class CollectibleItemEndpoints
     {
         try
         {
-            var itemId = hashIdsService.Decode(hash);
-            if (itemId == 0)
+            if (!hashIdsService.TryDecode(hash, out var itemId))
             {
                 return Results.NotFound("Invalid item identifier");
             }

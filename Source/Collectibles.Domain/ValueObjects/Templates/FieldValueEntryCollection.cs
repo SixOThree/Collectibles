@@ -53,6 +53,7 @@ public class FieldValueEntryCollection
     /// <summary>
     /// Removes an entry by its entry ID.
     /// </summary>
+    /// <returns></returns>
     public bool RemoveEntry(Guid entryId)
     {
         var entry = _entries.FirstOrDefault(e => e.EntryId == entryId);
@@ -67,6 +68,7 @@ public class FieldValueEntryCollection
     /// <summary>
     /// Serializes the entry collection to a JSON array.
     /// </summary>
+    /// <returns></returns>
     public string ToJson()
     {
         var options = new JsonSerializerOptions
@@ -81,6 +83,7 @@ public class FieldValueEntryCollection
     /// Deserializes an entry collection from JSON.
     /// Handles: null/empty (returns empty), JSON array (multi-entry), JSON object (legacy single-entry wrapped as one entry).
     /// </summary>
+    /// <returns></returns>
     public static FieldValueEntryCollection FromJson(string? json)
     {
         var collection = new FieldValueEntryCollection();
@@ -127,6 +130,7 @@ public class FieldValueEntryCollection
     /// <summary>
     /// Creates an entry collection from a list of dictionaries (used by commands/DTOs).
     /// </summary>
+    /// <returns></returns>
     public static FieldValueEntryCollection FromDictionaryList(List<Dictionary<string, object?>> entries)
     {
         var collection = new FieldValueEntryCollection();
@@ -145,6 +149,7 @@ public class FieldValueEntryCollection
     /// <summary>
     /// Converts the entry collection to a list of dictionaries (used by DTOs).
     /// </summary>
+    /// <returns></returns>
     public List<Dictionary<string, object?>> ToDictionaryList()
     {
         return _entries

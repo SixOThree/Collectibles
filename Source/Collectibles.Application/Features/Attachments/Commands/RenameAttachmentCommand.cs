@@ -1,6 +1,8 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Entities;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.Attachments.Commands;
@@ -12,13 +14,13 @@ namespace Collectibles.Application.Features.Attachments.Commands;
 /// </summary>
 public record MoveAttachmentCommand : IRequest
 {
-    /// <summary>Attachment ID to move.</summary>
+    /// <summary>Gets attachment ID to move.</summary>
     public required long AttachmentId { get; init; }
 
-    /// <summary>Relative path from the local sync folder (e.g., "Computers\photo.jpg" or "photo.jpg").</summary>
+    /// <summary>Gets relative path from the local sync folder (e.g., "Computers\photo.jpg" or "photo.jpg").</summary>
     public required string RelativePath { get; init; }
 
-    /// <summary>Target showcase ID.</summary>
+    /// <summary>Gets target showcase ID.</summary>
     public required long ShowcaseId { get; init; }
 }
 
@@ -56,7 +58,7 @@ public class MoveAttachmentCommandHandler : IRequestHandler<MoveAttachmentComman
 
         // Load the showcase
         var showcase = await context.Showcases
-            .FirstOrDefaultAsync(s => s.Id == request.ShowcaseId && s.Deleted == null, cancellationToken);
+            .FirstOrDefaultAsync(s => s.Id == request.ShowcaseId, cancellationToken);
 
         if (showcase == null)
         {
@@ -66,6 +68,19 @@ public class MoveAttachmentCommandHandler : IRequestHandler<MoveAttachmentComman
         if (string.IsNullOrEmpty(_currentUserService.UserId) || showcase.UserId != _currentUserService.UserId)
         {
             throw new UnauthorizedAccessException("You are not authorized to move attachments in this showcase.");
+        }
+
+        // Authorize the object being moved, not just the destination. Checking only the
+        // destination let any caller pull an attachment they do not own into their own
+        // showcase (OWASP A01 / BOLA).
+        var ownsAttachment = await context.CollectibleItemAttachments
+            .Where(cia => cia.AttachmentId == attachment.Id)
+            .SelectMany(cia => cia.CollectibleItem.Showcases)
+            .AnyAsync(s => s.UserId == _currentUserService.UserId, cancellationToken);
+
+        if (!ownsAttachment && attachment.CreatedBy != _currentUserService.UserId)
+        {
+            throw new UnauthorizedAccessException("You are not authorized to move this attachment.");
         }
 
         // Parse relative path into folder segments and filename
@@ -132,7 +147,7 @@ public class MoveAttachmentCommandHandler : IRequestHandler<MoveAttachmentComman
                 var attachmentCount = await context.CollectibleItemAttachments
                     .CountAsync(cia => cia.CollectibleItemId == currentItem.Id, cancellationToken);
                 var hasChildren = await context.CollectibleItems
-                    .AnyAsync(ci => ci.ParentId == currentItem.Id && ci.Deleted == null, cancellationToken);
+                    .AnyAsync(ci => ci.ParentId == currentItem.Id, cancellationToken);
 
                 if (attachmentCount == 1 && !hasChildren && currentItem.ParentId == null)
                 {

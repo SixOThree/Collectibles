@@ -1,4 +1,5 @@
 using System.Diagnostics;
+
 using Collectibles.Application.Interfaces;
 using Collectibles.Web.Services;
 
@@ -42,18 +43,22 @@ public class RequestLoggingMiddleware
         ".eot",
     };
 
+    private readonly IClientIpResolver _clientIpResolver;
+
     public RequestLoggingMiddleware(
         RequestDelegate next,
         ILogger<RequestLoggingMiddleware> logger,
         IServiceProvider serviceProvider,
         IConfiguration configuration,
-        RequestLogQueue requestLogQueue)
+        RequestLogQueue requestLogQueue,
+        IClientIpResolver clientIpResolver)
     {
         _next = next;
         _logger = logger;
         _serviceProvider = serviceProvider;
         _configuration = configuration;
         _requestLogQueue = requestLogQueue;
+        _clientIpResolver = clientIpResolver;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -68,10 +73,12 @@ public class RequestLoggingMiddleware
         var requestId = Activity.Current?.Id ?? context.TraceIdentifier;
         var correlationId = context.TraceIdentifier;
 
-        // Capture initial request details
+        // Capture initial request details. Share routes carry a bearer token in the path, so the
+        // logged value is redacted rather than the request being dropped: the access is still
+        // recorded, without persisting a credential that would remain usable to any log reader.
         var method = context.Request.Method;
-        var path = context.Request.Path.ToString();
-        var queryString = context.Request.QueryString.ToString();
+        var path = SensitiveRequestDataRedactor.RedactPath(context.Request.Path.ToString());
+        var queryString = SensitiveRequestDataRedactor.RedactQueryString(context.Request.QueryString.ToString());
         var scheme = context.Request.Scheme;
         var host = context.Request.Host.ToString();
         var ipAddress = GetIPAddress(context);
@@ -152,24 +159,9 @@ public class RequestLoggingMiddleware
         return false;
     }
 
-    private static string? GetIPAddress(HttpContext context)
+    private string? GetIPAddress(HttpContext context)
     {
-        var ipAddress = context.Request.Headers["X-Forwarded-For"].FirstOrDefault();
-        if (!string.IsNullOrEmpty(ipAddress))
-        {
-            var addresses = ipAddress.Split(',');
-            if (addresses.Length > 0)
-            {
-                return addresses[0].Trim();
-            }
-        }
-
-        ipAddress = context.Request.Headers["X-Real-IP"].FirstOrDefault();
-        if (!string.IsNullOrEmpty(ipAddress))
-        {
-            return ipAddress;
-        }
-
-        return context.Connection.RemoteIpAddress?.ToString();
+        // Resolved centrally so the logged address cannot be chosen by the client.
+        return _clientIpResolver.Resolve(context);
     }
 }

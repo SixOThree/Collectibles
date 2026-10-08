@@ -3,7 +3,9 @@ using Collectibles.Application.Services;
 using Collectibles.Domain.Common.Enums;
 using Collectibles.Domain.Entities;
 using Collectibles.Domain.Interfaces;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.QRCodes.Commands;
@@ -136,7 +138,10 @@ public class AssignQRCodeCommandHandler : IRequestHandler<AssignQRCodeCommand, A
             };
         }
 
-        if (collectibleItem.QRCodeId.HasValue)
+        var alreadyAssigned = await _context.QRCodes
+            .AnyAsync(q => q.CollectibleItemId == collectibleItemId, cancellationToken);
+
+        if (alreadyAssigned)
         {
             return new AssignQRCodeResult
             {
@@ -145,6 +150,8 @@ public class AssignQRCodeCommandHandler : IRequestHandler<AssignQRCodeCommand, A
             };
         }
 
+        // One relationship, one write. Previously both sides were written through two
+        // separate saves, so a failure between them left them disagreeing.
         qrCode.CollectibleItemId = collectibleItemId;
         qrCode.Status = QRCodeStatus.Assigned;
         qrCode.AssignedDate = DateTime.UtcNow;
@@ -152,9 +159,6 @@ public class AssignQRCodeCommandHandler : IRequestHandler<AssignQRCodeCommand, A
         qrCode.LastModifiedBy = _currentUserService.UserId;
 
         await _qrCodeRepository.UpdateAsync(qrCode, cancellationToken);
-
-        collectibleItem.QRCodeId = qrCode.Id;
-        await _context.SaveChangesAsync(cancellationToken);
 
         return new AssignQRCodeResult
         {

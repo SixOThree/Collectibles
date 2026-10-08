@@ -1,4 +1,4 @@
-/*
+﻿/*
     This is a configuration file for the SwitchStartupProject Visual Studio Extension
     See https://github.com/ernstc/SwitchStartupProject2022/blob/main/Configuration.md
 */
@@ -55,12 +55,6 @@
     "MultiProjectConfigurations": {
         "Web": {
             "Projects": {
-                "Collectibles.Web": {}
-            }
-        },
-        "Maui + Web": {
-            "Projects": {
-                "Collectibles.Maui": {},
                 "Collectibles.Web": {}
             }
         },

@@ -25,7 +25,7 @@ public class AttachmentDuplicateDetectionService(IApplicationDbContextFactory co
 
         // Find attachments with matching hash
         var matchingAttachmentsQuery = context.Attachments
-            .Where(a => a.ContentHash == contentHash && a.Deleted == null);
+            .Where(a => a.ContentHash == contentHash);
 
         // Exclude the attachment being checked (for update scenarios)
         if (excludeAttachmentId.HasValue)
@@ -91,11 +91,11 @@ public class AttachmentDuplicateDetectionService(IApplicationDbContextFactory co
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
 
         var total = await context.Attachments
-            .Where(a => a.FilePath != null && a.Deleted == null)
+            .Where(a => a.FilePath != null)
             .CountAsync(cancellationToken);
 
         var indexed = await context.Attachments
-            .Where(a => a.ContentHash != null && a.Deleted == null)
+            .Where(a => a.ContentHash != null)
             .CountAsync(cancellationToken);
 
         return new AttachmentIndexingStats

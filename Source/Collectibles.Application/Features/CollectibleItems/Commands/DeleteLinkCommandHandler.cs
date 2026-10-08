@@ -1,6 +1,8 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Interfaces;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.CollectibleItems.Commands;
@@ -43,6 +45,7 @@ public class DeleteLinkCommandHandler : IRequestHandler<DeleteLinkCommand>
             {
                 await _fileStorage.DeleteFileAsync(cache.CachedContentPath, cancellationToken);
             }
+
             if (!string.IsNullOrEmpty(cache.ScreenshotPath))
             {
                 await _fileStorage.DeleteFileAsync(cache.ScreenshotPath, cancellationToken);

@@ -1,4 +1,4 @@
-@using Collectibles.Application.Features.Attachments.Queries
+﻿@using Collectibles.Application.Features.Attachments.Queries
 @using Collectibles.Application.Features.Attachments
 @using MediatR
 @inject IMediator Mediator
@@ -6,7 +6,7 @@
 
 @if (_isVisible)
 {
-    <div class="modal-backdrop" @onclick="CloseModal">
+    <div class="modal-backdrop" @onclick="CloseModal" role="dialog" aria-modal="true" tabindex="-1" autofocus @onkeydown="@(e => { if (e.Key == "Escape") CloseModal(); })">
         <div class="modal-dialog" @onclick:stopPropagation="true">
             <div class="modal-content">
                 <div class="modal-header">

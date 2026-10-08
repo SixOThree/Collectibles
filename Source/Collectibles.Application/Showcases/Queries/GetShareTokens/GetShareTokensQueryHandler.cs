@@ -1,6 +1,8 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Interfaces;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Showcases.Queries.GetShareTokens;
@@ -36,8 +38,6 @@ public class GetShareTokensQueryHandler : IRequestHandler<GetShareTokensQuery, L
         return tokens.Select(t => new ShareTokenDto
         {
             Id = t.Id,
-            Token = t.Token,
-            ShareUrl = $"/share/{t.Token}", // Relative URL
             ExpiresAt = t.ExpiresAt,
             ViewCount = t.ViewCount,
             LastViewedAt = t.LastViewedAt,

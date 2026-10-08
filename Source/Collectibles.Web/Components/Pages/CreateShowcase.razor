@@ -1,4 +1,4 @@
-@page "/showcase/new"
+﻿@page "/showcase/new"
 @rendermode InteractiveServerWithoutPrerender
 @attribute [Authorize]
 @inherits LoggablePageBase
@@ -106,8 +106,7 @@
                 Name = _model.Name,
                 Description = _model.Description,
                 IsPrivate = _model.IsPrivate,
-                TagIds = _selectedTags.Select(t => t.Id).ToList(),
-                UserId = userId
+                TagIds = _selectedTags.Select(t => t.Id).ToList()
             };
 
             var showcaseId = await Mediator.Send(command);

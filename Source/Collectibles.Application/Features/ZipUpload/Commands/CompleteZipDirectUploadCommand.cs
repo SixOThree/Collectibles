@@ -3,9 +3,13 @@ using System.Text.Json;
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Entities;
 using Collectibles.Domain.Interfaces;
+
 using FluentValidation;
+
 using Hangfire;
+
 using MediatR;
+
 using Microsoft.Extensions.Logging;
 
 namespace Collectibles.Application.Features.ZipUpload.Commands;
@@ -21,14 +25,13 @@ public record CompleteZipDirectUploadCommand : IRequest<long>
     public long FileSize { get; set; }
 
     /// <summary>
-    /// The blob name/path where the zip was uploaded via SAS URL.
+    /// Gets or sets the blob name/path where the zip was uploaded via SAS URL.
     /// </summary>
     public string BlobName { get; set; } = string.Empty;
 
     /// <summary>
     /// Optional UserId to handle Blazor context issues.
     /// </summary>
-    public string? UserId { get; set; }
 }
 
 public class CompleteZipDirectUploadCommandValidator : AbstractValidator<CompleteZipDirectUploadCommand>
@@ -77,12 +80,14 @@ public class CompleteZipDirectUploadCommandHandler : IRequestHandler<CompleteZip
     {
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
 
-        var userId = request.UserId ?? _currentUserService.UserId;
+        var userId = _currentUserService.UserId;
 
         if (string.IsNullOrEmpty(userId))
         {
             throw new UnauthorizedAccessException("User context not available. Please ensure you are logged in.");
         }
+
+        await ZipUploadAuthorization.EnsureShowcaseOwnedAsync(context, request.ShowcaseId, userId, cancellationToken);
 
         // Verify the blob exists in storage
         var fileExists = await _fileStorage.FileExistsAsync(request.BlobName, cancellationToken);

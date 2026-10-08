@@ -1,6 +1,7 @@
 @using Collectibles.Application.Showcases.Commands.GenerateShareLink
 @using Collectibles.Application.Showcases.Commands.RevokeShareToken
 @using Collectibles.Application.Showcases.Queries.GetShareTokens
+@using Collectibles.Domain.Constants
 @using MediatR
 @inject IMediator Mediator
 @inject IJSRuntime JS
@@ -35,7 +36,10 @@
                                     <div class="col-md-6">
                                         <label class="form-label">Expiration (Optional)</label>
                                         <input type="datetime-local" class="form-control" @bind="_expiresAt" />
-                                        <div class="form-text">Leave blank for no expiration</div>
+                                        <div class="form-text">
+                                            Leave blank to expire in @ApplicationConstants.ValidationLengths.ShareTokenDefaultExpiryDays days.
+                                            Maximum @ApplicationConstants.ValidationLengths.ShareTokenMaxExpiryDays days.
+                                        </div>
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">Note (Optional)</label>
@@ -67,7 +71,6 @@
                                         <table class="table table-sm">
                                             <thead>
                                                 <tr>
-                                                    <th>Link</th>
                                                     <th>Created</th>
                                                     <th>Expires</th>
                                                     <th>Views</th>
@@ -79,25 +82,8 @@
                                                 @foreach (var token in _shareTokens.Where(t => t.IsActive && !t.IsExpired))
                                                 {
                                                     <tr>
-                                                        <td>
-                                                            <div class="input-group input-group-sm">
-                                                                <input type="text" class="form-control" value="@GetFullUrl(token.ShareUrl)" readonly />
-                                                                <button class="btn btn-outline-secondary" @onclick="() => CopyToClipboard(GetFullUrl(token.ShareUrl))" title="Copy link">
-                                                                    <i class="bi bi-clipboard"></i>
-                                                                </button>
-                                                            </div>
-                                                        </td>
                                                         <td class="small">@token.Created.ToString("MMM d, yyyy")</td>
-                                                        <td class="small">
-                                                            @if (token.ExpiresAt.HasValue)
-                                                            {
-                                                                @token.ExpiresAt.Value.ToString("MMM d, yyyy")
-                                                            }
-                                                            else
-                                                            {
-                                                                <span class="text-muted">Never</span>
-                                                            }
-                                                        </td>
+                                                        <td class="small">@token.ExpiresAt.ToString("MMM d, yyyy")</td>
                                                         <td class="small">@token.ViewCount</td>
                                                         <td class="small">
                                                             @if (!string.IsNullOrWhiteSpace(token.Note))
@@ -171,7 +157,16 @@
                         {
                             <div class="alert alert-success alert-dismissible fade show mt-3" role="alert">
                                 @_successMessage
-                                <button type="button" class="btn-close" @onclick="() => _successMessage = null"></button>
+                                @if (_generatedUrl != null)
+                                {
+                                    <div class="input-group input-group-sm mt-2">
+                                        <input type="text" class="form-control" value="@_generatedUrl" readonly />
+                                        <button class="btn btn-outline-secondary" @onclick="() => CopyToClipboard(_generatedUrl!)" title="Copy link">
+                                            <i class="bi bi-clipboard"></i>
+                                        </button>
+                                    </div>
+                                }
+                                <button type="button" class="btn-close" @onclick="DismissSuccess"></button>
                             </div>
                         }
 
@@ -205,6 +200,7 @@
     private DateTime? _expiresAt;
     private string? _note;
     private string? _successMessage;
+    private string? _generatedUrl;
     private string? _errorMessage;
 
     protected override async Task OnParametersSetAsync()
@@ -240,6 +236,7 @@
             _generating = true;
             _errorMessage = null;
             _successMessage = null;
+            _generatedUrl = null;
 
             var command = new GenerateShareLinkCommand
             {
@@ -249,11 +246,14 @@
             };
 
             var result = await Mediator.Send(command);
-            
+
+            // Only the token's hash is stored, so this is the one and only time the link can be
+            // shown. It is surfaced here as well as copied, in case the clipboard write fails.
             var fullUrl = GetFullUrl(result.ShareUrl);
-            _successMessage = "Share link generated successfully! The link has been copied to your clipboard.";
+            _generatedUrl = fullUrl;
+            _successMessage = "Share link generated. Copy it now - it cannot be shown again.";
             await CopyToClipboard(fullUrl);
-            
+
             // Clear form
             _expiresAt = null;
             _note = null;
@@ -293,6 +293,12 @@
             _errorMessage = "Failed to revoke share link.";
             Console.Error.WriteLine($"Error revoking token: {ex}");
         }
+    }
+
+    private void DismissSuccess()
+    {
+        _successMessage = null;
+        _generatedUrl = null;
     }
 
     private async Task CopyToClipboard(string text)

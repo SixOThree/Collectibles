@@ -1,3 +1,4 @@
+using Collectibles.Domain.Common;
 using Collectibles.Domain.Interfaces;
 using Collectibles.Infrastructure.Persistence;
 
@@ -16,14 +17,17 @@ public class ShowcaseShareTokenRepository : IShowcaseShareTokenRepository
     {
         return await _context.ShowcaseShareTokens
             .Include(s => s.Showcase)
-            .FirstOrDefaultAsync(s => s.Id == id && s.Deleted == null, cancellationToken);
+            .FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
     }
 
     public async Task<ShowcaseShareToken?> GetByTokenAsync(string token, CancellationToken cancellationToken = default)
     {
+        // Storage holds only the hash, so the presented token is hashed and matched against it.
+        var tokenHash = ShareTokenHash.Compute(token);
+
         return await _context.ShowcaseShareTokens
             .Include(s => s.Showcase)
-                .ThenInclude(s => s.CollectibleItems.Where(ci => ci.Deleted == null))
+                .ThenInclude(s => s.CollectibleItems)
                     .ThenInclude(ci => ci.CollectibleItemAttachments)
                         .ThenInclude(cia => cia.Attachment)
             .Include(s => s.Showcase)
@@ -31,13 +35,13 @@ public class ShowcaseShareTokenRepository : IShowcaseShareTokenRepository
             .Include(s => s.Showcase)
                 .ThenInclude(s => s.ShowcaseTags)
                     .ThenInclude(st => st.Tag)
-            .FirstOrDefaultAsync(s => s.Token == token && s.Deleted == null, cancellationToken);
+            .FirstOrDefaultAsync(s => s.TokenHash == tokenHash, cancellationToken);
     }
 
     public async Task<IEnumerable<ShowcaseShareToken>> GetByShowcaseIdAsync(long showcaseId, CancellationToken cancellationToken = default)
     {
         return await _context.ShowcaseShareTokens
-            .Where(s => s.ShowcaseId == showcaseId && s.Deleted == null)
+            .Where(s => s.ShowcaseId == showcaseId)
             .OrderByDescending(s => s.Created)
             .ToListAsync(cancellationToken);
     }
@@ -76,8 +80,10 @@ public class ShowcaseShareTokenRepository : IShowcaseShareTokenRepository
 
     public async Task IncrementViewCountAsync(string token, CancellationToken cancellationToken = default)
     {
+        var tokenHash = ShareTokenHash.Compute(token);
+
         var shareToken = await _context.ShowcaseShareTokens
-            .FirstOrDefaultAsync(s => s.Token == token && s.Deleted == null, cancellationToken);
+            .FirstOrDefaultAsync(s => s.TokenHash == tokenHash, cancellationToken);
 
         if (shareToken != null)
         {
@@ -89,7 +95,9 @@ public class ShowcaseShareTokenRepository : IShowcaseShareTokenRepository
 
     public async Task<bool> TokenExistsAsync(string token, CancellationToken cancellationToken = default)
     {
+        var tokenHash = ShareTokenHash.Compute(token);
+
         return await _context.ShowcaseShareTokens
-            .AnyAsync(s => s.Token == token && s.Deleted == null, cancellationToken);
+            .AnyAsync(s => s.TokenHash == tokenHash, cancellationToken);
     }
 }

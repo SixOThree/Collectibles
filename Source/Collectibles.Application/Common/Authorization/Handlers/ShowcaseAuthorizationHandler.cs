@@ -1,6 +1,7 @@
 using Collectibles.Application.Common.Authorization.Requirements;
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Entities;
+
 using Microsoft.AspNetCore.Authorization;
 
 namespace Collectibles.Application.Common.Authorization.Handlers;

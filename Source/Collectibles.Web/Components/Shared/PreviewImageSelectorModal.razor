@@ -1,4 +1,4 @@
-@using Collectibles.Application.Features.Attachments
+﻿@using Collectibles.Application.Features.Attachments
 @using Collectibles.Application.Features.CollectibleItems
 @using Collectibles.Application.Features.CollectibleItems.Queries
 @using MediatR
@@ -7,7 +7,7 @@
 
 @if (_isVisible)
 {
-    <div class="modal-backdrop" @onclick="CloseModal">
+    <div class="modal-backdrop" @onclick="CloseModal" role="dialog" aria-modal="true" tabindex="-1" autofocus @onkeydown="@(e => { if (e.Key == "Escape") CloseModal(); })">
         <div class="modal-dialog modal-xl" @onclick:stopPropagation="true">
             <div class="modal-content">
                 <div class="modal-header">

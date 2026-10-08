@@ -22,12 +22,12 @@ public class SyncItem
     public SyncStatus Status { get; init; }
 
     /// <summary>
-    /// Display filename — local name for local files, server name for server-only.
+    /// Gets display filename — local name for local files, server name for server-only.
     /// </summary>
     public string DisplayFileName => LocalFileName ?? ServerFileName ?? "(unknown)";
 
     /// <summary>
-    /// Display file size — local size for local files, server size for server-only.
+    /// Gets display file size — local size for local files, server size for server-only.
     /// </summary>
     public long DisplayFileSize => LocalFileSize > 0 ? LocalFileSize : ServerFileSize;
 }

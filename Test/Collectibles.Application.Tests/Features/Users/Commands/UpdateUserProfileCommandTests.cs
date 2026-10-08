@@ -1,5 +1,6 @@
 using Collectibles.Application.Common.Models;
 using Collectibles.Application.Features.Users.Commands.UpdateUserProfile;
+
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Collectibles.Application.Tests.Features.Users.Commands;

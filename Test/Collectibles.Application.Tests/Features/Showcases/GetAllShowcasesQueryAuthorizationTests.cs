@@ -3,6 +3,7 @@ using Collectibles.Application.Features.Showcases.Queries;
 using Collectibles.Application.Interfaces;
 using Collectibles.Application.Mappings.Explicit;
 using Collectibles.Application.Tests.Common;
+
 using Moq;
 
 namespace Collectibles.Application.Tests.Features.Showcases;

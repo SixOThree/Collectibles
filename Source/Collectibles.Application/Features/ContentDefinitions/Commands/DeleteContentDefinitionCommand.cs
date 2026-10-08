@@ -1,7 +1,10 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Entities;
+
 using FluentValidation;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Application.Features.ContentDefinitions.Commands;

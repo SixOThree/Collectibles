@@ -24,4 +24,10 @@ public class Showcase : BaseAuditableSoftDeleteEntity
         CollectibleItems = new List<CollectibleItem>();
         ShareTokens = new List<ShowcaseShareToken>();
     }
+
+    /// <summary>
+    /// Gets or sets the optimistic-concurrency token. Without it, two editors of the same
+    /// aggregate silently last-write-wins.
+    /// </summary>
+    public byte[]? RowVersion { get; set; }
 }

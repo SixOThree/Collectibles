@@ -1,4 +1,5 @@
 using Collectibles.Application.Interfaces;
+
 using MediatR;
 
 namespace Collectibles.Application.Features.Users.Commands;

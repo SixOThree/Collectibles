@@ -1,4 +1,4 @@
-@page "/showcase/{Hash}/edit"
+﻿@page "/showcase/{Hash}/edit"
 @rendermode InteractiveServerWithoutPrerender
 @attribute [Authorize]
 @inherits LoggablePageBase
@@ -163,7 +163,7 @@
             </div>
 
             <div class="form-section danger-zone">
-                <div class="d-flex justify-content-between align-items-center" style="cursor: pointer;" @onclick="ToggleDangerZone">
+                <div class="d-flex justify-content-between align-items-center" style="cursor: pointer;" @onclick="ToggleDangerZone" role="button" tabindex="0" @onkeydown="@(e => { if (e.Key == "Enter" || e.Key == " ") ToggleDangerZone(); })">
                     <div>
                         <h3 class="text-danger mb-0">Danger Zone</h3>
                         <p class="text-muted mb-0">Irreversible and destructive actions</p>

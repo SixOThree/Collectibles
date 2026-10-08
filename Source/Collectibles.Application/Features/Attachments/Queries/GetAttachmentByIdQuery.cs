@@ -1,7 +1,9 @@
-using Collectibles.Application.Interfaces;
 using Collectibles.Application.Common.Authorization.Requirements;
+using Collectibles.Application.Interfaces;
 using Collectibles.Application.Mappings.Explicit;
+
 using MediatR;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;

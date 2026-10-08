@@ -1,9 +1,11 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Configuration;
 using Collectibles.Domain.Interfaces;
+
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+
 using Serilog;
 
 namespace Collectibles.Web.Endpoints;
@@ -18,6 +20,7 @@ public static class LinkCacheEndpoints
             .WithName("GetLinkCacheContent")
             .WithTags("LinkCaches")
             .RequireAuthorization()
+            .RequireRateLimiting("ApiEndpoints")
             .Produces<FileResult>(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status404NotFound);
 
@@ -25,6 +28,7 @@ public static class LinkCacheEndpoints
             .WithName("GetLinkCacheScreenshot")
             .WithTags("LinkCaches")
             .RequireAuthorization()
+            .RequireRateLimiting("ApiEndpoints")
             .Produces<FileResult>(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status404NotFound);
 

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 
 namespace Collectibles.Domain.ValueObjects.Templates;
@@ -66,7 +67,9 @@ public class FieldValue
             return d;
         }
 
-        if (decimal.TryParse(Value.ToString(), out var result))
+        // Stored as invariant-format JSON; parsing with the current culture made
+        // "1.5" read as 15 on a de-DE server.
+        if (decimal.TryParse(Value.ToString(), NumberStyles.Number, CultureInfo.InvariantCulture, out var result))
         {
             return result;
         }
@@ -90,7 +93,7 @@ public class FieldValue
             return dt;
         }
 
-        if (DateTime.TryParse(Value.ToString(), out var result))
+        if (DateTime.TryParse(Value.ToString(), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var result))
         {
             return result;
         }

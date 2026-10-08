@@ -1,5 +1,7 @@
 using Collectibles.Application.Interfaces;
+
 using FluentValidation;
+
 using MediatR;
 
 namespace Collectibles.Application.Features.Users.Commands;

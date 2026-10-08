@@ -4,5 +4,5 @@ public enum ShowcaseSortOrder
 {
     Alphabetical = 0,
     NewestFirst = 1,
-    TemplateSort = 2
+    TemplateSort = 2,
 }

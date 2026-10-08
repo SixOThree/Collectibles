@@ -3,8 +3,10 @@ using Collectibles.Application.Features.CollectibleItems.Commands;
 using Collectibles.Application.Features.Maintenance.Commands;
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Interfaces;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+
 using Moq;
 
 namespace Collectibles.Application.Tests.Features.Maintenance;
@@ -61,10 +63,11 @@ public class MaintenanceCommandAuthorizationTests
             new Mock<ILogger<RollbackAttachmentMigrationCommandHandler>>().Object,
             CreateCurrentUser(false).Object);
 
-        var act = async () => await handler.Handle(new RollbackAttachmentMigrationCommand
-        {
-            AttachmentIds = new List<long>(),
-        }, CancellationToken.None);
+        var act = async () => await handler.Handle(
+            new RollbackAttachmentMigrationCommand
+            {
+                AttachmentIds = new List<long>(),
+            }, CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
     }
@@ -77,10 +80,11 @@ public class MaintenanceCommandAuthorizationTests
             new Mock<ILogger<CleanupMigratedAttachmentsCommandHandler>>().Object,
             CreateCurrentUser(false).Object);
 
-        var act = async () => await handler.Handle(new CleanupMigratedAttachmentsCommand
-        {
-            RetentionDays = 30,
-        }, CancellationToken.None);
+        var act = async () => await handler.Handle(
+            new CleanupMigratedAttachmentsCommand
+            {
+                RetentionDays = 30,
+            }, CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
     }

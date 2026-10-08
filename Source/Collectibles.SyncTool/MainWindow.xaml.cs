@@ -4,6 +4,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+
 using Collectibles.SyncTool.Models;
 using Collectibles.SyncTool.ViewModels;
 
@@ -183,7 +184,10 @@ public partial class MainWindow : Window
 
     private void FileGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (DataContext is not MainViewModel vm) return;
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
 
         vm.SelectedPreviewItem = FileGrid.CurrentItem as SyncItemViewModel;
     }

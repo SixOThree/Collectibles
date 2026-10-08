@@ -1,11 +1,16 @@
+using Collectibles.Application.Common;
 using Collectibles.Application.Interfaces;
+using Collectibles.Domain.Common;
 using Collectibles.Domain.Common.Enums;
 using Collectibles.Domain.Configuration.Storage;
 using Collectibles.Domain.Entities;
 using Collectibles.Domain.Enums;
 using Collectibles.Domain.Interfaces;
+
 using FluentValidation;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -35,7 +40,9 @@ public class UpdateAttachmentCommandValidator : AbstractValidator<UpdateAttachme
             .MaximumLength(255);
 
         RuleFor(v => v.FileType)
-            .MaximumLength(100);
+            .MaximumLength(100)
+            .Must(AttachmentContentRules.BeAnAcceptableContentType)
+            .WithMessage(AttachmentContentRules.UnsupportedContentTypeMessage);
 
         RuleFor(v => v.Base64Content)
             .Must(BeValidBase64)
@@ -46,6 +53,12 @@ public class UpdateAttachmentCommandValidator : AbstractValidator<UpdateAttachme
             .Must(BeValidBase64)
             .When(v => !string.IsNullOrEmpty(v.Base64PreviewThumbnail))
             .WithMessage("Preview thumbnail must be valid base64 encoded string.");
+
+        // A preview is served inline, so its bytes must be an image and not merely claim to be.
+        RuleFor(v => v.Base64PreviewThumbnail)
+            .Must(AttachmentContentRules.BeARecognisedImage)
+            .When(v => !string.IsNullOrEmpty(v.Base64PreviewThumbnail))
+            .WithMessage(AttachmentContentRules.PreviewNotAnImageMessage);
     }
 
     private bool BeValidBase64(string? value)
@@ -150,23 +163,37 @@ public class UpdateAttachmentCommandHandler : IRequestHandler<UpdateAttachmentCo
 
         entity.Name = request.Name;
         entity.OriginalFilename = request.OriginalFilename;
-        entity.FileType = request.FileType;
+
+        // The declared type is a caller-supplied hint and is what later responses would announce
+        // to a browser. Screen it here; where new content is supplied the signature refines it
+        // further below.
+        var storedFileType = FileContentType.IsAcceptableDeclaredType(request.FileType)
+            ? request.FileType
+            : FileContentType.Fallback;
+
         entity.AttachmentType = request.AttachmentType;
 
         // Track the GUID for file naming consistency
         string? fileGuid = null;
 
+        // Blobs the update supersedes. They are deleted only after the database write is
+        // committed: deleting first would destroy the content if the save then failed.
+        var supersededPaths = new List<string>();
+
         if (!string.IsNullOrEmpty(request.Base64Content))
         {
             var content = Convert.FromBase64String(request.Base64Content);
 
+            // New content is in memory, so its own signature decides the stored type.
+            storedFileType = FileContentType.ResolveStoredType(content, request.FileType);
+
             // Update file size
             entity.FileSize = content.Length;
 
-            // Delete old file if exists
+            // Remember the old file; it is removed after the save succeeds
             if (!string.IsNullOrEmpty(entity.FilePath))
             {
-                await _fileStorage.DeleteFileAsync(entity.FilePath, cancellationToken);
+                supersededPaths.Add(entity.FilePath);
             }
 
             // Generate a new GUID for the updated file
@@ -179,7 +206,7 @@ public class UpdateAttachmentCommandHandler : IRequestHandler<UpdateAttachmentCo
             entity.FilePath = await _fileStorage.SaveFileAsync(
                 content,
                 guidFileName,
-                request.FileType ?? "application/octet-stream",
+                storedFileType ?? FileContentType.Fallback,
                 showcaseId,
                 cancellationToken);
 
@@ -199,10 +226,10 @@ public class UpdateAttachmentCommandHandler : IRequestHandler<UpdateAttachmentCo
         {
             var previewThumbnail = Convert.FromBase64String(request.Base64PreviewThumbnail);
 
-            // Delete old preview if exists
+            // Remember the old preview; it is removed after the save succeeds
             if (!string.IsNullOrEmpty(entity.PreviewPath))
             {
-                await _fileStorage.DeleteFileAsync(entity.PreviewPath, cancellationToken);
+                supersededPaths.Add(entity.PreviewPath);
             }
 
             // Use the same GUID as the main file if it was updated, otherwise generate a new one
@@ -290,7 +317,19 @@ public class UpdateAttachmentCommandHandler : IRequestHandler<UpdateAttachmentCo
             }
         }
 
+        // Assigned last so it reflects any refinement the new content's signature produced above.
+        entity.FileType = storedFileType;
+
         await context.SaveChangesAsync(cancellationToken);
+
+        // The new content is now committed, so removing the superseded blobs is safe.
+        foreach (var supersededPath in supersededPaths)
+        {
+            if (supersededPath != entity.FilePath && supersededPath != entity.PreviewPath)
+            {
+                await _fileStorage.DeleteFileAsync(supersededPath, cancellationToken);
+            }
+        }
 
         // Log the update event
         var newValues = new

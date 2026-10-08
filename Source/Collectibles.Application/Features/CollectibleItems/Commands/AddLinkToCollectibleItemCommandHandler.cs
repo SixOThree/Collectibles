@@ -2,7 +2,9 @@ using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Configuration;
 using Collectibles.Domain.Entities;
 using Collectibles.Domain.Enums;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 

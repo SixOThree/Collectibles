@@ -1,4 +1,4 @@
-@page "/qrcodes"
+﻿@page "/qrcodes"
 @rendermode InteractiveServerWithoutPrerender
 @using Collectibles.Application.Features.QRCodes
 @using Collectibles.Application.Features.QRCodes.Commands
@@ -384,8 +384,7 @@
         
         var command = new GenerateQRCodesCommand 
         { 
-            Quantity = _generateQuantity,
-            UserId = userId 
+            Quantity = _generateQuantity
         };
         _generationResult = await Mediator.Send(command);
         

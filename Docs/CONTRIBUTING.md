@@ -1,4 +1,4 @@
-# Contributing to Collectibles
+﻿# Contributing to Collectibles
 
 Thank you for your interest in contributing. This document covers everything
 you need to get started.
@@ -23,13 +23,14 @@ you need to get started.
 
 2. **Copy application settings** and fill in your local values:
 
-   ```bash
-   cp Source/Collectibles.Web/appsettings.Development.json.example \
-      Source/Collectibles.Web/appsettings.Development.json
-   ```
+   Create `Source/Collectibles.Web/appsettings.Development.json` (it is git-ignored)
+   and override the values you need from `appsettings.json`. At minimum set
+   `ConnectionStrings:DefaultConnection` and `HashIds:Salt` — the application refuses to
+   start while the salt is still the placeholder.
 
-   Edit `appsettings.Development.json` to set your SQL Server connection string
-   and any other environment-specific values.
+   Prefer `dotnet user-secrets` for anything secret: the Web project has a
+   `UserSecretsId`, so `dotnet user-secrets set "ConnectionStrings:DefaultConnection" "..."`
+   keeps credentials out of the working tree entirely.
 
 3. **Apply database migrations**:
 
@@ -58,11 +59,10 @@ organized into the following projects:
 | Domain | `Collectibles.Domain` | Entities, value objects, domain events |
 | Application | `Collectibles.Application` | Commands, queries, handlers, DTOs |
 | Infrastructure | `Collectibles.Infrastructure` | EF Core, file storage, background jobs |
-| Kernel | `Collectibles.Kernel` | Shared utilities, constants, cross-cutting concerns |
 | Web | `Collectibles.Web` | Blazor Server UI, middleware, startup |
 
 **Dependency flow:** Web → Application → Domain. Infrastructure implements
-Application interfaces. Kernel may be referenced by any layer.
+Application interfaces.
 
 ## Coding Conventions
 
@@ -71,10 +71,12 @@ Application interfaces. Kernel may be referenced by any layer.
   parameters.
 - **Primary keys:** Use `long` for all database primary keys. Never expose raw
   database IDs in URLs or API responses — use HashIds instead.
-- **HashIds:** Encode/decode via the HashIds helpers in `Collectibles.Kernel`.
-  The salt is configured in `appsettings.json` and must remain secret.
-- **Constants:** Use `ApplicationConstants` (in Kernel) rather than magic
-  strings or numbers scattered through the codebase.
+- **HashIds:** Encode/decode via `IHashIdsService` (`Collectibles.Application.Services`,
+  implemented by `HashIdsService` in Infrastructure). Use `TryDecode` at HTTP boundaries;
+  `Decode` throws on a malformed hash. The salt is configured in `appsettings.json` and
+  must remain secret.
+- **Constants:** Use `ApplicationConstants` (in `Collectibles.Domain.Constants`) rather
+  than magic strings or numbers scattered through the codebase.
 - **File layout:** One type per file. File name must match the type name.
 - **StyleCop:** The solution uses StyleCop analyzers. Run `dotnet build` to
   surface any style violations before submitting a PR.
@@ -115,12 +117,19 @@ dotnet test
 
 > **Note:** Playwright is used in this project for two purposes: E2E testing (below) and external link caching in production. The E2E tests are completely separate from the link caching service.
 
-E2E tests live in `Test/Collectibles.PlaywrightTests`. See
-`Docs/DEVELOPER_README.md#e2e-tests-playwright--development-testing` for test
-user credentials and setup instructions.
+E2E tests are a Node.js Playwright suite in `Test/Playwright` (not a dotnet test
+project). They run the application under the `Playwright` environment, which resets a
+LocalDB database on startup and uses the null email provider.
+
+Copy `Source/Collectibles.Web/appsettings.Playwright.json.example` to
+`appsettings.Playwright.json` and fill in the `PlaywrightSeed:*` accounts first; that file
+is git-ignored. See `Docs/DEVELOPER_README.md#e2e-tests-playwright--development-testing`.
 
 ```bash
-dotnet test Test/Collectibles.PlaywrightTests
+cd Test/Playwright
+npm ci
+npx playwright install
+npm test
 ```
 
 ## Reporting Issues

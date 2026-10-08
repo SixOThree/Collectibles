@@ -1,6 +1,8 @@
 using Collectibles.Application.Interfaces;
 using Collectibles.Domain.Entities;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -52,7 +54,6 @@ public class UpdateMissingPreviewImagesCommandHandler : IRequestHandler<UpdateMi
         var query = context.CollectibleItems
             .Include(ci => ci.CollectibleItemAttachments)
                 .ThenInclude(cia => cia.Attachment)
-            .Where(ci => ci.Deleted == null)
             .Where(ci => ci.PreviewImageId == null || ci.PreviewImageId == 0)
             .Where(ci => ci.CollectibleItemAttachments.Any());
 

@@ -1,4 +1,4 @@
-@page "/management/email-logs"
+﻿@page "/management/email-logs"
 @rendermode InteractiveServerWithoutPrerender
 @attribute [Authorize(Roles = "Administrator")]
 @inherits LoggablePageBase
@@ -24,7 +24,7 @@
 
     <!-- Filters Section -->
     <div class="card mb-4">
-        <div class="card-header" @onclick="ToggleFilters" style="cursor: pointer;">
+        <div class="card-header" @onclick="ToggleFilters" style="cursor: pointer;" role="button" tabindex="0" @onkeydown="@(e => { if (e.Key == "Enter" || e.Key == " ") ToggleFilters(); })">
             <h5 class="mb-0 d-flex justify-content-between align-items-center">
                 <span><i class="bi bi-funnel"></i> Filters</span>
                 <i class="bi @(_showFilters ? "bi-chevron-up" : "bi-chevron-down")"></i>

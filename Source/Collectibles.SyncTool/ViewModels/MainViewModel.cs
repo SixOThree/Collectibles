@@ -2,8 +2,10 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Net.Http;
 using System.Windows.Media.Imaging;
+
 using Collectibles.SyncTool.Models;
 using Collectibles.SyncTool.Services;
+
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -56,32 +58,66 @@ public partial class MainViewModel : ObservableObject
     private string _localFolder = string.Empty;
 
     // State
+    //
+    // Every mutating command is gated on this flag. Only Compare used to have a
+    // CanExecute guard, so starting a second action mid-operation overwrote the shared
+    // cancellation source and let the first operation's finally block clear the flag while
+    // the second was still running.
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(CompareCommand))]
+    [NotifyCanExecuteChangedFor(nameof(UploadSelectedCommand))]
+    [NotifyCanExecuteChangedFor(nameof(DeleteSelectedCommand))]
+    [NotifyCanExecuteChangedFor(nameof(DownloadSelectedCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CopySelectedCommand))]
+    [NotifyCanExecuteChangedFor(nameof(MoveSelectedCommand))]
+    [NotifyCanExecuteChangedFor(nameof(UploadSingleCommand))]
+    [NotifyCanExecuteChangedFor(nameof(DeleteSingleCommand))]
+    [NotifyCanExecuteChangedFor(nameof(DownloadSingleCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CopySingleCommand))]
+    [NotifyCanExecuteChangedFor(nameof(MoveSingleCommand))]
     private bool _isOperationRunning;
-    [ObservableProperty] private double _progressValue;
-    [ObservableProperty] private string _statusText = "Ready";
-    [ObservableProperty] private string? _activeFilter;
-    [ObservableProperty] private string _searchText = string.Empty;
-    [ObservableProperty] private bool _hideMatched;
+    [ObservableProperty]
+    private double _progressValue;
+    [ObservableProperty]
+    private string _statusText = "Ready";
+    [ObservableProperty]
+    private string? _activeFilter;
+    [ObservableProperty]
+    private string _searchText = string.Empty;
+    [ObservableProperty]
+    private bool _hideMatched;
 
     // Preview panel
-    [ObservableProperty] private bool _isPreviewPanelVisible;
-    [ObservableProperty] private BitmapImage? _previewImage;
-    [ObservableProperty] private string? _previewFileName;
-    [ObservableProperty] private string? _previewFileSize;
-    [ObservableProperty] private bool _isPreviewLoading;
-    [ObservableProperty] private bool _isActualSize;
-    [ObservableProperty] private string _previewPlaceholderText = "Select an image to preview";
-    [ObservableProperty] private double _previewPanelWidth = 300;
-    [ObservableProperty] private SyncItemViewModel? _selectedPreviewItem;
+    [ObservableProperty]
+    private bool _isPreviewPanelVisible;
+    [ObservableProperty]
+    private BitmapImage? _previewImage;
+    [ObservableProperty]
+    private string? _previewFileName;
+    [ObservableProperty]
+    private string? _previewFileSize;
+    [ObservableProperty]
+    private bool _isPreviewLoading;
+    [ObservableProperty]
+    private bool _isActualSize;
+    [ObservableProperty]
+    private string _previewPlaceholderText = "Select an image to preview";
+    [ObservableProperty]
+    private double _previewPanelWidth = 300;
+    [ObservableProperty]
+    private SyncItemViewModel? _selectedPreviewItem;
 
     // Summary counts
-    [ObservableProperty] private int _matchedCount;
-    [ObservableProperty] private int _toUploadCount;
-    [ObservableProperty] private int _serverOnlyCount;
-    [ObservableProperty] private int _movedCopiedCount;
-    [ObservableProperty] private int _totalCount;
+    [ObservableProperty]
+    private int _matchedCount;
+    [ObservableProperty]
+    private int _toUploadCount;
+    [ObservableProperty]
+    private int _serverOnlyCount;
+    [ObservableProperty]
+    private int _movedCopiedCount;
+    [ObservableProperty]
+    private int _totalCount;
 
     public ObservableCollection<SyncItemViewModel> Items { get; } = [];
 
@@ -228,6 +264,17 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Mutating operations are mutually exclusive: they share one cancellation source and
+    /// one progress/status surface.
+    /// </summary>
+    private bool CanRunOperation() => !IsOperationRunning;
+
+    /// <summary>
+    /// Row-level actions additionally require a row.
+    /// </summary>
+    private bool CanRunItemOperation(SyncItemViewModel? item) => item is not null && !IsOperationRunning;
+
     private bool CanCompare() =>
         !string.IsNullOrWhiteSpace(ServerUrl) &&
         !string.IsNullOrWhiteSpace(ApiKey) &&
@@ -236,7 +283,73 @@ public partial class MainViewModel : ObservableObject
         Directory.Exists(LocalFolder) &&
         !IsOperationRunning;
 
-    [RelayCommand]
+    /// <summary>
+    /// Outcome of a single sync upload.
+    /// </summary>
+    private enum SyncUploadOutcome
+    {
+        /// <summary>The file was uploaded and linked to its item.</summary>
+        Uploaded,
+
+        /// <summary>The server already holds this content at this path.</summary>
+        SkippedDuplicate,
+
+        /// <summary>The file sits at the sync root, which the server does not accept.</summary>
+        SkippedRootLevel,
+    }
+
+    /// <summary>
+    /// Runs the initiate / upload-blob / complete sequence for one file.
+    /// </summary>
+    /// <remarks>
+    /// This is the only pipeline that produces a linked, hash-indexed attachment. It was
+    /// previously written out three times, and the batch-copy path used the generic
+    /// upload endpoints instead - which created attachments with no item link, no folder
+    /// path, and no content hash, so the next Compare could not see them and the rows
+    /// stayed MovedCopied forever while every retry re-uploaded the bytes.
+    /// </remarks>
+    private async Task<SyncUploadOutcome> SyncUploadFileAsync(
+        SyncItemViewModel item,
+        IProgress<double>? progress,
+        CancellationToken cancellationToken)
+    {
+        var syncItem = item.Item;
+        var relativePath = syncItem.LocalFileName!;
+
+        // Skip root-level files (relative path must have at least 2 segments)
+        if (relativePath.Split('/', '\\').Length < 2)
+        {
+            return SyncUploadOutcome.SkippedRootLevel;
+        }
+
+        var contentType = CollectiblesApiClient.GetContentType(syncItem.LocalFilePath!);
+        var attachmentType = CollectiblesApiClient.GetAttachmentType(syncItem.LocalFilePath!);
+
+        // Step 1: Initiate sync upload
+        var initiation = await _apiClient.InitiateSyncUploadAsync(
+            ShowcaseHashId, relativePath, syncItem.LocalContentHash!,
+            syncItem.LocalFileSize, contentType, cancellationToken);
+
+        if (initiation.Skipped)
+        {
+            return SyncUploadOutcome.SkippedDuplicate;
+        }
+
+        // Step 2: Upload blob to Azure
+        await _apiClient.UploadToAzureAsync(
+            initiation.SasUrl!, syncItem.LocalFilePath!, contentType, progress, cancellationToken);
+
+        // Step 3: Complete sync upload
+        await _apiClient.CompleteSyncUploadAsync(
+            initiation.UploadId!, initiation.BlobName!, Path.GetFileName(syncItem.LocalFilePath!),
+            contentType, syncItem.LocalFileSize, initiation.TargetItemHashId!,
+            ShowcaseHashId, syncItem.LocalContentHash,
+            attachmentType.ToString(), cancellationToken);
+
+        return SyncUploadOutcome.Uploaded;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanRunOperation))]
     private async Task UploadSelectedAsync()
     {
         var toUpload = Items.Where(i => i.IsSelected && i.Status == SyncStatus.ToUpload).ToList();
@@ -261,49 +374,25 @@ public partial class MainViewModel : ObservableObject
                 await semaphore.WaitAsync(_cts.Token);
                 try
                 {
-                    var syncItem = item.Item;
-                    var relativePath = syncItem.LocalFileName!;
-
-                    // Skip root-level files (relative path must have at least 2 segments)
-                    if (relativePath.Split('/', '\\').Length < 2)
-                    {
-                        Interlocked.Increment(ref skipped);
-                        return;
-                    }
-
                     StatusText = $"Uploading {item.Filename}... ({completed + 1}/{toUpload.Count})";
 
-                    var contentType = CollectiblesApiClient.GetContentType(syncItem.LocalFilePath!);
-                    var attachmentType = CollectiblesApiClient.GetAttachmentType(syncItem.LocalFilePath!);
-
-                    // Step 1: Initiate sync upload
-                    var initiation = await _apiClient.InitiateSyncUploadAsync(
-                        ShowcaseHashId, relativePath, syncItem.LocalContentHash!,
-                        syncItem.LocalFileSize, contentType, _cts.Token);
-
-                    if (initiation.Skipped)
-                    {
-                        Interlocked.Increment(ref skipped);
-                        Interlocked.Increment(ref completed);
-                        ProgressValue = (double)completed / toUpload.Count * 100;
-                        return;
-                    }
-
-                    // Step 2: Upload blob to Azure
                     var progress = new Progress<double>(_ =>
                     {
                         ProgressValue = (completed + 0.5) / toUpload.Count * 100;
                     });
 
-                    await _apiClient.UploadToAzureAsync(
-                        initiation.SasUrl!, syncItem.LocalFilePath!, contentType, progress, _cts.Token);
+                    var outcome = await SyncUploadFileAsync(item, progress, _cts.Token);
 
-                    // Step 3: Complete sync upload
-                    await _apiClient.CompleteSyncUploadAsync(
-                        initiation.UploadId!, initiation.BlobName!, Path.GetFileName(syncItem.LocalFilePath!),
-                        contentType, syncItem.LocalFileSize, initiation.TargetItemId!.Value,
-                        ShowcaseHashId, syncItem.LocalContentHash,
-                        attachmentType.ToString(), _cts.Token);
+                    if (outcome == SyncUploadOutcome.SkippedRootLevel)
+                    {
+                        Interlocked.Increment(ref skipped);
+                        return;
+                    }
+
+                    if (outcome == SyncUploadOutcome.SkippedDuplicate)
+                    {
+                        Interlocked.Increment(ref skipped);
+                    }
 
                     Interlocked.Increment(ref completed);
                     ProgressValue = (double)completed / toUpload.Count * 100;
@@ -338,7 +427,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanRunOperation))]
     private async Task DeleteSelectedAsync()
     {
         var toDelete = Items.Where(i => i.IsSelected && i.Status == SyncStatus.ServerOnly).ToList();
@@ -402,7 +491,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanRunItemOperation))]
     private async Task UploadSingleAsync(SyncItemViewModel item)
     {
         if (item.LocalFilePath == null)
@@ -453,7 +542,7 @@ public partial class MainViewModel : ObservableObject
             // Step 3: Complete sync upload
             await _apiClient.CompleteSyncUploadAsync(
                 initiation.UploadId!, initiation.BlobName!, Path.GetFileName(syncItem.LocalFilePath!),
-                contentType, syncItem.LocalFileSize, initiation.TargetItemId!.Value,
+                contentType, syncItem.LocalFileSize, initiation.TargetItemHashId!,
                 ShowcaseHashId, syncItem.LocalContentHash,
                 attachmentType.ToString(), _cts.Token);
 
@@ -471,7 +560,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanRunItemOperation))]
     private async Task DeleteSingleAsync(SyncItemViewModel item)
     {
         if (item.AttachmentHashId == null)
@@ -515,7 +604,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanRunItemOperation))]
     private async Task DownloadSingleAsync(SyncItemViewModel item)
     {
         if (item.AttachmentHashId == null || item.ServerFilename == null)
@@ -557,7 +646,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanRunOperation))]
     private async Task DownloadSelectedAsync()
     {
         var toDownload = Items.Where(i => i.IsSelected && i.Status == SyncStatus.ServerOnly).ToList();
@@ -613,7 +702,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanRunItemOperation))]
     private async Task CopySingleAsync(SyncItemViewModel item)
     {
         if (item.LocalFilePath == null)
@@ -630,43 +719,22 @@ public partial class MainViewModel : ObservableObject
             StatusText = $"Copying {item.Filename}...";
             ProgressValue = 0;
 
-            var syncItem = item.Item;
-            var relativePath = syncItem.LocalFileName!;
+            var progress = new Progress<double>(p => ProgressValue = p * 100);
+            var outcome = await SyncUploadFileAsync(item, progress, _cts.Token);
 
-            // Skip root-level files (relative path must have at least 2 segments)
-            if (relativePath.Split('/', '\\').Length < 2)
+            if (outcome == SyncUploadOutcome.SkippedRootLevel)
             {
                 StatusText = $"Skipped {item.Filename} — root-level files cannot be copied.";
                 return;
             }
 
-            var contentType = CollectiblesApiClient.GetContentType(syncItem.LocalFilePath!);
-            var attachmentType = CollectiblesApiClient.GetAttachmentType(syncItem.LocalFilePath!);
-
-            // Step 1: Initiate sync upload
-            var initiation = await _apiClient.InitiateSyncUploadAsync(
-                ShowcaseHashId, relativePath, syncItem.LocalContentHash!,
-                syncItem.LocalFileSize, contentType, _cts.Token);
-
-            if (initiation.Skipped)
+            if (outcome == SyncUploadOutcome.SkippedDuplicate)
             {
                 StatusText = $"Skipped {item.Filename} — duplicate already exists on server.";
                 ProgressValue = 100;
                 await CompareAsync();
                 return;
             }
-
-            // Step 2: Upload blob to Azure
-            var progress = new Progress<double>(p => ProgressValue = p * 100);
-            await _apiClient.UploadToAzureAsync(
-                initiation.SasUrl!, syncItem.LocalFilePath!, contentType, progress, _cts.Token);
-
-            // Step 3: Complete sync upload
-            await _apiClient.CompleteSyncUploadAsync(
-                initiation.UploadId!, initiation.BlobName!, Path.GetFileName(syncItem.LocalFilePath!),
-                contentType, syncItem.LocalFileSize, initiation.TargetItemId!.Value,
-                ShowcaseHashId, syncItem.LocalContentHash,
-                attachmentType.ToString(), _cts.Token);
 
             StatusText = $"Copied {item.Filename}.";
             ProgressValue = 100;
@@ -682,7 +750,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanRunItemOperation))]
     private async Task MoveSingleAsync(SyncItemViewModel item)
     {
         if (item.LocalFilePath == null || item.AttachmentHashId == null)
@@ -716,7 +784,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanRunOperation))]
     private async Task CopySelectedAsync()
     {
         var toCopy = Items.Where(i => i.IsSelected && i.Status == SyncStatus.MovedCopied).ToList();
@@ -728,6 +796,7 @@ public partial class MainViewModel : ObservableObject
         IsOperationRunning = true;
         _cts = new CancellationTokenSource();
         var completed = 0;
+        var skipped = 0;
 
         try
         {
@@ -742,12 +811,34 @@ public partial class MainViewModel : ObservableObject
 
                 StatusText = $"Copying {item.Filename}... ({completed + 1}/{toCopy.Count})";
 
-                await _apiClient.UploadFileAsync(item.LocalFilePath, ShowcaseHashId, null, _cts.Token);
+                // Same pipeline as the single-row Copy: batch copy used to call the generic
+                // upload endpoints, which produced orphaned attachments the next Compare
+                // could not see.
+                var itemProgress = new Progress<double>(_ =>
+                {
+                    ProgressValue = (completed + 0.5) / toCopy.Count * 100;
+                });
+
+                var outcome = await SyncUploadFileAsync(item, itemProgress, _cts.Token);
+
+                if (outcome == SyncUploadOutcome.SkippedRootLevel)
+                {
+                    skipped++;
+                    continue;
+                }
+
+                if (outcome == SyncUploadOutcome.SkippedDuplicate)
+                {
+                    skipped++;
+                }
+
                 completed++;
                 ProgressValue = (double)completed / toCopy.Count * 100;
             }
 
-            StatusText = $"Copied {completed} files.";
+            StatusText = skipped > 0
+                ? $"Copied {completed - skipped} files, skipped {skipped}."
+                : $"Copied {completed} files.";
             ProgressValue = 100;
             await CompareAsync();
         }
@@ -761,7 +852,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanRunOperation))]
     private async Task MoveSelectedAsync()
     {
         var toMove = Items.Where(i => i.IsSelected && i.Status == SyncStatus.MovedCopied).ToList();
@@ -950,7 +1041,10 @@ public partial class MainViewModel : ObservableObject
         {
             // Phase 1: Thumbnail
             var thumbnailBytes = await _apiClient.GetAttachmentThumbnailAsync(attachmentHashId, ct);
-            if (ct.IsCancellationRequested) return;
+            if (ct.IsCancellationRequested)
+            {
+                return;
+            }
 
             if (thumbnailBytes == null)
             {
@@ -965,7 +1059,10 @@ public partial class MainViewModel : ObservableObject
 
             // Phase 2: Full image (in background)
             var fullBytes = await _apiClient.GetAttachmentDownloadAsync(attachmentHashId, ct);
-            if (ct.IsCancellationRequested) return;
+            if (ct.IsCancellationRequested)
+            {
+                return;
+            }
 
             if (fullBytes != null)
             {
@@ -1091,12 +1188,12 @@ public partial class MainViewModel : ObservableObject
     private void LoadSettings()
     {
         var settings = _settingsService.Load();
-        _serverUrl = settings.ServerUrl;
-        _apiKey = settings.ApiKey;
-        _showcaseHashId = settings.LastShowcaseHashId;
-        _localFolder = settings.LastLocalFolder;
-        _isPreviewPanelVisible = settings.IsPreviewPanelOpen;
-        _previewPanelWidth = settings.PreviewPanelWidth > 0 ? settings.PreviewPanelWidth : 300;
+        ServerUrl = settings.ServerUrl;
+        ApiKey = settings.ApiKey;
+        ShowcaseHashId = settings.LastShowcaseHashId;
+        LocalFolder = settings.LastLocalFolder;
+        IsPreviewPanelVisible = settings.IsPreviewPanelOpen;
+        PreviewPanelWidth = settings.PreviewPanelWidth > 0 ? settings.PreviewPanelWidth : 300;
     }
 
     private void SaveSettings()

@@ -1,4 +1,4 @@
-# Collectibles
+﻿# Collectibles
 
 A comprehensive purpose built web application for managing collectible items. Built with .NET 10, Blazor Server, and Clean Architecture. Create showcases, organize items with dynamic templates and rich tagging, attach media, share collections publicly, and track everything with a full audit trail.
 
@@ -28,7 +28,7 @@ See [Features](/Docs/Features.md) for a comprehensive list of features.
 
 ## Architecture
 
-The solution follows **Clean Architecture** with five layers:
+The solution follows **Clean Architecture** with four layers, plus a companion desktop client:
 
 ```
 Source/
@@ -38,8 +38,8 @@ Source/
     FileProcessing/                     # File processing helpers (folder)
     FileStorage/                        # Storage providers: Database, Azure Blob, Local FS (folder)
     Services/                           # Hosted/background services (folder)
-  Collectibles.Kernel/                  # Cross-cutting constants and utilities
   Collectibles.Web/                     # Blazor Server UI, API endpoints, authorization
+  Collectibles.SyncTool/                # WPF desktop folder-sync client (net10.0-windows)
 
 Test/
   Collectibles.Domain.Tests/

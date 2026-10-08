@@ -2,10 +2,8 @@
 @implements IDisposable
 @inject ILogger<MainLayout> Logger
 @inject IWebHostEnvironment Environment
-@inject Collectibles.Web.Services.HttpContextDataService HttpContextDataService
 @inject Collectibles.Application.Interfaces.ISysLogService SysLogService
 
-<CascadingValue Value="HttpContextDataService">
     <div class="page">
         <header>
             <NavMenu />
@@ -63,7 +61,6 @@
     {
         <mini-profiler />
     }
-</CascadingValue>
 
 <div id="blazor-error-ui">
     An unhandled error has occurred.

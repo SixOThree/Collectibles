@@ -19,7 +19,7 @@ public class UpdateAttachmentCommandValidatorTests
             FileType = "image/jpeg",
             AttachmentType = AttachmentType.Image,
             Base64Content = Convert.ToBase64String(new byte[] { 1, 2, 3, 4 }),
-            Base64PreviewThumbnail = Convert.ToBase64String(new byte[] { 5, 6, 7, 8 }),
+            Base64PreviewThumbnail = TestImages.GifBase64(),
         };
 
         // Act
@@ -283,7 +283,7 @@ public class UpdateAttachmentCommandValidatorTests
         {
             Id = 1,
             Name = "Valid Name",
-            Base64PreviewThumbnail = Convert.ToBase64String(new byte[] { 1, 2, 3, 4 }),
+            Base64PreviewThumbnail = TestImages.GifBase64(),
         };
 
         // Act & Assert

@@ -1,8 +1,9 @@
+using Collectibles.Application.Common.Authorization.Requirements;
 using Collectibles.Application.Features.Attachments;
 using Collectibles.Application.Features.Attachments.Queries;
-using Collectibles.Application.Common.Authorization.Requirements;
 using Collectibles.Application.Mappings.Explicit;
 using Collectibles.Application.Tests.Common;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 

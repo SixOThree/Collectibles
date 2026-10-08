@@ -1,4 +1,4 @@
-# Configuration Reference
+﻿# Configuration Reference
 
 All application settings are in `Source/Collectibles.Web/appsettings.json`. Environment-specific overrides go in environment-specific `appsettings.{Environment}.json` (e.g., `appsettings.Development.json` or `appsettings.Production.json`).
 
@@ -458,23 +458,27 @@ These jobs are registered automatically. Schedules are not configurable via apps
 
 ---
 
-## ApiKey
+## SyncTool
 
-API key authentication for programmatic access.
+Controls the desktop sync client's API surface.
+
+API keys are **per user**, not global: each user generates one from their profile, and only
+a salted hash is stored. There is no `ApiKey` configuration section — an earlier version of
+this document described one, but no code has ever read it.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `Key` | string | `""` | The API key value. Leave empty to disable API key authentication. |
-| `UserEmail` | string | `""` | Email of the user account that API requests execute as. |
+| `Enabled` | bool | `false` | Master switch for the `/api/sync/*` endpoints. |
 
 ```json
 {
-  "ApiKey": {
-    "Key": "",
-    "UserEmail": ""
+  "SyncTool": {
+    "Enabled": false
   }
 }
 ```
+
+See `Docs/SyncTool.md` for the client-side setup.
 
 ---
 
@@ -579,3 +583,80 @@ If you're behind a reverse proxy like Cloudflare, the proxy already validates th
   "AllowedHosts": "*"
 }
 ```
+
+---
+
+## ForwardedHeaders
+
+Identifies the reverse proxies whose `X-Forwarded-*` headers may be trusted. Leave both
+lists empty when the application is reached directly: nothing is trusted unless it is
+listed here, and an unconfigured deployment therefore fails closed.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `KnownProxies` | string[] | `[]` | Individual proxy IP addresses to trust. |
+| `KnownNetworks` | string[] | `[]` | CIDR ranges to trust, e.g. `"173.245.48.0/20"`. |
+| `ForwardLimit` | int | `1` | Number of proxy hops to process from the forwarded chain. |
+
+```json
+{
+  "ForwardedHeaders": {
+    "KnownProxies": [],
+    "KnownNetworks": [],
+    "ForwardLimit": 1
+  }
+}
+```
+
+---
+
+## DataProtection
+
+Persistence for the Data Protection key ring, which protects Blazor component state,
+antiforgery tokens, and the Identity authentication cookie. Set `KeyPath` to a durable
+directory — a shared path when running more than one instance — otherwise the keys are
+stored per environment default and are lost on app-pool profile unload.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `ApplicationName` | string | `"Collectibles"` | Fixed purpose name; changing it invalidates existing cookies. |
+| `KeyPath` | string | `""` | Directory for the key ring. Empty uses the environment default. |
+
+---
+
+## Attachments
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `SoftDeleteRetentionDays` | int | `30` | Days a soft-deleted attachment stays restorable before the purge job permanently removes it and its storage files. Set to `0` to disable purging. |
+
+---
+
+## Playwright
+
+Used by the external-link capture service (not by the E2E test suite).
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `BrowsersPath` | string | `""` | Override for `PLAYWRIGHT_BROWSERS_PATH`. Empty uses the default location. |
+
+---
+
+## PlaywrightSeed
+
+Only read when `ASPNETCORE_ENVIRONMENT=Playwright`. Seeds the deterministic accounts the
+E2E suite signs in with; it has no effect in any other environment.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `ResetDatabaseOnStartup` | bool | `false` | Drops and recreates the database when the app starts. |
+| `ResetStorageOnStartup` | bool | `false` | Clears the local storage root when the app starts. |
+| `SeedManifestPath` | string | `App_Data/playwright/seed-manifest.json` | Where the seeder writes the manifest the specs read (seeded ids, hashes, credentials). |
+
+`appsettings.Playwright.json` is git-ignored; copy
+`Source/Collectibles.Web/appsettings.Playwright.json.example` to
+`appsettings.Playwright.json` before running the suite.
+
+> Both reset flags are destructive. They are only honoured when
+> `ASPNETCORE_ENVIRONMENT=Playwright`, and the environment must point at a throwaway
+> database.

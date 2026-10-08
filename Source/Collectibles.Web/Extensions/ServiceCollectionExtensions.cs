@@ -1,3 +1,5 @@
+using System.Threading.RateLimiting;
+
 using Collectibles.Application.Common;
 using Collectibles.Application.Interfaces;
 using Collectibles.Application.Setup;
@@ -9,12 +11,17 @@ using Collectibles.Infrastructure.Persistence;
 using Collectibles.Infrastructure.Services;
 using Collectibles.Web.Authentication;
 using Collectibles.Web.Components.Account;
+using Collectibles.Web.Middleware;
 using Collectibles.Web.Services;
+
 using Hangfire;
 using Hangfire.SqlServer;
+
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace Collectibles.Web.Extensions;
@@ -29,6 +36,8 @@ public static class ServiceCollectionExtensions
     /// <returns></returns>
     public static IServiceCollection AddWebServices(this IServiceCollection services)
     {
+        var isDevelopment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development";
+
         // Add Razor Components with Interactive Server mode
         services.AddRazorComponents()
             .AddInteractiveServerComponents(options =>
@@ -47,7 +56,10 @@ public static class ServiceCollectionExtensions
                 options.ClientTimeoutInterval = TimeSpan.FromMinutes(ApplicationConstants.Web.SignalRClientTimeoutMinutes);
                 options.KeepAliveInterval = TimeSpan.FromSeconds(ApplicationConstants.Web.SignalRKeepAliveSeconds);
                 options.HandshakeTimeout = TimeSpan.FromSeconds(ApplicationConstants.Web.SignalRHandshakeSeconds);
-                options.EnableDetailedErrors = true;
+
+                // Every interactive component event runs over this hub, so detailed errors would
+                // return exception type, message, and stack detail to the browser. Development only.
+                options.EnableDetailedErrors = isDevelopment;
             });
 
         // Add Blazor Bootstrap
@@ -87,7 +99,6 @@ public static class ServiceCollectionExtensions
                 timeout: TimeSpan.FromSeconds(ApplicationConstants.Database.ConnectionTimeoutSeconds));
 
         // Add MiniProfiler for performance profiling (Development only)
-        var isDevelopment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development";
         if (isDevelopment)
         {
             services.AddMiniProfiler(options =>
@@ -140,6 +151,16 @@ public static class ServiceCollectionExtensions
 
         authBuilder.AddIdentityCookies();
 
+        // Pin the cookie's CSRF-relevant attributes rather than inheriting framework
+        // defaults. Several state-changing API routes disable antiforgery yet accept this
+        // cookie, so SameSite is load-bearing and must not be implicit.
+        services.ConfigureApplicationCookie(options =>
+        {
+            options.Cookie.SameSite = SameSiteMode.Lax;
+            options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+            options.Cookie.HttpOnly = true;
+        });
+
         authBuilder.AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(
             ApiKeyAuthenticationHandler.SchemeName, null);
 
@@ -152,6 +173,17 @@ public static class ServiceCollectionExtensions
             options.AddPolicy("ApiKeyOrCookie", policy =>
             {
                 policy.AddAuthenticationSchemes(ApiKeyAuthenticationHandler.SchemeName, IdentityConstants.ApplicationScheme);
+                policy.RequireAuthenticatedUser();
+            });
+
+            // The sync API is only ever called by the desktop SyncTool, which authenticates
+            // with an API key. Restricting it to that scheme means an ambient browser
+            // session cannot reach these antiforgery-disabled, state-changing routes at
+            // all - the CSRF exposure is removed rather than left resting on the cookie's
+            // SameSite default.
+            options.AddPolicy("ApiKeyOnly", policy =>
+            {
+                policy.AddAuthenticationSchemes(ApiKeyAuthenticationHandler.SchemeName);
                 policy.RequireAuthenticatedUser();
             });
 
@@ -328,6 +360,62 @@ public static class ServiceCollectionExtensions
         services.Configure<SyncToolSettings>(configuration.GetSection("SyncTool"));
         services.AddSingleton<IApiKeyService, ApiKeyService>();
 
+        // Throttle the credential-handling surface. Identity lockout guards a known
+        // account; this adds a defence-in-depth limit at the HTTP layer, which the
+        // first-run setup gate in particular had none of.
+        //
+        // A named policy only covers the endpoints that opt into it, so a global limiter
+        // provides the baseline every route inherits, and the named policies below tighten
+        // the surfaces that warrant it. Authenticated traffic partitions by user identity so
+        // one account cannot spread load across many addresses; anonymous traffic partitions
+        // by the resolved client address.
+        services.AddRateLimiter(options =>
+        {
+            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+            options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(CreateGlobalRateLimitPartition);
+
+            options.AddPolicy("AuthEndpoints", context =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    ResolveRateLimitPartitionKey(context),
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = ApplicationConstants.RateLimits.AuthPermitLimit,
+                        Window = TimeSpan.FromMinutes(1),
+                        QueueLimit = 0,
+                    }));
+
+            // Anonymous, token-bearing routes: the tightest budget, because these are the
+            // surfaces an unauthenticated caller can probe for valid tokens or hashes.
+            options.AddPolicy("PublicEndpoints", context =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    ResolveRateLimitPartitionKey(context),
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = ApplicationConstants.RateLimits.PublicPermitLimit,
+                        Window = TimeSpan.FromMinutes(1),
+                        QueueLimit = 0,
+                    }));
+
+            // Authenticated API surface, including uploads and downloads.
+            options.AddPolicy("ApiEndpoints", context =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    ResolveRateLimitPartitionKey(context),
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = ApplicationConstants.RateLimits.ApiPermitLimit,
+                        Window = TimeSpan.FromMinutes(1),
+                        QueueLimit = 0,
+                    }));
+        });
+
+        // Trusted-proxy handling must be configured before anything reads the client IP
+        services.AddTrustedProxyForwardedHeaders(configuration);
+        services.AddSingleton<IClientIpResolver, ClientIpResolver>();
+
+        // Durable, named Data Protection keys
+        services.AddDurableDataProtection(configuration);
+
         // Add authentication and authorization
         services.AddAuthenticationServices(configuration);
 
@@ -338,5 +426,47 @@ public static class ServiceCollectionExtensions
         services.AddHangfireSchemaInitializer();
 
         return services;
+    }
+
+    /// <summary>
+    /// Builds the global rate-limit partition, exempting framework and static-asset paths so a
+    /// normal page load - which issues many requests for assets and Blazor plumbing - is not
+    /// charged against a caller's budget.
+    /// </summary>
+    private static RateLimitPartition<string> CreateGlobalRateLimitPartition(HttpContext context)
+    {
+        var path = context.Request.Path.Value ?? string.Empty;
+
+        foreach (var exempt in ApplicationConstants.RateLimits.ExemptPathPrefixes)
+        {
+            if (path.StartsWith(exempt, StringComparison.OrdinalIgnoreCase))
+            {
+                return RateLimitPartition.GetNoLimiter("exempt");
+            }
+        }
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            ResolveRateLimitPartitionKey(context),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = ApplicationConstants.RateLimits.GlobalPermitLimit,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            });
+    }
+
+    /// <summary>
+    /// Partitions rate limits by authenticated user where one is present, so a single account
+    /// cannot spread its load across many addresses, and by client address otherwise. The
+    /// connection address is used directly because forwarded-headers processing runs earlier in
+    /// the pipeline and has already rewritten it for known proxies.
+    /// </summary>
+    private static string ResolveRateLimitPartitionKey(HttpContext context)
+    {
+        var userId = context.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        return !string.IsNullOrEmpty(userId)
+            ? $"user:{userId}"
+            : $"ip:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
     }
 }

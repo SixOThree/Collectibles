@@ -1,6 +1,7 @@
 using Collectibles.Application.Features.Attachments;
 using Collectibles.Domain.Entities;
 using Collectibles.Domain.Interfaces;
+
 using Microsoft.Extensions.Logging;
 
 namespace Collectibles.Application.Mappings.Explicit;

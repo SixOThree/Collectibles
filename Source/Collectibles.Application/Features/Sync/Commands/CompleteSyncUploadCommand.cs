@@ -1,7 +1,10 @@
 using Collectibles.Application.Features.Attachments.Commands;
 using Collectibles.Application.Interfaces;
+using Collectibles.Application.Services;
 using Collectibles.Domain.Common.Enums;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -14,7 +17,15 @@ public record CompleteSyncUploadCommand : IRequest<long>
     public required string OriginalFileName { get; init; }
     public required string ContentType { get; init; }
     public required long FileSize { get; init; }
-    public required long TargetItemId { get; init; }
+
+    /// <summary>
+    /// Gets the HashId of the item the uploaded attachment is linked to.
+    /// </summary>
+    /// <remarks>
+    /// This used to be a raw <c>long</c> accepted straight from the HTTP body, which both
+    /// leaked sequential keys and let a caller name an arbitrary item.
+    /// </remarks>
+    public required string TargetItemHashId { get; init; }
     public long? ShowcaseId { get; init; }
     public string? ContentHash { get; init; }
     public AttachmentType? AttachmentType { get; init; }
@@ -27,46 +38,55 @@ public class CompleteSyncUploadCommandHandler : IRequestHandler<CompleteSyncUplo
     private readonly IItemHierarchyService _hierarchyService;
     private readonly IMediator _mediator;
     private readonly ILogger<CompleteSyncUploadCommandHandler> _logger;
+    private readonly IHashIdsService _hashIdsService;
 
     public CompleteSyncUploadCommandHandler(
         IApplicationDbContextFactory contextFactory,
         ICurrentUserService currentUserService,
         IItemHierarchyService hierarchyService,
         IMediator mediator,
-        ILogger<CompleteSyncUploadCommandHandler> logger)
+        ILogger<CompleteSyncUploadCommandHandler> logger,
+        IHashIdsService hashIdsService)
     {
         _contextFactory = contextFactory;
         _currentUserService = currentUserService;
         _hierarchyService = hierarchyService;
         _mediator = mediator;
         _logger = logger;
+        _hashIdsService = hashIdsService;
     }
 
     public async Task<long> Handle(CompleteSyncUploadCommand request, CancellationToken ct)
     {
+        if (!_hashIdsService.TryDecode(request.TargetItemHashId, out var targetItemId))
+        {
+            throw new ArgumentException("Invalid target item identifier.", nameof(request));
+        }
+
         var authorizedShowcaseId = await ResolveAuthorizedShowcaseIdAsync(
-            request.TargetItemId,
+            targetItemId,
             request.ShowcaseId,
             ct);
 
         // Create the attachment via existing command — adapt property names
-        var attachmentId = await _mediator.Send(new CompleteDirectUploadCommand
-        {
-            UploadId = request.UploadId,
-            BlobName = request.BlobName,
-            OriginalFileName = request.OriginalFileName,
-            ContentType = request.ContentType,
-            FileSize = request.FileSize,
-            AttachmentType = request.AttachmentType,
-            ShowcaseId = authorizedShowcaseId
-        }, ct);
+        var attachmentId = await _mediator.Send(
+            new CompleteDirectUploadCommand
+            {
+                UploadId = request.UploadId,
+                BlobName = request.BlobName,
+                OriginalFileName = request.OriginalFileName,
+                ContentType = request.ContentType,
+                FileSize = request.FileSize,
+                AttachmentType = request.AttachmentType,
+                ShowcaseId = authorizedShowcaseId,
+            }, ct);
 
         // Link attachment to the target item
-        await _hierarchyService.LinkAttachmentAsync(request.TargetItemId, attachmentId, ct);
+        await _hierarchyService.LinkAttachmentAsync(targetItemId, attachmentId, ct);
 
         _logger.LogInformation(
             "Sync upload complete: attachment {AttachmentId} linked to item {ItemId}",
-            attachmentId, request.TargetItemId);
+            attachmentId, targetItemId);
 
         return attachmentId;
     }
@@ -85,9 +105,9 @@ public class CompleteSyncUploadCommandHandler : IRequestHandler<CompleteSyncUplo
         }
 
         var showcaseMemberships = await context.CollectibleItems
-            .Where(ci => ci.Id == targetItemId && ci.Deleted == null)
+            .Where(ci => ci.Id == targetItemId)
             .SelectMany(
-                ci => ci.Showcases.Where(s => s.Deleted == null),
+                ci => ci.Showcases,
                 (ci, showcase) => new
                 {
                     ShowcaseId = showcase.Id,

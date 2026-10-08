@@ -1,6 +1,8 @@
 using Collectibles.Application.Features.Attachments.Dtos;
 using Collectibles.Application.Interfaces;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -53,7 +55,6 @@ public class CleanupMigratedAttachmentsCommandHandler : IRequestHandler<CleanupM
                     .Where(a => a.IsMigrated
                         && a.MigrationDate != null
                         && a.MigrationDate < cutoffDate
-                        && a.Deleted == null
                         && a.AttachmentContent != null
                         && a.AttachmentContent.Content != null);
 
@@ -87,7 +88,6 @@ public class CleanupMigratedAttachmentsCommandHandler : IRequestHandler<CleanupM
                     .Where(a => a.IsMigrated
                         && a.MigrationDate != null
                         && a.MigrationDate < cutoffDate
-                        && a.Deleted == null
                         && a.Id > lastProcessedId
                         && a.AttachmentContent != null
                         && a.AttachmentContent.Content != null)

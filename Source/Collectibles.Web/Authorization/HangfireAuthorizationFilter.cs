@@ -1,4 +1,5 @@
 using Collectibles.Domain.Constants;
+
 using Hangfire.Dashboard;
 
 namespace Collectibles.Web.Authorization;

@@ -1,11 +1,16 @@
+using Collectibles.Application.Common;
 using Collectibles.Application.Interfaces;
+using Collectibles.Domain.Common;
 using Collectibles.Domain.Common.Enums;
 using Collectibles.Domain.Configuration.Storage;
 using Collectibles.Domain.Entities;
 using Collectibles.Domain.Enums;
 using Collectibles.Domain.Interfaces;
+
 using FluentValidation;
+
 using MediatR;
+
 using Microsoft.Extensions.Options;
 
 namespace Collectibles.Application.Features.Attachments.Commands;
@@ -33,7 +38,9 @@ public class CreateAttachmentCommandValidator : AbstractValidator<CreateAttachme
             .MaximumLength(255);
 
         RuleFor(v => v.FileType)
-            .MaximumLength(100);
+            .MaximumLength(100)
+            .Must(AttachmentContentRules.BeAnAcceptableContentType)
+            .WithMessage(AttachmentContentRules.UnsupportedContentTypeMessage);
 
         RuleFor(v => v.Base64Content)
             .Must(BeValidBase64)
@@ -44,6 +51,12 @@ public class CreateAttachmentCommandValidator : AbstractValidator<CreateAttachme
             .Must(BeValidBase64)
             .When(v => !string.IsNullOrEmpty(v.Base64PreviewThumbnail))
             .WithMessage("Preview thumbnail must be valid base64 encoded string.");
+
+        // A preview is served inline, so its bytes must be an image and not merely claim to be.
+        RuleFor(v => v.Base64PreviewThumbnail)
+            .Must(AttachmentContentRules.BeARecognisedImage)
+            .When(v => !string.IsNullOrEmpty(v.Base64PreviewThumbnail))
+            .WithMessage(AttachmentContentRules.PreviewNotAnImageMessage);
     }
 
     private bool BeValidBase64(string? value)
@@ -73,6 +86,7 @@ public class CreateAttachmentCommandHandler : IRequestHandler<CreateAttachmentCo
     private readonly IEventLogService _eventLogService;
     private readonly IAttachmentHashService _hashService;
     private readonly StorageSettings _storageSettings;
+    private readonly ICurrentUserService _currentUserService;
 
     public CreateAttachmentCommandHandler(
         IApplicationDbContextFactory contextFactory,
@@ -80,7 +94,8 @@ public class CreateAttachmentCommandHandler : IRequestHandler<CreateAttachmentCo
         IFileStorage fileStorage,
         IEventLogService eventLogService,
         IAttachmentHashService hashService,
-        IOptions<StorageSettings> storageOptions)
+        IOptions<StorageSettings> storageOptions,
+        ICurrentUserService currentUserService)
     {
         _contextFactory = contextFactory;
         _fileProcessingService = fileProcessingService;
@@ -88,11 +103,14 @@ public class CreateAttachmentCommandHandler : IRequestHandler<CreateAttachmentCo
         _eventLogService = eventLogService;
         _hashService = hashService;
         _storageSettings = storageOptions.Value;
+        _currentUserService = currentUserService;
     }
 
     public async Task<long> Handle(CreateAttachmentCommand request, CancellationToken cancellationToken)
     {
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+        await AttachmentAuthorization.EnsureShowcaseOwnedAsync(context, request.ShowcaseId, _currentUserService, cancellationToken);
 
         byte[]? content = null;
         byte[]? previewThumbnail = null;
@@ -119,6 +137,11 @@ public class CreateAttachmentCommandHandler : IRequestHandler<CreateAttachmentCo
             previewThumbnail = Convert.FromBase64String(request.Base64PreviewThumbnail);
         }
 
+        // The declared type is a caller-supplied hint, and it is what later responses would
+        // announce to a browser. Derive it from the content's own signature where the content is
+        // recognisable, so the uploader does not get to choose how their bytes are interpreted.
+        var storedFileType = FileContentType.ResolveStoredType(content, request.FileType);
+
         // Save files to external storage
         // Generate a common GUID for both main file and preview to keep them related
         var fileGuid = Guid.NewGuid().ToString("N");
@@ -132,7 +155,7 @@ public class CreateAttachmentCommandHandler : IRequestHandler<CreateAttachmentCo
             filePath = await _fileStorage.SaveFileAsync(
                 content,
                 guidFileName,
-                request.FileType ?? "application/octet-stream",
+                storedFileType ?? FileContentType.Fallback,
                 request.ShowcaseId,
                 cancellationToken);
         }
@@ -160,7 +183,7 @@ public class CreateAttachmentCommandHandler : IRequestHandler<CreateAttachmentCo
         {
             Name = request.Name,
             OriginalFilename = request.OriginalFilename,
-            FileType = request.FileType,
+            FileType = storedFileType,
             AttachmentType = request.AttachmentType,
             FilePath = filePath,
             PreviewPath = previewPath,

@@ -3,8 +3,10 @@ using Collectibles.Application.Showcases.Commands.GenerateShareLink;
 using Collectibles.Application.Showcases.Commands.RevokeShareToken;
 using Collectibles.Application.Showcases.Queries.GetShareTokens;
 using Collectibles.Application.Tests.Common;
+using Collectibles.Domain.Common;
 using Collectibles.Domain.Entities;
 using Collectibles.Domain.Interfaces;
+
 using Moq;
 
 namespace Collectibles.Application.Tests.Features.Showcases;
@@ -117,7 +119,8 @@ public class RevokeShareTokenCommandAuthorizationTests : CommandTestBase<RevokeS
         var token = new ShowcaseShareToken
         {
             ShowcaseId = showcase.Id,
-            Token = "test-token",
+            TokenHash = ShareTokenHash.Compute("test-token"),
+            ExpiresAt = DateTime.UtcNow.AddDays(1),
             IsActive = true,
         };
         Context.ShowcaseShareTokens.Add(token);

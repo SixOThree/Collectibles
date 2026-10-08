@@ -1,7 +1,13 @@
+using Collectibles.Application.Common;
 using Collectibles.Application.Interfaces;
+using Collectibles.Domain.Common;
 using Collectibles.Domain.Common.Enums;
+using Collectibles.Domain.Constants;
 using Collectibles.Domain.Entities;
 using Collectibles.Domain.Interfaces;
+
+using FluentValidation;
+
 using MediatR;
 
 namespace Collectibles.Application.Features.Attachments.Commands;
@@ -18,6 +24,36 @@ public class CreateAttachmentStreamCommand : IRequest<long>
     public long? ShowcaseId { get; set; }
 }
 
+/// <summary>
+/// Mirrors <see cref="CreateAttachmentCommandValidator"/>: the streaming twin previously
+/// had no validator at all, so its inputs were unchecked.
+/// </summary>
+public class CreateAttachmentStreamCommandValidator : AbstractValidator<CreateAttachmentStreamCommand>
+{
+    public CreateAttachmentStreamCommandValidator()
+    {
+        RuleFor(v => v.Name)
+            .MaximumLength(ApplicationConstants.ValidationLengths.FileNameMaxLength)
+            .NotEmpty();
+
+        RuleFor(v => v.OriginalFilename)
+            .MaximumLength(ApplicationConstants.ValidationLengths.FileNameMaxLength);
+
+        RuleFor(v => v.FileType)
+            .MaximumLength(ApplicationConstants.ValidationLengths.TypeMaxLength)
+            .Must(AttachmentContentRules.BeAnAcceptableContentType)
+            .WithMessage(AttachmentContentRules.UnsupportedContentTypeMessage);
+
+        RuleFor(v => v.FileSize)
+            .GreaterThanOrEqualTo(0);
+
+        // A preview is served inline, so its bytes must be an image and not merely claim to be.
+        RuleFor(v => v.PreviewThumbnail)
+            .Must(bytes => bytes == null || bytes.Length == 0 || FileContentType.TryResolveImageType(bytes, out _))
+            .WithMessage(AttachmentContentRules.PreviewNotAnImageMessage);
+    }
+}
+
 public class CreateAttachmentStreamCommandHandler : IRequestHandler<CreateAttachmentStreamCommand, long>
 {
     private readonly IApplicationDbContextFactory _contextFactory;
@@ -25,29 +61,41 @@ public class CreateAttachmentStreamCommandHandler : IRequestHandler<CreateAttach
     private readonly IFileProcessingService _fileProcessingService;
     private readonly IEventLogService _eventLogService;
     private readonly IAttachmentHashService _hashService;
+    private readonly ICurrentUserService _currentUserService;
 
     public CreateAttachmentStreamCommandHandler(
         IApplicationDbContextFactory contextFactory,
         IFileStorage fileStorage,
         IFileProcessingService fileProcessingService,
         IEventLogService eventLogService,
-        IAttachmentHashService hashService)
+        IAttachmentHashService hashService,
+        ICurrentUserService currentUserService)
     {
         _contextFactory = contextFactory;
         _fileStorage = fileStorage;
         _fileProcessingService = fileProcessingService;
         _eventLogService = eventLogService;
         _hashService = hashService;
+        _currentUserService = currentUserService;
     }
 
     public async Task<long> Handle(CreateAttachmentStreamCommand request, CancellationToken cancellationToken)
     {
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
 
+        await AttachmentAuthorization.EnsureShowcaseOwnedAsync(context, request.ShowcaseId, _currentUserService, cancellationToken);
+
         string? filePath = null;
         string? previewPath = null;
         string? contentHash = null;
         byte[]? previewThumbnail = request.PreviewThumbnail;
+
+        // Content arrives as a stream, so the signature is not available here without buffering.
+        // The declared type is screened instead, and the preview routes derive what they announce
+        // from the stored bytes themselves, so an unscreened type cannot reach a browser.
+        var storedFileType = FileContentType.IsAcceptableDeclaredType(request.FileType)
+            ? request.FileType
+            : FileContentType.Fallback;
 
         // Generate a common GUID for both main file and preview to keep them related
         var fileGuid = Guid.NewGuid().ToString("N");
@@ -60,7 +108,7 @@ public class CreateAttachmentStreamCommandHandler : IRequestHandler<CreateAttach
             var guidFileName = $"{fileGuid}{extension}";
 
             // Generate preview thumbnail if it's an image and we don't have one
-            if (previewThumbnail == null && request.FileType != null && request.FileType.StartsWith("image/"))
+            if (previewThumbnail == null && storedFileType != null && storedFileType.StartsWith("image/", StringComparison.Ordinal))
             {
                 // For images, we need to read a small portion to generate preview
                 // But only for reasonable sized images
@@ -76,7 +124,7 @@ public class CreateAttachmentStreamCommandHandler : IRequestHandler<CreateAttach
 
                     previewThumbnail = await _fileProcessingService.GeneratePreviewAsync(
                         imageBytes,
-                        request.FileType,
+                        storedFileType,
                         cancellationToken);
 
                     // Reset memory stream position for saving the file
@@ -86,7 +134,7 @@ public class CreateAttachmentStreamCommandHandler : IRequestHandler<CreateAttach
                     filePath = await _fileStorage.SaveFileAsync(
                         memoryStream,
                         guidFileName,
-                        request.FileType ?? "application/octet-stream",
+                        storedFileType,
                         request.ShowcaseId,
                         cancellationToken);
                 }
@@ -97,7 +145,7 @@ public class CreateAttachmentStreamCommandHandler : IRequestHandler<CreateAttach
                     filePath = await _fileStorage.SaveFileAsync(
                         request.FileStream,
                         guidFileName,
-                        request.FileType ?? "application/octet-stream",
+                        storedFileType,
                         request.ShowcaseId,
                         cancellationToken);
                 }
@@ -121,7 +169,7 @@ public class CreateAttachmentStreamCommandHandler : IRequestHandler<CreateAttach
                     filePath = await _fileStorage.SaveFileAsync(
                         memoryStream,
                         guidFileName,
-                        request.FileType ?? "application/octet-stream",
+                        storedFileType,
                         request.ShowcaseId,
                         cancellationToken);
                 }
@@ -132,7 +180,7 @@ public class CreateAttachmentStreamCommandHandler : IRequestHandler<CreateAttach
                     filePath = await _fileStorage.SaveFileAsync(
                         request.FileStream,
                         guidFileName,
-                        request.FileType ?? "application/octet-stream",
+                        storedFileType,
                         request.ShowcaseId,
                         cancellationToken);
                 }
@@ -155,7 +203,7 @@ public class CreateAttachmentStreamCommandHandler : IRequestHandler<CreateAttach
         {
             Name = request.Name,
             OriginalFilename = request.OriginalFilename,
-            FileType = request.FileType,
+            FileType = storedFileType,
             AttachmentType = request.AttachmentType,
             FilePath = filePath,
             PreviewPath = previewPath,

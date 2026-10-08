@@ -1,6 +1,7 @@
 using Collectibles.Application.Features.Users.Dtos;
 using Collectibles.Application.Interfaces;
 using Collectibles.Application.Mappings.Explicit;
+
 using MediatR;
 
 namespace Collectibles.Application.Features.Users.Queries.GetUserProfile;

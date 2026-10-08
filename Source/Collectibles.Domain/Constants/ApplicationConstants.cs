@@ -197,6 +197,23 @@ public static class ApplicationConstants
         public const int VideoThumbnailCaptureSeconds = 1;
 
         /// <summary>
+        /// Maximum time the ffmpeg snapshot for one video may run before it is abandoned.
+        /// Without a bound, a malformed video can hold a child process open indefinitely.
+        /// </summary>
+        public const int VideoThumbnailTimeoutSeconds = 60;
+
+        /// <summary>
+        /// Largest image dimension (width or height) accepted for decoding. A small file
+        /// can declare enormous dimensions and force a width x height x 4 allocation.
+        /// </summary>
+        public const int MaxImageDimension = 20000;
+
+        /// <summary>
+        /// Largest total pixel count accepted for decoding.
+        /// </summary>
+        public const long MaxImagePixels = 100_000_000;
+
+        /// <summary>
         /// Thumbnail width in pixels.
         /// </summary>
         public const int ThumbnailWidth = 512;
@@ -395,6 +412,33 @@ public static class ApplicationConstants
         /// Request signature max length.
         /// </summary>
         public const int RequestSignatureMaxLength = 1024;
+
+        /// <summary>
+        /// URL max length.
+        /// </summary>
+        public const int UrlMaxLength = 2048;
+
+        /// <summary>
+        /// Share-link token max length. Tokens are 44 characters; the column is bounded so
+        /// it can carry a unique index.
+        /// </summary>
+        public const int ShareTokenMaxLength = 64;
+
+        /// <summary>
+        /// Expiry applied to a share link when its creator does not choose one. Share links are
+        /// bearer credentials, so they age out by default rather than lasting forever.
+        /// </summary>
+        public const int ShareTokenDefaultExpiryDays = 30;
+
+        /// <summary>
+        /// Longest expiry a share link may be given. A requested date beyond this is clamped.
+        /// </summary>
+        public const int ShareTokenMaxExpiryDays = 365;
+
+        /// <summary>
+        /// Configuration key max length.
+        /// </summary>
+        public const int ConfigurationKeyMaxLength = 200;
     }
 
     /// <summary>
@@ -416,6 +460,51 @@ public static class ApplicationConstants
         /// Viewer role name.
         /// </summary>
         public const string Viewer = "Viewer";
+    }
+
+    /// <summary>
+    /// HTTP-layer rate limits. Permits are per partition (authenticated user, else client
+    /// address) per one-minute fixed window.
+    /// </summary>
+    public static class RateLimits
+    {
+        /// <summary>
+        /// Baseline budget every route inherits from the global limiter.
+        /// </summary>
+        public const int GlobalPermitLimit = 300;
+
+        /// <summary>
+        /// Credential-handling endpoints (sign-in, registration, reset, first-run setup).
+        /// </summary>
+        public const int AuthPermitLimit = 20;
+
+        /// <summary>
+        /// Anonymous, token-bearing share routes. The tightest budget, because these are the
+        /// surfaces an unauthenticated caller can probe for valid tokens or attachment hashes.
+        /// </summary>
+        public const int PublicPermitLimit = 60;
+
+        /// <summary>
+        /// Authenticated API surface, including uploads and downloads.
+        /// </summary>
+        public const int ApiPermitLimit = 120;
+
+        /// <summary>
+        /// Paths exempt from the global limiter: framework plumbing and static assets, which a
+        /// single page load requests many times over.
+        /// </summary>
+        public static readonly string[] ExemptPathPrefixes =
+        [
+            "/_blazor",
+            "/_framework",
+            "/_content",
+            "/css",
+            "/js",
+            "/lib",
+            "/images",
+            "/favicon.ico",
+            "/health",
+        ];
     }
 
     /// <summary>
@@ -478,6 +567,12 @@ public static class ApplicationConstants
         /// Days for log file retention.
         /// </summary>
         public const int LogFileRetentionDays = 30;
+
+        /// <summary>
+        /// Days a soft-deleted attachment stays restorable before it (and its storage
+        /// files) are permanently reclaimed by the purge job.
+        /// </summary>
+        public const int DeletedAttachmentRetentionDays = 30;
     }
 
     /// <summary>
